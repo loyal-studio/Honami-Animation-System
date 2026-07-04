@@ -23,7 +23,7 @@ namespace HonamiAnimationSystem.Editor.Windows
         private float _anomalyThreshold = 45f;
         private AnimationClip _targetClip;
 
-        [MenuItem("Window/Honami/Animation Clip Fixer")]
+        [MenuItem("Window/Honami/Tools/Honami Animation Clip Fixer")]
         public static void ShowWindow()
         {
             GetWindow<HonamiAnimationClipFixerWindow>("Honami Clip Fixer");

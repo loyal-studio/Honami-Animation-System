@@ -1,11 +1,13 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.UIElements;
 using HonamiAnimationSystem.Editor.Documentation;
 using HonamiAnimationSystem.Editor.Timeline;
 using HonamiAnimationSystem.Editor.Windows;
+using HonamiAnimationSystem.Runtime.Core;
 
 namespace HonamiAnimationSystem.Editor
 {
@@ -14,6 +16,9 @@ namespace HonamiAnimationSystem.Editor
         private const string SessionShownKey = "Honami.Welcome.ShownThisSession";
         private const string IntroPlayedKey = "Honami.Welcome.IntroPlayed";
         private const int Steps = 7;
+        private const double FirstRunSettleSeconds = 0.75;
+
+        private static double _idleSince = -1;
 
         private static readonly Vector2 WindowSize = new(880, 720);
         private static readonly Color CardBg = HonamiGraphStyles.BoxBg;
@@ -42,46 +47,40 @@ namespace HonamiAnimationSystem.Editor
         {
             if (Application.isBatchMode) return;
             if (SessionState.GetBool(SessionShownKey, false)) return;
-            if (EditorPrefs.GetBool(SeenKey, false)) return;
+            if (HasSeenWelcome()) return;
 
+            _idleSince = -1;
             EditorApplication.update -= ShowWhenEditorReady;
             EditorApplication.update += ShowWhenEditorReady;
         }
 
         private static void ShowWhenEditorReady()
         {
-            if (SessionState.GetBool(SessionShownKey, false) || EditorPrefs.GetBool(SeenKey, false))
+            if (SessionState.GetBool(SessionShownKey, false) || HasSeenWelcome())
             {
                 EditorApplication.update -= ShowWhenEditorReady;
                 return;
             }
 
-            if (EditorApplication.isCompiling) return;
-            if (EditorApplication.isUpdating) return;
-            if (EditorApplication.isPlayingOrWillChangePlaymode) return;
+            if (EditorApplication.isCompiling || EditorApplication.isUpdating || EditorApplication.isPlayingOrWillChangePlaymode)
+            {
+                _idleSince = -1;
+                return;
+            }
+
+            if (_idleSince < 0) _idleSince = EditorApplication.timeSinceStartup;
+            if (EditorApplication.timeSinceStartup - _idleSince < FirstRunSettleSeconds) return;
 
             EditorApplication.update -= ShowWhenEditorReady;
             SessionState.SetBool(SessionShownKey, true);
             ShowWindow();
         }
 
-        // Keyed per-project and per-version so the intro shows once for a fresh import and again after a version bump.
-        // string.GetHashCode() is randomized per process in modern .NET, so it cannot be used to build a persistent key.
-        private static string SeenKey =>
-            $"Honami.Welcome.Seen.{HonamiPackageInfo.Version}.{StableHash(Application.dataPath):X8}";
+        private static string SeenKey => $"Honami.Welcome.Seen.{HonamiPackageInfo.Version}";
 
-        private static uint StableHash(string value)
-        {
-            const uint offset = 2166136261u;
-            const uint prime = 16777619u;
-            uint hash = offset;
-            for (int i = 0; i < value.Length; i++)
-            {
-                hash ^= value[i];
-                hash *= prime;
-            }
-            return hash;
-        }
+        private static bool HasSeenWelcome() => !string.IsNullOrEmpty(EditorUserSettings.GetConfigValue(SeenKey));
+
+        private static void MarkWelcomeSeen() => EditorUserSettings.SetConfigValue(SeenKey, "1");
 
         private static void CenterOnEditor(EditorWindow window)
         {
@@ -94,9 +93,9 @@ namespace HonamiAnimationSystem.Editor
 
         private void OnEnable()
         {
-            EditorPrefs.SetBool(SeenKey, true);
             BuildShell();
             GoTo(0);
+            MarkSeenWhenPresented();
 
             if (SessionState.GetBool(IntroPlayedKey, false)) return;
 
@@ -104,13 +103,20 @@ namespace HonamiAnimationSystem.Editor
             EditorApplication.update += TryPlayIntro;
         }
 
+        private void MarkSeenWhenPresented()
+        {
+            rootVisualElement.schedule.Execute(() =>
+            {
+                if (this == null) return;
+                MarkWelcomeSeen();
+            }).StartingIn(400);
+        }
+
         private void OnDisable()
         {
             EditorApplication.update -= TryPlayIntro;
         }
 
-        // The intro is time-based; if it starts while the editor is frozen (compiling/importing) the
-        // scheduled timers elapse unseen. Defer it until the editor can actually render the animation.
         private void TryPlayIntro()
         {
             if (this == null)
@@ -371,8 +377,116 @@ namespace HonamiAnimationSystem.Editor
 
         private void OnNext()
         {
-            if (_step >= Steps - 1) Close();
+            if (_step >= Steps - 1) PlayOutroClip();
             else GoTo(_step + 1);
+        }
+
+        private void PlayOutroClip()
+        {
+            var root = rootVisualElement;
+
+            var overlay = new VisualElement();
+            overlay.style.position = Position.Absolute;
+            overlay.style.left = overlay.style.top = 0;
+            overlay.style.right = overlay.style.bottom = 0;
+            overlay.style.backgroundColor = new Color(0.115f, 0.12f, 0.13f, 0f);
+            overlay.style.alignItems = Align.Center;
+            overlay.style.justifyContent = Justify.Center;
+            overlay.style.transitionProperty = new List<StylePropertyName> { "background-color" };
+            overlay.style.transitionDuration = new List<TimeValue> { new(500, TimeUnit.Millisecond) };
+            overlay.style.transitionTimingFunction = new List<EasingFunction> { new(EasingMode.EaseInCubic) };
+            root.Add(overlay);
+
+            overlay.schedule.Execute(() =>
+            {
+                overlay.style.backgroundColor = new Color(0.115f, 0.12f, 0.13f, 1f);
+            }).StartingIn(16);
+
+            var logoWrap = new VisualElement();
+            logoWrap.style.alignItems = Align.Center;
+            logoWrap.style.justifyContent = Justify.Center;
+            logoWrap.style.width = logoWrap.style.height = 180;
+            logoWrap.style.opacity = 0f;
+
+            var ring1 = MakeRippleRing(180);
+            var ring2 = MakeRippleRing(120);
+            logoWrap.Add(ring1);
+            logoWrap.Add(ring2);
+
+            var logo = new Image { image = HonamiEditorIcons.GraphWhite };
+            logo.style.width = logo.style.height = 64;
+            logo.style.position = Position.Absolute;
+            logo.style.left = Length.Percent(50);
+            logo.style.top = Length.Percent(50);
+            logo.style.translate = new Translate(Length.Percent(-50), Length.Percent(-50), 0);
+            logo.tintColor = HonamiEditorTheme.Accent;
+            logoWrap.Add(logo);
+            overlay.Add(logoWrap);
+
+            var heading = new Label(Localized("Happy Animating!", "Щасливого анімування!"));
+            heading.style.fontSize = 32;
+            heading.style.unityFontStyleAndWeight = FontStyle.Bold;
+            heading.style.color = Color.white;
+            heading.style.letterSpacing = -0.5f;
+            heading.style.marginTop = 18;
+            heading.style.opacity = 0f;
+            overlay.Add(heading);
+
+            var wish = new Label(Localized(
+                "Good luck with your project — may every frame be smooth!",
+                "Удачі з вашим проєктом — нехай кожен кадр буде плавним!"));
+            wish.style.fontSize = 14;
+            wish.style.color = new Color(0.72f, 0.74f, 0.77f);
+            wish.style.whiteSpace = WhiteSpace.Normal;
+            wish.style.unityTextAlign = TextAnchor.MiddleCenter;
+            wish.style.maxWidth = 420;
+            wish.style.marginTop = 10;
+            wish.style.opacity = 0f;
+            overlay.Add(wish);
+
+            var line = new VisualElement();
+            line.style.height = 2;
+            line.style.width = 0;
+            line.style.backgroundColor = HonamiEditorTheme.Accent;
+            line.style.marginTop = 22;
+            overlay.Add(line);
+
+            var footnote = new Label(Localized(
+                "Window ▸ Honami ▸ Welcome to revisit anytime.",
+                "Window ▸ Honami ▸ Welcome — відкрити знову будь-коли."));
+            footnote.style.fontSize = 11;
+            footnote.style.color = new Color(0.5f, 0.52f, 0.55f);
+            footnote.style.marginTop = 16;
+            footnote.style.opacity = 0f;
+            overlay.Add(footnote);
+
+            long baseDelay = 550;
+
+            overlay.schedule.Execute(() =>
+            {
+                logoWrap.style.opacity = 1f;
+            }).StartingIn(baseDelay);
+
+            SpringPopIn(logo, baseDelay + 50);
+            PulseRing(ring1, baseDelay + 80);
+            PulseRing(ring2, baseDelay + 260);
+
+            FadeSlideIn(heading, baseDelay + 300);
+            FadeSlideIn(wish, baseDelay + 450);
+            FadeSlideIn(footnote, baseDelay + 700);
+
+            overlay.schedule.Execute(() =>
+            {
+                line.style.transitionProperty = new List<StylePropertyName> { "width" };
+                line.style.transitionDuration = new List<TimeValue> { new(600, TimeUnit.Millisecond) };
+                line.style.transitionTimingFunction = new List<EasingFunction> { new(EasingMode.EaseOutCubic) };
+                line.style.width = 80;
+            }).StartingIn(baseDelay + 550);
+
+            overlay.schedule.Execute(() =>
+            {
+                if (this != null) Close();
+            }).StartingIn(3500);
         }
 
         private void GoTo(int step)
@@ -687,7 +801,7 @@ namespace HonamiAnimationSystem.Editor
         {
             var scroll = BuildStepScroll(page,
                 Localized("QUICK SETUP", "ШВИДКИЙ СТАРТ"),
-                Localized("From zero to animating in four steps", "Від нуля до анімації за чотири кроки"),
+                Localized("From zero to animating in five steps", "Від нуля до анімації за п'ять кроків"),
                 Localized(
                     "Follow these steps to wire Honami into your project. Each step takes under a minute.",
                     "Виконайте ці кроки, щоб підключити Honami до проєкту. Кожен займає менше хвилини."));
@@ -695,11 +809,11 @@ namespace HonamiAnimationSystem.Editor
             scroll.Add(SetupStep("1",
                 Localized("Create a Controller asset", "Створіть Controller-ассет"),
                 Localized(
-                    "Right-click in the Project window → Create → Honami → Controller. This is your state machine definition.",
-                    "ПКМ у Project → Create → Honami → Controller. Це визначення вашої стейт-машини."),
+                    "Right-click in the Project window → Create → Honami → Controller. The template includes Idle and Walk states with a Speed parameter.",
+                    "ПКМ у Project → Create → Honami → Controller. Шаблон містить стейти Idle та Walk з параметром Speed."),
                 HonamiEditorIcons.Controller,
                 Localized("Create now", "Створити зараз"),
-                HonamiDocumentationBuilder.CreateController));
+                CreateControllerWithExampleGraph));
 
             scroll.Add(SetupStep("2",
                 Localized("Add HonamiAnimator to your character", "Додайте HonamiAnimator до персонажа"),
@@ -719,6 +833,15 @@ namespace HonamiAnimationSystem.Editor
                 HonamiGraphWindow.OpenWindow));
 
             scroll.Add(SetupStep("4",
+                Localized("Add a control script", "Додайте скрипт керування"),
+                Localized(
+                    "Create a MonoBehaviour that drives Honami parameters from code. The generated template animates the Speed parameter automatically so you can see transitions working.",
+                    "Створіть MonoBehaviour, що керує параметрами Honami з коду. Згенерований шаблон автоматично анімує параметр Speed, щоб ви побачили транзішни в дії."),
+                HonamiEditorIcons.Controller,
+                Localized("Create script", "Створити скрипт"),
+                CreateSampleScript));
+
+            scroll.Add(SetupStep("5",
                 Localized("Press Play", "Натисніть Play"),
                 Localized(
                     "Honami's zero-allocation runtime takes over. Watch parameters, weights and active states update live in the graph.",
@@ -996,7 +1119,142 @@ namespace HonamiAnimationSystem.Editor
             return step;
         }
 
+        private static void CreateControllerWithExampleGraph()
+        {
+            var folder = "Assets";
+            if (Selection.activeObject != null)
+            {
+                folder = AssetDatabase.GetAssetPath(Selection.activeObject);
+                if (!Directory.Exists(folder)) folder = Path.GetDirectoryName(folder);
+            }
 
+            var assetPath = AssetDatabase.GenerateUniqueAssetPath(folder + "/New Honami Controller.asset");
+            var controller = ScriptableObject.CreateInstance<HonamiController>();
+
+            controller.parameters = new List<HonamiParameter>
+            {
+                new HonamiParameter
+                {
+                    name = "Speed",
+                    type = HonamiParameterType.Float,
+                    defaultFloat = 0f
+                }
+            };
+
+            var idleNode = ScriptableObject.CreateInstance<HonamiAnimationNode>();
+            idleNode.name = "IdleAnimationNode";
+
+            var walkNode = ScriptableObject.CreateInstance<HonamiAnimationNode>();
+            walkNode.name = "WalkAnimationNode";
+
+            var idleState = ScriptableObject.CreateInstance<HonamiState>();
+            idleState.stateName = "Idle";
+            idleState.name = "Idle";
+            idleState.layerIndex = 0;
+            idleState.isDefaultState = true;
+            idleState.loop = true;
+            idleState.speed = 1f;
+            idleState.node = idleNode;
+            idleState.editorPosition = new Vector2(250, 120);
+
+            var walkState = ScriptableObject.CreateInstance<HonamiState>();
+            walkState.stateName = "Walk";
+            walkState.name = "Walk";
+            walkState.layerIndex = 0;
+            walkState.isDefaultState = false;
+            walkState.loop = true;
+            walkState.speed = 1f;
+            walkState.node = walkNode;
+            walkState.editorPosition = new Vector2(550, 120);
+
+            idleState.transitions = new List<HonamiTransition>
+            {
+                new HonamiTransition
+                {
+                    targetStateGuid = walkState.guid,
+                    duration = 0.2f,
+                    conditions = new List<HonamiCondition>
+                    {
+                        new HonamiCondition
+                        {
+                            parameter = "Speed",
+                            mode = HonamiConditionMode.Greater,
+                            threshold = 0.1f
+                        }
+                    }
+                }
+            };
+
+            walkState.transitions = new List<HonamiTransition>
+            {
+                new HonamiTransition
+                {
+                    targetStateGuid = idleState.guid,
+                    duration = 0.2f,
+                    conditions = new List<HonamiCondition>
+                    {
+                        new HonamiCondition
+                        {
+                            parameter = "Speed",
+                            mode = HonamiConditionMode.Less,
+                            threshold = 0.1f
+                        }
+                    }
+                }
+            };
+
+            controller.states = new List<HonamiState> { idleState, walkState };
+
+            AssetDatabase.CreateAsset(controller, assetPath);
+            AssetDatabase.AddObjectToAsset(idleNode, controller);
+            AssetDatabase.AddObjectToAsset(walkNode, controller);
+            AssetDatabase.AddObjectToAsset(idleState, controller);
+            AssetDatabase.AddObjectToAsset(walkState, controller);
+            AssetDatabase.SaveAssets();
+            EditorUtility.FocusProjectWindow();
+            Selection.activeObject = controller;
+        }
+
+        private static void CreateSampleScript()
+        {
+            var folder = "Assets";
+            if (Selection.activeObject != null)
+            {
+                folder = AssetDatabase.GetAssetPath(Selection.activeObject);
+                if (!Directory.Exists(folder)) folder = Path.GetDirectoryName(folder);
+            }
+
+            var scriptPath = AssetDatabase.GenerateUniqueAssetPath(folder + "/HonamiCharacterController.cs");
+
+            const string template =
+@"using UnityEngine;
+using HonamiAnimationSystem.Runtime.Core;
+
+[RequireComponent(typeof(HonamiAnimator))]
+public sealed class HonamiCharacterController : MonoBehaviour
+{
+    private HonamiAnimator _animator;
+
+    private static readonly int SpeedHash = HonamiAnimator.StringToHash(""Speed"");
+
+    private void Awake()
+    {
+        TryGetComponent(out _animator);
+    }
+
+    private void Update()
+    {
+        float speed = Mathf.PingPong(Time.time, 1f);
+        _animator.SetFloat(SpeedHash, speed);
+    }
+}
+";
+            File.WriteAllText(scriptPath, template);
+            AssetDatabase.ImportAsset(scriptPath);
+            var scriptAsset = AssetDatabase.LoadAssetAtPath<MonoScript>(scriptPath);
+            EditorUtility.FocusProjectWindow();
+            Selection.activeObject = scriptAsset;
+        }
 
         private static VisualElement Halo(float size, float alpha)
         {
