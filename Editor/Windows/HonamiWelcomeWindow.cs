@@ -42,20 +42,44 @@ namespace HonamiAnimationSystem.Editor
             if (SessionState.GetBool(SessionShownKey, false)) return;
             if (EditorPrefs.GetBool(SeenKey, false)) return;
 
-            SessionState.SetBool(SessionShownKey, true);
+            EditorApplication.update -= ShowWhenEditorReady;
+            EditorApplication.update += ShowWhenEditorReady;
+        }
 
-            EditorApplication.delayCall += () =>
+        private static void ShowWhenEditorReady()
+        {
+            if (SessionState.GetBool(SessionShownKey, false) || EditorPrefs.GetBool(SeenKey, false))
             {
-                if (EditorApplication.isCompiling) return;
-                if (EditorApplication.isPlayingOrWillChangePlaymode) return;
-                if (EditorPrefs.GetBool(SeenKey, false)) return;
-                ShowWindow();
-            };
+                EditorApplication.update -= ShowWhenEditorReady;
+                return;
+            }
+
+            if (EditorApplication.isCompiling) return;
+            if (EditorApplication.isUpdating) return;
+            if (EditorApplication.isPlayingOrWillChangePlaymode) return;
+
+            EditorApplication.update -= ShowWhenEditorReady;
+            SessionState.SetBool(SessionShownKey, true);
+            ShowWindow();
         }
 
         // Keyed per-project and per-version so the intro shows once for a fresh import and again after a version bump.
+        // string.GetHashCode() is randomized per process in modern .NET, so it cannot be used to build a persistent key.
         private static string SeenKey =>
-            $"Honami.Welcome.Seen.{HonamiPackageInfo.Version}.{Application.dataPath.GetHashCode():X8}";
+            $"Honami.Welcome.Seen.{HonamiPackageInfo.Version}.{StableHash(Application.dataPath):X8}";
+
+        private static uint StableHash(string value)
+        {
+            const uint offset = 2166136261u;
+            const uint prime = 16777619u;
+            uint hash = offset;
+            for (int i = 0; i < value.Length; i++)
+            {
+                hash ^= value[i];
+                hash *= prime;
+            }
+            return hash;
+        }
 
         private static void CenterOnEditor(EditorWindow window)
         {
