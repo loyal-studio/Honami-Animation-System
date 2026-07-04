@@ -1,6 +1,7 @@
 #if UNITY_EDITOR
 using System;
 using System.Collections.Generic;
+using HonamiAnimationSystem.Runtime.Common;
 using UnityEditor;
 using UnityEngine;
 using HonamiAnimationSystem.Runtime.Core;
@@ -303,7 +304,7 @@ namespace HonamiAnimationSystem.Editor.Preview
             int hash = 17;
             if (clips == null) return hash;
             for (int i = 0; i < clips.Count; i++)
-                hash = hash * 31 + (clips[i] != null ? clips[i].GetInstanceID() : 0);
+                hash = hash * 31 + (clips[i] != null ? HonamiObjectHash.Of(clips[i]) : 0);
             return hash;
         }
 

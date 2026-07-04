@@ -1,4 +1,5 @@
 #if UNITY_EDITOR
+using HonamiAnimationSystem.Runtime.Common;
 using UnityEditor;
 using UnityEngine;
 using HonamiAnimationSystem.Runtime.Core;
@@ -134,7 +135,7 @@ namespace HonamiAnimationSystem.Editor.BlendTree
             for (int i = 0; i < motions.Count; i++)
             {
                 var motion = motions[i];
-                hash = hash * 31 + (motion != null && motion.clip != null ? motion.clip.GetInstanceID() : 0);
+                hash = hash * 31 + (motion != null && motion.clip != null ? HonamiObjectHash.Of(motion.clip) : 0);
             }
             return hash;
         }

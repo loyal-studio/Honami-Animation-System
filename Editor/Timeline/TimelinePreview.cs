@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using HonamiAnimationSystem.Runtime.Common;
 using UnityEditor;
 using UnityEngine;
 using HonamiAnimationSystem.Runtime.Core;
@@ -445,7 +446,7 @@ namespace HonamiAnimationSystem.Editor.Timeline
         {
             if (root == null || clip == null) return root;
 
-            int key = root.GetInstanceID() ^ clip.GetInstanceID();
+            int key = HonamiObjectHash.Of(root) ^ HonamiObjectHash.Of(clip);
             if (s.ClipTargetCache.TryGetValue(key, out var cached))
                 return cached;
 

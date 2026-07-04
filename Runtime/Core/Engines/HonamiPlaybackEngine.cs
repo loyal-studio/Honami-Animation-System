@@ -2,6 +2,7 @@ using UnityEngine;
 using UnityEngine.Playables;
 using UnityEngine.Animations;
 using System.Collections.Generic;
+using HonamiAnimationSystem.Runtime.Common;
 using HonamiAnimationSystem.Runtime.Events;
 using Unity.Collections;
 
@@ -828,11 +829,11 @@ namespace HonamiAnimationSystem.Runtime.Core
             HonamiLinkedAnimator brain = anim._linkedBrain ?? anim.GetComponentInParent<HonamiLinkedAnimator>();
 
             int groupHash = brain != null
-                ? brain.GetInstanceID()
-                : anim.transform.root.GetInstanceID();
+                ? HonamiObjectHash.Of(brain)
+                : HonamiObjectHash.Of(anim.transform.root);
 
             int stateHash = state.linkedActionId != null
-                ? state.linkedActionId.GetInstanceID()
+                ? HonamiObjectHash.Of(state.linkedActionId)
                 : HonamiAnimator.StringToHash(!string.IsNullOrEmpty(state.stateName) ? state.stateName : randomNode.name);
 
             unchecked
