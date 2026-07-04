@@ -12,6 +12,7 @@ namespace HonamiAnimationSystem.Editor
     public sealed class HonamiWelcomeWindow : EditorWindow
     {
         private const string SessionShownKey = "Honami.Welcome.ShownThisSession";
+        private const string IntroPlayedKey = "Honami.Welcome.IntroPlayed";
         private const int Steps = 7;
 
         private static readonly Vector2 WindowSize = new(880, 720);
@@ -29,6 +30,7 @@ namespace HonamiAnimationSystem.Editor
         [MenuItem("Window/Honami/Welcome")]
         public static void ShowWindow()
         {
+            SessionState.SetBool(IntroPlayedKey, false);
             var w = GetWindow<HonamiWelcomeWindow>(true, "Welcome to Honami", true);
             w.titleContent = HonamiEditorIcons.IconContent("HonamiGraphWhite", "Welcome to Honami");
             w.minSize = w.maxSize = WindowSize;
@@ -95,6 +97,32 @@ namespace HonamiAnimationSystem.Editor
             EditorPrefs.SetBool(SeenKey, true);
             BuildShell();
             GoTo(0);
+
+            if (SessionState.GetBool(IntroPlayedKey, false)) return;
+
+            EditorApplication.update -= TryPlayIntro;
+            EditorApplication.update += TryPlayIntro;
+        }
+
+        private void OnDisable()
+        {
+            EditorApplication.update -= TryPlayIntro;
+        }
+
+        // The intro is time-based; if it starts while the editor is frozen (compiling/importing) the
+        // scheduled timers elapse unseen. Defer it until the editor can actually render the animation.
+        private void TryPlayIntro()
+        {
+            if (this == null)
+            {
+                EditorApplication.update -= TryPlayIntro;
+                return;
+            }
+
+            if (EditorApplication.isCompiling) return;
+            if (EditorApplication.isUpdating) return;
+
+            EditorApplication.update -= TryPlayIntro;
             PlayIntroClip();
         }
 
@@ -256,7 +284,11 @@ namespace HonamiAnimationSystem.Editor
                 overlay.style.scale = new Scale(new Vector3(1.055f, 1.055f, 1f));
             }).StartingIn(16);
 
-            overlay.schedule.Execute(() => overlay.RemoveFromHierarchy()).StartingIn(530);
+            overlay.schedule.Execute(() =>
+            {
+                overlay.RemoveFromHierarchy();
+                SessionState.SetBool(IntroPlayedKey, true);
+            }).StartingIn(530);
         }
 
         private VisualElement BuildTopBar()
