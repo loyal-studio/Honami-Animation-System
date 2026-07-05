@@ -22,8 +22,12 @@ namespace HonamiAnimationSystem.Editor.Timeline
             public HonamiTimelineTrack Track;
 
             public bool IsGroup;
+            public bool IsBoneGroup;
+            public bool IsSummaryRow;
+            public string BonePath;
             public string GroupId;
             public bool IsExpanded;
+            public int Depth;
             public int BindingStart;
             public int BindingCount;
         }
@@ -52,7 +56,7 @@ namespace HonamiAnimationSystem.Editor.Timeline
             _curveCache.Clear();
             _curveCache.Clip = _state.ActiveClip;
             _curveCache.Bindings = AnimationUtility.GetCurveBindings(_state.ActiveClip);
-            int count = Mathf.Min(_curveCache.Bindings.Length, 12);
+            int count = _curveCache.Bindings.Length;
             _curveCache.Curves = new AnimationCurve[count];
             for (int i = 0; i < count; i++)
                 _curveCache.Curves[i] = AnimationUtility.GetEditorCurve(_state.ActiveClip, _curveCache.Bindings[i]);
@@ -110,84 +114,169 @@ namespace HonamiAnimationSystem.Editor.Timeline
             EnsureCurveCache();
 
             var bindings = _curveCache.Bindings;
-            int bindIdx = 0;
-            while (bindIdx < bindings.Length)
-            {
-                var b = bindings[bindIdx];
-                string pathName = string.IsNullOrEmpty(b.path) ? "root" : System.IO.Path.GetFileName(b.path);
-                string prop = b.propertyName;
+            string filter = _state.ClipEditFilter;
+            bool hasFilter = !string.IsNullOrEmpty(filter);
 
-                if (prop.StartsWith("m_LocalPosition") || prop.StartsWith("m_LocalRotation") || prop.StartsWith("m_LocalScale"))
+            if (!hasFilter && bindings.Length > 0)
+            {
+                _cachedRows.Add(new RowData
+                {
+                    Index = 0,
+                    Title = "Summary",
+                    Color = TimelineTheme.KeyframeFill,
+                    IsSummaryRow = true,
+                    BindingStart = 0,
+                    BindingCount = bindings.Length
+                });
+            }
+
+            int boneStart = 0;
+            while (boneStart < bindings.Length)
+            {
+                string path = bindings[boneStart].path;
+                int boneEnd = boneStart;
+                while (boneEnd < bindings.Length && bindings[boneEnd].path == path) boneEnd++;
+                int boneCount = boneEnd - boneStart;
+
+                string boneName = string.IsNullOrEmpty(path) ? "root" : System.IO.Path.GetFileName(path);
+                bool boneNameMatches = !hasFilter || boneName.IndexOf(filter, System.StringComparison.OrdinalIgnoreCase) >= 0;
+
+                bool boneVisible = boneNameMatches;
+                if (hasFilter && !boneVisible)
+                {
+                    for (int j = boneStart; j < boneEnd && !boneVisible; j++)
+                        if (bindings[j].propertyName.IndexOf(filter, System.StringComparison.OrdinalIgnoreCase) >= 0)
+                            boneVisible = true;
+                }
+
+                if (!boneVisible)
+                {
+                    boneStart = boneEnd;
+                    continue;
+                }
+
+                bool boneExpanded = hasFilter || _state.ExpandedClipBones.Contains(path);
+
+                _cachedRows.Add(new RowData
+                {
+                    Index = _cachedRows.Count,
+                    Title = boneName,
+                    IconName = "Transform Icon",
+                    Color = TimelineTheme.BoneGroup,
+                    IsGroup = true,
+                    IsBoneGroup = true,
+                    BonePath = path,
+                    GroupId = "bone:" + path,
+                    IsExpanded = boneExpanded,
+                    Depth = 0,
+                    BindingStart = boneStart,
+                    BindingCount = boneCount
+                });
+
+                if (boneExpanded)
+                    CollectBoneProperties(bindings, boneStart, boneEnd, boneNameMatches, filter, hasFilter);
+
+                boneStart = boneEnd;
+            }
+        }
+
+        private void CollectBoneProperties(EditorCurveBinding[] bindings, int boneStart, int boneEnd, bool boneNameMatches, string filter, bool hasFilter)
+        {
+            int j = boneStart;
+            while (j < boneEnd)
+            {
+                var b = bindings[j];
+                string prop = b.propertyName;
+                bool isVector = prop.StartsWith("m_LocalPosition") || prop.StartsWith("m_LocalRotation") || prop.StartsWith("m_LocalScale");
+
+                if (isVector)
                 {
                     string baseProp = prop.Substring(0, prop.LastIndexOf('.'));
-                    string groupId = b.path + ":" + baseProp;
-
                     int count = 1;
-                    for (int j = bindIdx + 1; j < bindings.Length; j++)
+                    for (int k = j + 1; k < boneEnd; k++)
                     {
-                        if (bindings[j].path == b.path && bindings[j].propertyName.StartsWith(baseProp)) count++;
+                        if (bindings[k].propertyName.StartsWith(baseProp)) count++;
                         else break;
                     }
 
+                    bool propMatches = boneNameMatches || !hasFilter ||
+                                       baseProp.IndexOf(filter, System.StringComparison.OrdinalIgnoreCase) >= 0;
+                    if (!propMatches) { j += count; continue; }
+
                     string propDisplay = baseProp == "m_LocalPosition" ? "Position" :
                                          baseProp == "m_LocalRotation" ? "Rotation" : "Scale";
-
+                    string groupId = b.path + ":" + baseProp;
                     bool isExpanded = _state.ExpandedClipGroups.Contains(groupId);
 
                     _cachedRows.Add(new RowData
                     {
                         Index = _cachedRows.Count,
-                        Title = $"{pathName}  ▸  {propDisplay}",
-                        IconName = "Transform Icon",
-                        Color = new Color(0.8f, 0.8f, 0.8f, 0.8f),
+                        Title = propDisplay,
+                        Color = PropertyColor(baseProp),
                         IsGroup = true,
                         GroupId = groupId,
                         IsExpanded = isExpanded,
-                        BindingStart = bindIdx,
+                        Depth = 1,
+                        BindingStart = j,
                         BindingCount = count
                     });
 
                     if (isExpanded)
                     {
-                        for (int j = 0; j < count; j++)
+                        for (int k = 0; k < count; k++)
                         {
-                            var subBinding = bindings[bindIdx + j];
-                            string axis = subBinding.propertyName.Substring(subBinding.propertyName.LastIndexOf('.') + 1).ToUpper();
-                            Color trackColor = axis == "X" ? new Color(0.9f, 0.3f, 0.3f) :
-                                               axis == "Y" ? new Color(0.3f, 0.9f, 0.3f) :
-                                               axis == "Z" ? new Color(0.3f, 0.5f, 1f) : new Color(0.7f, 0.7f, 0.7f);
+                            var sub = bindings[j + k];
+                            string axis = sub.propertyName.Substring(sub.propertyName.LastIndexOf('.') + 1).ToUpperInvariant();
                             _cachedRows.Add(new RowData
                             {
                                 Index = _cachedRows.Count,
-                                Title = $"      {axis}",
-                                IconName = "",
-                                Color = trackColor,
-                                BindingStart = bindIdx + j,
+                                Title = axis,
+                                Color = AxisColor(axis),
+                                Depth = 2,
+                                BindingStart = j + k,
                                 BindingCount = 1
                             });
                         }
                     }
-                    bindIdx += count;
+                    j += count;
                 }
                 else
                 {
-                    bool isBlendShape = prop.StartsWith("blendShape.");
-                    Color color = isBlendShape ? new Color(0.8f, 0.4f, 0.8f) : new Color(0.35f, 0.65f, 0.95f, 0.8f);
-                    if (isBlendShape) prop = prop.Substring("blendShape.".Length);
+                    bool propMatches = boneNameMatches || !hasFilter ||
+                                       prop.IndexOf(filter, System.StringComparison.OrdinalIgnoreCase) >= 0;
+                    if (!propMatches) { j++; continue; }
 
+                    bool isBlendShape = prop.StartsWith("blendShape.");
+                    string display = isBlendShape ? prop.Substring("blendShape.".Length) : prop;
                     _cachedRows.Add(new RowData
                     {
                         Index = _cachedRows.Count,
-                        Title = $"{pathName}  ▸  {prop}",
-                        IconName = "AnimationClip Icon",
-                        Color = color,
-                        BindingStart = bindIdx,
+                        Title = display,
+                        Color = isBlendShape ? new Color(0.82f, 0.45f, 0.82f) : new Color(0.4f, 0.68f, 0.95f),
+                        Depth = 1,
+                        BindingStart = j,
                         BindingCount = 1
                     });
-                    bindIdx++;
+                    j++;
                 }
             }
         }
+
+        private static Color PropertyColor(string baseProp) => baseProp switch
+        {
+            "m_LocalPosition" => new Color(0.55f, 0.78f, 0.55f),
+            "m_LocalRotation" => new Color(0.55f, 0.66f, 0.85f),
+            "m_LocalScale" => new Color(0.85f, 0.72f, 0.5f),
+            _ => new Color(0.72f, 0.72f, 0.76f)
+        };
+
+        private static Color AxisColor(string axis) => axis switch
+        {
+            "X" => new Color(0.90f, 0.35f, 0.38f),
+            "Y" => new Color(0.45f, 0.82f, 0.42f),
+            "Z" => new Color(0.36f, 0.55f, 0.95f),
+            _ => new Color(0.78f, 0.72f, 0.40f)
+        };
 
         private void CollectStateRows()
         {

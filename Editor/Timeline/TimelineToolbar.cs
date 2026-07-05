@@ -253,6 +253,32 @@ namespace HonamiAnimationSystem.Editor.Timeline
                     _rebuild();
                 });
                 root.Add(contextField);
+
+                var search = new ToolbarSearchField { value = _state.ClipEditFilter };
+                search.style.minWidth = 120;
+                search.style.maxWidth = 240;
+                search.style.flexGrow = 1;
+                search.style.alignSelf = Align.Center;
+                search.RegisterValueChangedCallback(evt =>
+                {
+                    _state.ClipEditFilter = evt.newValue ?? string.Empty;
+                    _rebuild();
+                });
+                root.Add(search);
+
+                root.Add(HonamiToolbarControls.ToolbarButton("Expand", () =>
+                {
+                    if (_state.ActiveClip == null) return;
+                    foreach (var b in AnimationUtility.GetCurveBindings(_state.ActiveClip))
+                        _state.ExpandedClipBones.Add(b.path);
+                    _rebuild();
+                }));
+                root.Add(HonamiToolbarControls.ToolbarButton("Collapse", () =>
+                {
+                    _state.ExpandedClipBones.Clear();
+                    _state.ExpandedClipGroups.Clear();
+                    _rebuild();
+                }));
             }
             return root;
         }

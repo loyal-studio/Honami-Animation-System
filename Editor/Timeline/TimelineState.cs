@@ -8,6 +8,29 @@ namespace HonamiAnimationSystem.Editor.Timeline
 {
     public enum TimelineMode { HonamiState, HonamiTimeline, HonamiClipEdit }
 
+    public readonly struct KeyframeRef : System.IEquatable<KeyframeRef>
+    {
+        public readonly int Binding;
+        public readonly float Time;
+
+        public KeyframeRef(int binding, float time)
+        {
+            Binding = binding;
+            Time = time;
+        }
+
+        public bool Equals(KeyframeRef other) => Binding == other.Binding && Time.Equals(other.Time);
+        public override bool Equals(object obj) => obj is KeyframeRef other && Equals(other);
+        public override int GetHashCode() => (Binding * 397) ^ Time.GetHashCode();
+    }
+
+    public struct KeyframeClipboardEntry
+    {
+        public int Binding;
+        public float RelTime;
+        public Keyframe Key;
+    }
+
     public sealed class TimelineState
     {
         public TimelineMode Mode = TimelineMode.HonamiState;
@@ -88,6 +111,14 @@ namespace HonamiAnimationSystem.Editor.Timeline
         public Dictionary<GameObject, Animator> AnimatorCache = new();
         public Dictionary<int, GameObject> ClipTargetCache = new();
         public HashSet<string> ExpandedClipGroups = new();
+        public HashSet<string> ExpandedClipBones = new();
+        public HashSet<string> MutedChannels = new();
+        public HashSet<string> LockedChannels = new();
+        public string ClipEditFilter = string.Empty;
+
+        public List<KeyframeRef> SelectedKeyframes = new();
+        public Dictionary<KeyframeRef, Rect> KeyframeRects = new();
+        public List<KeyframeClipboardEntry> CopiedKeyframes = new();
 
         public struct MaskCacheData
         {
@@ -124,7 +155,17 @@ namespace HonamiAnimationSystem.Editor.Timeline
             SelectedTimelineClips.Clear();
             SelectedTimelineEvents.Clear();
             SelectedMarkers.Clear();
+            SelectedKeyframes.Clear();
             SelectedTimelineTrack = null;
+        }
+
+        public void ClearSelectionExceptKeyframes()
+        {
+            SelectedEvents.Clear();
+            SelectedSeqClips.Clear();
+            SelectedTimelineClips.Clear();
+            SelectedTimelineEvents.Clear();
+            SelectedMarkers.Clear();
         }
 
         public void ClearCache()

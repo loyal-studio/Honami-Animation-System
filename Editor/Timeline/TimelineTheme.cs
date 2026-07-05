@@ -23,6 +23,8 @@ namespace HonamiAnimationSystem.Editor.Timeline
         public static readonly Color ToolbarButtonPressed = HonamiEditorTheme.ToolbarButtonPressed;
         public static readonly Color RulerBg = new(0.105f, 0.112f, 0.124f);
         public static readonly Color HeaderBg = new(0.095f, 0.102f, 0.112f);
+        public static readonly Color BoneGroupHeaderBg = new(0.13f, 0.138f, 0.15f);
+        public static readonly Color SummaryHeaderBg = new(0.17f, 0.15f, 0.165f);
         public static readonly Color HeaderSelected = new(0.16f, 0.135f, 0.155f);
         public static readonly Color TrackBgA = new(0.106f, 0.114f, 0.12f);
         public static readonly Color TrackBgB = new(0.092f, 0.098f, 0.106f);
@@ -38,6 +40,10 @@ namespace HonamiAnimationSystem.Editor.Timeline
         public static readonly Color SequencerTrack = new(0.35f, 0.62f, 0.38f, 0.96f);
         public static readonly Color PreviewTrack = new(1f, 0.278f, 0.522f, 1f);
         public static readonly Color Selected = new(1f, 0.278f, 0.522f, 1f);
+        public static readonly Color BoneGroup = new(0.62f, 0.64f, 0.70f, 0.95f);
+        public static readonly Color KeyframeFill = new(0.82f, 0.85f, 0.90f);
+        public static readonly Color KeyframeSelected = new(1f, 0.75f, 0.30f);
+        public static readonly Color CurrentFrameBand = new(1f, 0.278f, 0.522f, 0.07f);
         public static readonly Color Text = HonamiEditorTheme.Text;
         public static readonly Color MutedText = HonamiEditorTheme.MutedText;
 

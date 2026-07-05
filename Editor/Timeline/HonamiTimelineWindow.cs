@@ -239,6 +239,8 @@ namespace HonamiAnimationSystem.Editor.Timeline
                 }
             }
 
+            bool activeWasPlaying = Active.IsPlaying && !Active.IsDraggingPlayhead;
+
             for (int i = 0; i < _tabs.Count; i++)
                 TickState(_tabs[i]);
 
@@ -250,7 +252,11 @@ namespace HonamiAnimationSystem.Editor.Timeline
             }
             TimelinePreview.SampleMany(_sampleBuffer);
 
-            if (anyPlaying)
+            if (!anyPlaying) return;
+
+            if (activeWasPlaying && Active.IsPlaying)
+                _panel?.TickRefresh();
+            else
                 RequestRefreshViews();
         }
 

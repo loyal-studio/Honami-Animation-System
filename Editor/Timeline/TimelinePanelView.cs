@@ -57,7 +57,7 @@ namespace HonamiAnimationSystem.Editor.Timeline
             RegisterCallback<AttachToPanelEvent>(OnAttach);
             RegisterCallback<DetachFromPanelEvent>(OnDetach);
             RegisterCallback<GeometryChangedEvent>(OnGeometryChanged);
-            RegisterCallback<WheelEvent>(OnWheel);
+            RegisterCallback<WheelEvent>(OnWheel, TrickleDown.TrickleDown);
             RegisterCallback<DragUpdatedEvent>(OnDragUpdated);
             RegisterCallback<DragPerformEvent>(OnDragPerform);
 
@@ -191,8 +191,11 @@ namespace HonamiAnimationSystem.Editor.Timeline
                 if (evt.button == 1)
                 {
                     _focus();
-                    float time = Mathf.Clamp(TimeAtCanvasX(canvas.WorldToLocal(evt.position).x), 0f, _state.GetDuration());
-                    ShowAddMenu(time);
+                    var local = canvas.WorldToLocal(evt.position);
+                    if (_state.Mode == TimelineMode.HonamiClipEdit)
+                        ShowClipEditContextMenu(local.y);
+                    else
+                        ShowAddMenu(Mathf.Clamp(TimeAtCanvasX(local.x), 0f, _state.GetDuration()));
                     evt.StopPropagation();
                     return;
                 }
@@ -232,6 +235,7 @@ namespace HonamiAnimationSystem.Editor.Timeline
             foreach (var r in _state.TimelineClipRects.Values) if (r.Contains(pos)) return true;
             foreach (var r in _state.TimelineEventRects.Values) if (r.Contains(pos)) return true;
             foreach (var r in _state.SeqClipRects.Values) if (r.Contains(pos)) return true;
+            foreach (var r in _state.KeyframeRects.Values) if (r.Contains(pos)) return true;
             return false;
         }
 
@@ -246,6 +250,7 @@ namespace HonamiAnimationSystem.Editor.Timeline
                 _state.SelectedTimelineClips.Clear();
                 _state.SelectedTimelineEvents.Clear();
                 _state.SelectedSeqClips.Clear();
+                _state.SelectedKeyframes.Clear();
             }
 
             foreach (var kv in _state.EventRects)
@@ -259,6 +264,9 @@ namespace HonamiAnimationSystem.Editor.Timeline
 
             foreach (var kv in _state.SeqClipRects)
                 if (box.Overlaps(kv.Value) && !_state.SelectedSeqClips.Contains(kv.Key)) _state.SelectedSeqClips.Add(kv.Key);
+
+            foreach (var kv in _state.KeyframeRects)
+                if (box.Overlaps(kv.Value) && !_state.SelectedKeyframes.Contains(kv.Key)) _state.SelectedKeyframes.Add(kv.Key);
         }
 
         private void OnKeyDown(KeyDownEvent evt)
@@ -343,6 +351,12 @@ namespace HonamiAnimationSystem.Editor.Timeline
                 changed = true;
             }
 
+            if (_state.Mode == TimelineMode.HonamiClipEdit && _state.SelectedKeyframes.Count > 0)
+            {
+                DeleteSelectedKeyframes();
+                changed = true;
+            }
+
             if (changed)
             {
                 evt.StopPropagation();
@@ -360,10 +374,19 @@ namespace HonamiAnimationSystem.Editor.Timeline
 
             _state.CopiedTimelineEvents.Clear();
             _state.CopiedTimelineEvents.AddRange(_state.SelectedTimelineEvents);
+
+            if (_state.Mode == TimelineMode.HonamiClipEdit)
+                CopySelectedKeyframes();
         }
 
         private void PasteSelection()
         {
+            if (_state.Mode == TimelineMode.HonamiClipEdit)
+            {
+                PasteKeyframes();
+                return;
+            }
+
             if (_state.Mode == TimelineMode.HonamiState && _state.SelectedState != null)
             {
                 var eventsToPaste = new List<HonamiEventMarker>();

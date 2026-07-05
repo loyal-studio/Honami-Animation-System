@@ -36,6 +36,8 @@ namespace HonamiAnimationSystem.Editor.Timeline
             headerSpacer.style.width = new StyleLength(new Length(100, LengthUnit.Percent));
             IgnorePicking(headerSpacer);
             _headers.Add(headerSpacer);
+
+            DrawCurrentFrameBand(height);
         }
 
         private void ShowAddMenu(float time)
@@ -163,25 +165,49 @@ namespace HonamiAnimationSystem.Editor.Timeline
             for (int i = 0; i < rows.Count; i++)
             {
                 var row = rows[i];
-                var header = RectElement(0, y, _state.TrackHeaderWidth, TimelineTheme.RowHeight, row.IsSelected ? TimelineTheme.HeaderSelected : TimelineTheme.HeaderBg);
+                Color headerBg = row.IsSelected ? TimelineTheme.HeaderSelected
+                    : row.IsBoneGroup ? TimelineTheme.BoneGroupHeaderBg
+                    : TimelineTheme.HeaderBg;
+                var header = RectElement(0, y, _state.TrackHeaderWidth, TimelineTheme.RowHeight, headerBg);
                 RegisterRowHeaderEvents(header, row);
                 _headers.Add(header);
+
+                if (_state.Mode == TimelineMode.HonamiClipEdit)
+                {
+                    FillClipChannelHeader(header, row);
+                    y += TimelineTheme.RowHeight;
+                    continue;
+                }
+
                 header.Add(ColorBar(row.Color));
+
+                float labelLeft = 12f + row.Depth * 15f;
 
                 if (row.IsGroup)
                 {
                     var foldout = new Label(row.IsExpanded ? "▼" : "▶")
                     {
-                        style = { position = Position.Absolute, left = 6, top = 10, fontSize = 10, color = TimelineTheme.MutedText, unityFontStyleAndWeight = FontStyle.Bold }
+                        pickingMode = PickingMode.Ignore,
+                        style = { position = Position.Absolute, left = labelLeft, top = 12, fontSize = 9, color = TimelineTheme.MutedText, unityFontStyleAndWeight = FontStyle.Bold }
                     };
                     header.Add(foldout);
                     header.RegisterCallback<PointerEnterEvent>(_ => foldout.style.color = Color.white);
                     header.RegisterCallback<PointerLeaveEvent>(_ => foldout.style.color = TimelineTheme.MutedText);
+                    labelLeft += 15f;
                 }
 
                 if (!string.IsNullOrEmpty(row.IconName))
-                    header.Add(RowIcon(row.IconName));
-                header.Add(RowLabel(row.Title));
+                {
+                    var icon = RowIcon(row.IconName);
+                    icon.style.left = labelLeft;
+                    header.Add(icon);
+                    labelLeft += 20f;
+                }
+
+                var label = RowLabel(row.Title);
+                label.style.left = labelLeft;
+                if (row.IsBoneGroup) label.style.unityFontStyleAndWeight = FontStyle.Bold;
+                header.Add(label);
                 if (row.Track != null)
                     header.Add(MuteButton(row.Track));
                 y += TimelineTheme.RowHeight;
@@ -205,8 +231,16 @@ namespace HonamiAnimationSystem.Editor.Timeline
 
                 if (row.IsGroup)
                 {
-                    if (row.IsExpanded) _state.ExpandedClipGroups.Remove(row.GroupId);
-                    else _state.ExpandedClipGroups.Add(row.GroupId);
+                    if (row.IsBoneGroup)
+                    {
+                        if (_state.ExpandedClipBones.Contains(row.BonePath)) _state.ExpandedClipBones.Remove(row.BonePath);
+                        else _state.ExpandedClipBones.Add(row.BonePath);
+                    }
+                    else
+                    {
+                        if (row.IsExpanded) _state.ExpandedClipGroups.Remove(row.GroupId);
+                        else _state.ExpandedClipGroups.Add(row.GroupId);
+                    }
                     _rebuild();
                     evt.StopPropagation();
                     return;
@@ -298,6 +332,7 @@ namespace HonamiAnimationSystem.Editor.Timeline
             _state.TimelineClipRects.Clear();
             _state.TimelineEventRects.Clear();
             _state.SeqClipRects.Clear();
+            _state.KeyframeRects.Clear();
 
             float y = TimelineTheme.RulerHeight;
 
@@ -347,47 +382,6 @@ namespace HonamiAnimationSystem.Editor.Timeline
             {
                 AddStateEvents(HonamiEventType.Global, y);
             }
-        }
-
-        private void DrawClipEditContent(float y)
-        {
-            if (_state.ActiveClip == null) return;
-
-            EnsureCurveCache();
-
-            var bindings = _curveCache.Bindings;
-            var rows = GetRows();
-            for (int i = 0; i < rows.Count; i++)
-            {
-                var row = rows[i];
-                for (int j = row.BindingStart; j < row.BindingStart + row.BindingCount; j++)
-                {
-                    if (j >= bindings.Length) break;
-                    var binding = bindings[j];
-                    var curve = j < _curveCache.Curves.Length ? _curveCache.Curves[j] : AnimationUtility.GetEditorCurve(_state.ActiveClip, binding);
-                    if (curve == null) continue;
-
-                    var keys = curve.keys;
-                    for (int k = 0; k < keys.Length; k++)
-                        AddKeyframeMarker(binding, keys[k], y, row.Color);
-                }
-                y += TimelineTheme.RowHeight;
-            }
-        }
-
-        private void AddKeyframeMarker(EditorCurveBinding binding, Keyframe key, float y, Color color)
-        {
-            const float size = 8f;
-            float yOffset = (TimelineTheme.RowHeight - size) * 0.5f;
-            var marker = RectElement(key.time * _state.TimeScale - size * 0.5f, y + yOffset, size, size, TimelineTheme.PanelBg);
-            marker.style.rotate = new Rotate(45);
-            marker.style.borderTopWidth = marker.style.borderRightWidth = marker.style.borderBottomWidth = marker.style.borderLeftWidth = 2;
-            marker.style.borderTopColor = marker.style.borderRightColor = marker.style.borderBottomColor = marker.style.borderLeftColor = color;
-            marker.style.borderTopLeftRadius = marker.style.borderTopRightRadius = marker.style.borderBottomLeftRadius = marker.style.borderBottomRightRadius = 1;
-            marker.tooltip = $"{binding.propertyName}: {key.value:F3} at {key.time:F3}s";
-            marker.RegisterCallback<PointerEnterEvent>(_ => { marker.style.backgroundColor = color; marker.style.scale = new Scale(new Vector2(1.2f, 1.2f)); });
-            marker.RegisterCallback<PointerLeaveEvent>(_ => { marker.style.backgroundColor = TimelineTheme.PanelBg; marker.style.scale = new Scale(Vector2.one); });
-            _canvas.Add(marker);
         }
 
         private void AddStateEvents(HonamiEventType type, float y)
@@ -798,6 +792,7 @@ namespace HonamiAnimationSystem.Editor.Timeline
             float x = _state.PlayheadTime * _state.TimeScale;
             if (_playheadLine != null) _playheadLine.style.left = x - 1;
             if (_playheadHead != null) _playheadHead.style.left = x - 6;
+            UpdateCurrentFrameBand();
             UpdateSnapLineVisual();
         }
 

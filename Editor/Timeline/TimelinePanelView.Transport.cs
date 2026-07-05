@@ -228,6 +228,14 @@ namespace HonamiAnimationSystem.Editor.Timeline
             return root;
         }
 
+        public void TickRefresh()
+        {
+            if (_scroll == null) return;
+            _scroll.scrollOffset = _state.ScrollPos;
+            UpdatePlayheadVisual();
+            RefreshTimeLabel();
+        }
+
         public void RefreshTransport()
         {
             if (_bottomBar == null) return;
