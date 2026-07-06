@@ -1,7 +1,7 @@
 using UnityEditor;
 using UnityEngine;
 using HonamiAnimationSystem.Runtime.Core;
-using System.Collections.Generic;
+using HonamiAnimationSystem.Runtime.Riggings;
 
 namespace HonamiAnimationSystem.Editor.Inspectors
 {

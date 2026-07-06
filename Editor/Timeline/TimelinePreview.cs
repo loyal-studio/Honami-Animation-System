@@ -5,6 +5,7 @@ using UnityEditor;
 using UnityEngine;
 using HonamiAnimationSystem.Runtime.Core;
 using HonamiAnimationSystem.Runtime.Timeline;
+using HonamiAnimationSystem.Runtime.Riggings;
 
 namespace HonamiAnimationSystem.Editor.Timeline
 {

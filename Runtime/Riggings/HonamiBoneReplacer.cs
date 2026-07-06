@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using UnityEngine;
 
-namespace HonamiAnimationSystem.Runtime.Core
+namespace HonamiAnimationSystem.Runtime.Riggings
 {
     [AddComponentMenu("Honami Animation/Honami Bone Replacer")]
     public sealed class HonamiBoneReplacer : MonoBehaviour
