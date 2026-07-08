@@ -94,6 +94,11 @@ namespace HonamiAnimationSystem.Editor.Documentation.Pages
                 "Коротко: Humanoid НЕ гнучкий — він обмежує. Honami + Generic — це єдиний шлях до справжньої свободи дизайну персонажів, від людей до монстрів, без компромісів у продуктивності."
             ));
 
+            HonamiDocumentationBuilder.AddTip(root, HonamiDocLocalization.Get(
+                "Humanoid still has one great use: as an IMPORT format. When you buy Humanoid animation packs (Asset Store, Mixamo), the Humanoid Baker tool (Window ▸ Honami ▸ Tools) retargets them onto your skeleton once in the editor and bakes them to Generic clips. You get the marketplace content without carrying the runtime retargeting tax.",
+                "У Humanoid лишається одне чудове застосування: як ФОРМАТ ІМПОРТУ. Коли ви купуєте Humanoid-паки анімацій (Asset Store, Mixamo), тулза Humanoid Baker (Window ▸ Honami ▸ Tools) один раз ретаргетить їх на ваш скелет у редакторі та бейкає в Generic-кліпи. Ви отримуєте контент з маркетплейсу без вічної рантайм-плати за ретаргетинг."
+            ));
+
             // --- Section 4: Technical Standards ---
             HonamiDocumentationBuilder.AddHeader(root, HonamiDocLocalization.Get("4. Technical Standards", "4. Технічні стандарти"), HonamiEditorIcons.Controller);
             HonamiDocumentationBuilder.AddBulletPoint(root, HonamiDocLocalization.Get(

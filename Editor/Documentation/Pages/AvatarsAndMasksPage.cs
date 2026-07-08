@@ -31,9 +31,14 @@ namespace HonamiAnimationSystem.Editor.Documentation.Pages
                 ("", 0),
                 (HonamiDocLocalization.Get("Configure a valid Humanoid Avatar before advanced blending feels usable.", "Налаштувати valid Humanoid Avatar, перш ніж advanced blending стане зручним."), HonamiDocLocalization.Get("List the bones you care about by path. No muscle mapping required.", "Вкажіть потрібні кістки за path. Muscle mapping не потрібен."), ""),
                 (HonamiDocLocalization.Get("Avatar Masks are built around humanoid body sections and imported clips.", "Avatar Masks побудовані навколо humanoid body sections та imported clips."), HonamiDocLocalization.Get("Honami masks are weighted per bone path and work on any hierarchy.", "Honami masks мають вагу на bone path і працюють на будь-якій hierarchy."), ""),
-                (HonamiDocLocalization.Get("Retargeting can distort non-human movement.", "Retargeting може ламати non-human movement."), HonamiDocLocalization.Get("Animation stays authored for the actual creature skeleton.", "Анімація лишається authored для реального creature skeleton."), ""),
+                (HonamiDocLocalization.Get("Retargeting can distort non-human movement.", "Retargeting може ламати non-human movement."), HonamiDocLocalization.Get("Animation stays authored for the actual creature skeleton.", "Анімація лишається створеною під реальний скелет істоти."), ""),
                 (HonamiDocLocalization.Get("Mirroring usually means extra clips or fragile setup.", "Mirroring часто означає extra clips або крихке налаштування."), HonamiDocLocalization.Get("Mirror pairs live in HonamiAvatar and can be driven globally or per rule.", "Mirror pairs живуть у HonamiAvatar і можуть керуватися глобально або через rule."), "")
             );
+
+            HonamiDocumentationBuilder.AddCallout(root, HonamiDocLocalization.Get(
+                "Avoiding the Humanoid tax does not mean losing Humanoid content. Marketplace Humanoid clips can be retargeted onto your skeleton and baked to Generic with the Humanoid Baker tool (see the Editor & Workflow section) — the baked clips then work with Honami avatars, masks and mirroring like any hand-authored clip.",
+                "Уникати податку Humanoid не означає втрачати Humanoid-контент. Куплені Humanoid-кліпи можна ретаргетнути на ваш скелет і забейкати в Generic тулзою Humanoid Baker (див. розділ Editor & Workflow) — запечені кліпи працюють з Honami-аватарами, масками та mirroring як будь-який кліп, зроблений вручну."
+            ), HonamiDocumentationBuilder.CalloutType.Tip);
 
             HonamiDocumentationBuilder.AddHeader(root, HonamiDocLocalization.Get("Honami Avatar Asset", "Ассет Honami Avatar"), HonamiEditorIcons.Controller);
             HonamiDocumentationBuilder.AddParagraph(root, HonamiDocLocalization.Get(

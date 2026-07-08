@@ -7,7 +7,7 @@ namespace HonamiAnimationSystem.Editor.Documentation.Pages
     {
         public string Title => HonamiDocLocalization.Get("FAQ", "Часті питання");
         public string Category => HonamiDocLocalization.Get("02. Getting Started", "02. Перші Кроки");
-        public string SearchKeywords => "faq questions help support issues common часті питання допомога";
+        public string SearchKeywords => "faq questions help support issues common humanoid mixamo asset store marketplace retarget часті питання допомога куплені кліпи";
         public int Order => 120;
         public int EstimatedReadTime => 3;
 
@@ -35,6 +35,10 @@ namespace HonamiAnimationSystem.Editor.Documentation.Pages
             AddQA(root,
                 HonamiDocLocalization.Get("Does Honami work with Root Motion?", "Чи працює Honami з Root Motion?"),
                 HonamiDocLocalization.Get("Yes. Enable 'Apply Root Motion' in the Honami Animator's Animator Synchronization section — it is forwarded to the underlying Animator, which feeds delta-movement into Unity as usual.", "Так. Увімкніть «Apply Root Motion» у секції Animator Synchronization компонента Honami Animator — налаштування передається базовому Animator, який як зазвичай передає дельта-переміщення в Unity."));
+
+            AddQA(root,
+                HonamiDocLocalization.Get("Can I use Humanoid animations from the Asset Store or Mixamo?", "Чи можу я використовувати Humanoid-анімації з Asset Store або Mixamo?"),
+                HonamiDocLocalization.Get("Yes, through the Humanoid Baker (Window ▸ Honami ▸ Tools ▸ Honami Humanoid Baker). Honami itself has no runtime muscle-space retargeting, so raw Humanoid clips will not play — instead, the Baker retargets them onto your character once in the editor and saves ordinary Generic clips authored for your skeleton. Those baked clips work with every Honami feature: masks, mirroring, layers and rigs. Your character simply stays Humanoid — do not convert the model to Generic, just keep the Avatar assigned in the Unity Animator's Avatar field. 'Generic' refers to the baked clips, not the model import type.", "Так, через Humanoid Baker (Window ▸ Honami ▸ Tools ▸ Honami Humanoid Baker). Сам Honami не має muscle-space ретаргетингу в рантаймі, тож сирі Humanoid-кліпи не заграють — натомість бейкер один раз ретаргетить їх на вашого персонажа в редакторі та зберігає звичайні Generic-кліпи під ваш скелет. Запечені кліпи працюють з усіма фічами Honami: масками, mirroring, шарами та ригами. Персонаж просто лишається Humanoid — не конвертуйте модель у Generic, лише тримайте аватар призначеним у полі Avatar компонента Unity Animator. «Generic» стосується запечених кліпів, а не типу імпорту моделі."));
 
             HonamiDocumentationBuilder.AddHeader(root, HonamiDocLocalization.Get("Performance & Mobile", "Продуктивність та Mobile"), HonamiEditorIcons.TimelineWhite);
 

@@ -736,6 +736,10 @@ namespace HonamiAnimationSystem.Editor
                 Localized("Animation Fixer", "Фіксер кліпів"),
                 Localized("Batch process AnimationClips to fix generic/humanoid mismatches.", "Масова обробка кліпів для виправлення проблем generic/humanoid."),
                 HonamiEditorIcons.TimelineWhite, HonamiAnimationClipFixerWindow.ShowWindow));
+            grid.Add(ToolCard(
+                Localized("Humanoid Baker", "Бейкер Humanoid"),
+                Localized("Retarget marketplace Humanoid clips onto your skeleton and bake them to Generic.", "Ретаргет Humanoid-кліпів з маркетплейсу на ваш скелет і бейк у Generic."),
+                HonamiEditorIcons.BlendTreeWhite, HonamiHumanoidBakerWindow.ShowWindow));
             scroll.Add(grid);
         }
 

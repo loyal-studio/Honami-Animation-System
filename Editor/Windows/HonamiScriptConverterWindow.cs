@@ -246,7 +246,27 @@ namespace HonamiAnimationSystem.Editor
             content = Regex.Replace(content, @"(?<!\bclass\s+)(?<!\benum\s+)(?<!\w)Animator(?=\s+[a-zA-Z_])", "HonamiAnimator");
             content = Regex.Replace(content, @"(?<!\bclass\s+)(?<!\benum\s+)(?<!\w)typeof\(\s*Animator\s*\)", "typeof(HonamiAnimator)");
 
-            return content;
+            return EnsureHonamiUsing(content);
+        }
+
+        private static string EnsureHonamiUsing(string content)
+        {
+            const string honamiNamespace = "HonamiAnimationSystem.Runtime.Core";
+
+            if (!content.Contains("HonamiAnimator")) return content;
+            if (Regex.IsMatch(content, $@"^\s*using\s+{Regex.Escape(honamiNamespace)}\s*;", RegexOptions.Multiline)) return content;
+
+            string newLine = content.Contains("\r\n") ? "\r\n" : "\n";
+            string usingDirective = $"using {honamiNamespace};";
+
+            var existingUsings = Regex.Matches(content, @"^[ \t]*using\s+[^;\r\n]+;[ \t]*$", RegexOptions.Multiline);
+            if (existingUsings.Count > 0)
+            {
+                var lastUsing = existingUsings[existingUsings.Count - 1];
+                return content.Insert(lastUsing.Index + lastUsing.Length, newLine + usingDirective);
+            }
+
+            return usingDirective + newLine + content;
         }
     }
 }

@@ -40,6 +40,7 @@ In practice the animator does the graph and the programmer writes gameplay code.
 - [Scripting API](#scripting-api)
 - [Honami vs. the built-in Animator](#honami-vs-the-built-in-animator)
 - [Honest scope](#honest-scope)
+- [Migrating from Mecanim](#migrating-from-mecanim)
 - [Roadmap](#roadmap)
 
 ## Minimal code, by design
@@ -216,11 +217,47 @@ Only the areas where the two genuinely diverge - where Mecanim already does the 
 | **Many characters** | ❌ No cross-animator coordination. | ✅ Linked Brain broadcast by tag, radius, wave or closest-N. |
 | **Debugging** | ❌ Basic active-state progress bar. | ✅ Live node highlighting, weights and transition values. |
 | **Blend trees** | ✅ 1D and 2D blend trees. | ⚠️ 1D only (2D on the roadmap). |
-| **Retargeting** | ✅ Humanoid muscle-space retargeting across skeletons. | ❌ None - binds by transform path, so use a consistent skeleton. |
+| **Retargeting** | ✅ Humanoid muscle-space retargeting across skeletons. | ⚠️ No runtime retargeting - binds by transform path. The Humanoid Baker tool retargets Humanoid clips onto your skeleton offline and bakes them to Generic. |
 
 ## Honest scope
 
-Honami drives any Animator-based object, and it shines on fast, code-driven action games and on complex or exotic rigs. It is **not** a drop-in Mecanim replacement for every project, though: there's **no Humanoid retargeting**, blend trees are **1D only** (no 2D blend space), and overlays use masked layers (additive / aim-offset is on the roadmap). If your project leans on marketplace Humanoid clips or 2D blendspace locomotion, Unity's built-in Animator is still the better fit.
+Honami drives any Animator-based object, and it shines on fast, code-driven action games and on complex or exotic rigs. It is **not** a drop-in Mecanim replacement for every project, though: there's **no runtime Humanoid retargeting** (marketplace Humanoid clips are supported via the offline Humanoid Baker tool), blend trees are **1D only** (no 2D blend space), and overlays use masked layers (additive / aim-offset is on the roadmap). If your project leans on live cross-skeleton retargeting or 2D blendspace locomotion, Unity's built-in Animator is still the better fit.
+
+## Migrating from Mecanim
+
+Migration is incremental, not a rewrite. A Honami character and a Mecanim character coexist in the same scene without conflict, so you port one prefab at a time while the rest of the game keeps running - and you can stop halfway and ship like that.
+
+### What actually changes on a character
+
+Less than you'd think. The GameObject keeps its standard Unity **Animator** component exactly as it is - the only edit is emptying the **Controller slot** - and gains a **HonamiAnimator** component pointing at a `HonamiController` asset. That's the whole structural change.
+
+Your rig setup, whatever it is, stays as-is. A Humanoid character keeps its Humanoid import and its **Avatar assigned** in the Animator; a Generic character keeps its Generic setup; a prop or weapon with no avatar at all needs nothing extra. Honami never asks you to convert a model's rig type in either direction - switching an established model between Humanoid and Generic is exactly the kind of change that breaks avatar references, ragdolls and prefab bindings, and it is not part of the migration. Existing clips survive too: Generic clips play as-is, Humanoid clips go through the baker described below.
+
+### The migration tools
+
+Everything lives under **Window ▸ Honami ▸ Tools**:
+
+**Animator Converter** - right-click any `AnimatorController` and choose *Convert to Honami Controller* (or open the window and pick one). It generates a `HonamiController` with your parameters and their defaults, layers with weights, every state (speed, loop, graph positions preserved), sub-state machines (each gets its own Any State and Exit), and transitions with their conditions, exit times and interruption settings. Two things don't auto-port and the converter says so: **2D blend trees** are flattened into a 1D motion list (re-author them as 1D trees, states or layers), and **`StateMachineBehaviour`s** have no direct equivalent - recreate them as Sub-Nodes, which is usually less code.
+
+**Script API Converter** - scans a folder for C# scripts that use the Animator API, lists the affected files, and lets you convert the ones you tick. It finds your `Animator` fields and variables and rewrites them in place: type references (`Animator`, `GetComponent<Animator>`, `typeof(Animator)`) become `HonamiAnimator`, and `Play` / `CrossFade` / `CrossFadeInFixedTime` become `PlayState`. Parameter calls like `SetFloat`, `SetBool` and `SetTrigger` are left alone on purpose - `HonamiAnimator` uses the same method names, so they compile as-is. Converted files also get `using HonamiAnimationSystem.Runtime.Core;` inserted automatically. It's a source-code rewrite, so **commit first** and review the diff after.
+
+**Humanoid Baker** - converts your Humanoid clip library (including marketplace packs and Mixamo) into Generic clips authored for your skeleton. One offline pass per skeleton; the character itself stays Humanoid. See [Honest scope](#honest-scope) for why Honami plays transform-path clips instead of retargeting at runtime.
+
+**Project Validator** - after the move, finds missing references and broken transitions across your Honami assets.
+
+### Step by step, per situation
+
+**A Humanoid character coming off Mecanim:**
+
+1. Convert its `AnimatorController` with the Animator Converter; re-author 2D trees and behaviours.
+2. Add `HonamiAnimator` to the prefab, assign the new `HonamiController`, clear the Animator's Controller slot - Avatar stays.
+3. Bake the Humanoid clips with the Humanoid Baker and drop the baked clips into the converted states.
+4. Run the Script API Converter over that character's scripts.
+5. Check with the Project Validator, then compare behaviour side by side - live node highlighting and transition weights make differences obvious.
+
+**A Generic / custom-skeleton character** (creatures, weapons, props): same as above minus the baking - Generic clips already bind by transform path, so steps 1, 2, 4, 5 and you're done.
+
+**A whole project, gradually:** migrate prefab by prefab in whatever order hurts least - Honami and Mecanim characters run side by side indefinitely. Shared scripts that touch many characters are the one thing to plan around: convert them last, or keep a thin wrapper during the transition. Delete the old `AnimatorController`s only after the ported characters have proven themselves in play.
 
 ## Roadmap
 
@@ -262,7 +299,7 @@ Honami powers all animation in **[Daisen](https://store.steampowered.com/app/370
 
 ## Documentation
 
-Open **Window → Honami → Documentation** directly inside Unity. The built-in docs cover graph authoring, transitions, blend trees, avatars and masks, IK and constraints, the Linked Brain system, the full scripting API and the optimization guide - with live code examples you can copy with one click.
+Open **Window → Honami → Documentation** directly inside Unity. The built-in docs cover graph authoring, transitions, blend trees, avatars and masks, IK and constraints, the Linked Brain system, the workflow tools (including the Humanoid Baker), the full scripting API and the optimization guide - with live code examples you can copy with one click.
 
 ## Contributing
 

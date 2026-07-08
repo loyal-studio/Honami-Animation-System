@@ -57,8 +57,8 @@ namespace HonamiAnimationSystem.Editor.Documentation.Pages
 
             HonamiDocumentationBuilder.AddHeader(root, HonamiDocLocalization.Get("What Honami does not do", "Чого Honami не робить"), HonamiEditorIcons.Controller);
             HonamiDocumentationBuilder.AddBulletPoint(root, HonamiDocLocalization.Get(
-                "No Humanoid muscle-space retargeting. Honami binds animation by transform path, so a clip authored on one skeleton will not automatically play on a different one. Use a consistent skeleton across your characters, or keep Unity's Humanoid pipeline for retargeting marketplace clips.",
-                "Нема Humanoid muscle-space ретаргетингу. Honami прив'язує анімацію по transform-шляху, тож кліп, зроблений на одному скелеті, не заграє автоматично на іншому. Використовуйте єдиний скелет для персонажів або лишіть Humanoid-пайплайн Unity для ретаргетингу куплених кліпів."));
+                "No Humanoid muscle-space retargeting at runtime. Honami binds animation by transform path, so a clip authored on one skeleton will not automatically play on a different one. Marketplace Humanoid clips are still supported: the Humanoid Baker tool (Window ▸ Honami ▸ Tools) retargets them onto your skeleton once in the editor and bakes them to Generic clips.",
+                "Нема Humanoid muscle-space ретаргетингу в рантаймі. Honami прив'язує анімацію по transform-шляху, тож кліп, зроблений на одному скелеті, не заграє автоматично на іншому. Куплені Humanoid-кліпи все ж підтримуються: тулза Humanoid Baker (Window ▸ Honami ▸ Tools) один раз ретаргетить їх на ваш скелет у редакторі й бейкає в Generic-кліпи."));
             HonamiDocumentationBuilder.AddBulletPoint(root, HonamiDocLocalization.Get(
                 "Blend Trees are 1D only. There is no 2D blend space. For strafe-style locomotion, decompose into a signed 1D parameter plus states or layers.",
                 "Blend Tree лише 1D. 2D blend space немає. Для страйф-локомоції розкладайте на знаковий 1D-параметр плюс стани чи шари."));
