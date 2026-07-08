@@ -15,6 +15,7 @@ namespace HonamiAnimationSystem.Editor.Handlers
         void OnUndoRedo();
         void FrameAll();
         bool HasContent();
+        void ApplySettings();
         void SwitchToMode();
         VisualElement GetMainView();
         VisualElement GetLeftPanelView();

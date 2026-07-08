@@ -281,7 +281,7 @@ namespace HonamiAnimationSystem.Editor.Handlers
         public void FrameAll() => _graphView?.FrameAll();
         public bool HasContent() => _window.RuntimeController != null;
 
-        private void ApplySettings()
+        public void ApplySettings()
         {
             if (_lastRuntimeAnimator != _window.RuntimeAnimator)
             {

@@ -39,7 +39,7 @@ namespace HonamiAnimationSystem.Editor
 
         public HonamiLinkedAnimatorGraphView()
         {
-            Insert(0, new GridBackground());
+            Insert(0, new HonamiGridBackground());
 
             this.AddManipulator(new ContentZoomer
             {

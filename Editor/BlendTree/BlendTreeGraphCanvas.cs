@@ -28,9 +28,10 @@ namespace HonamiAnimationSystem.Editor.BlendTree
 
             style.flexGrow = 1;
             style.overflow = Overflow.Hidden;
-            style.backgroundColor = BlendTreeTheme.PanelBg;
 
-            generateVisualContent += DrawGrid;
+            Insert(0, new HonamiGridBackground(10f, 10,
+                () => new Vector2(_state.ViewPosition.x, _state.ViewPosition.y),
+                () => _state.ViewScale));
 
             _contentContainer = new VisualElement
             {
@@ -144,61 +145,6 @@ namespace HonamiAnimationSystem.Editor.BlendTree
             if (_isPanning)
             {
                 _isPanning = false;
-            }
-        }
-
-        private void DrawGrid(MeshGenerationContext ctx)
-        {
-            var painter = ctx.painter2D;
-            Rect rect = contentRect;
-            
-            float scale = _state.ViewScale;
-            if (!IsFinite(scale) || scale <= 0f) scale = 1f;
-            Vector2 offset = new Vector2(_state.ViewPosition.x, _state.ViewPosition.y);
-            if (!IsFinite(offset.x) || !IsFinite(offset.y)) offset = Vector2.zero;
-
-            float minorGridSize = 10f * scale;
-            float majorGridSize = 100f * scale;
-
-            if (minorGridSize < 4f) minorGridSize = 0f;
-
-            Color minorColor = new Color(1f, 1f, 1f, 0.05f);
-            Color majorColor = new Color(1f, 1f, 1f, 0.15f);
-
-            painter.lineWidth = 1f;
-
-            if (minorGridSize > 0f)
-            {
-                painter.strokeColor = minorColor;
-                painter.BeginPath();
-                DrawGridLines(painter, rect, offset, minorGridSize);
-                painter.Stroke();
-            }
-
-            painter.strokeColor = majorColor;
-            painter.BeginPath();
-            DrawGridLines(painter, rect, offset, majorGridSize);
-            painter.Stroke();
-        }
-
-        private void DrawGridLines(Painter2D painter, Rect rect, Vector2 offset, float spacing)
-        {
-            float startX = (offset.x % spacing);
-            if (startX > 0) startX -= spacing;
-
-            float startY = (offset.y % spacing);
-            if (startY > 0) startY -= spacing;
-
-            for (float x = startX; x < rect.width; x += spacing)
-            {
-                painter.MoveTo(new Vector2(x, 0));
-                painter.LineTo(new Vector2(x, rect.height));
-            }
-
-            for (float y = startY; y < rect.height; y += spacing)
-            {
-                painter.MoveTo(new Vector2(0, y));
-                painter.LineTo(new Vector2(rect.width, y));
             }
         }
 

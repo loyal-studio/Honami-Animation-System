@@ -190,7 +190,36 @@ namespace HonamiAnimationSystem.Editor
 
             Selection.selectionChanged += HandleSelectionChanged;
             Undo.undoRedoPerformed += OnUndoRedo;
+            HonamiGraphSettings.Changed += OnGraphSettingsChanged;
+            HonamiAppearanceSettings.Changed += OnAppearanceChanged;
             EditorApplication.delayCall += HandleSelectionChanged;
+        }
+
+        private void OnGraphSettingsChanged() => _currentHandler?.ApplySettings();
+
+        private HonamiAppearanceRebuildScheduler _appearanceRebuild;
+
+        private void OnAppearanceChanged()
+        {
+            if (_handlers == null) return;
+            foreach (var handler in _handlers.Values)
+            {
+                if (handler.GetMainView() is UnityEditor.Experimental.GraphView.GraphView graphView)
+                    HonamiGraphAccent.RefreshGraphView(graphView);
+            }
+            Repaint();
+
+            _appearanceRebuild ??= new HonamiAppearanceRebuildScheduler(ReloadUI);
+            _appearanceRebuild.Request();
+        }
+
+        private void ReloadUI()
+        {
+            if (this == null) return;
+            OnDisable();
+            rootVisualElement.Clear();
+            OnEnable();
+            Repaint();
         }
 
         private void OnDisable()
@@ -198,6 +227,9 @@ namespace HonamiAnimationSystem.Editor
             Selection.selectionChanged -= HandleSelectionChanged;
             EditorApplication.delayCall -= HandleSelectionChanged;
             Undo.undoRedoPerformed -= OnUndoRedo;
+            HonamiGraphSettings.Changed -= OnGraphSettingsChanged;
+            HonamiAppearanceSettings.Changed -= OnAppearanceChanged;
+            _appearanceRebuild?.Cancel();
             _currentHandler?.OnDisable();
         }
 
@@ -240,6 +272,7 @@ namespace HonamiAnimationSystem.Editor
                 if (_currentHandler.GetLeftPanelView() != null) _currentHandler.GetLeftPanelView().style.display = DisplayStyle.Flex;
 
                 _currentHandler.SwitchToMode();
+                _currentHandler.ApplySettings();
             }
             else
             {
@@ -888,15 +921,6 @@ namespace HonamiAnimationSystem.Editor
             sm.menu.AppendAction("Show Minimap",
                 _ => { HonamiGraphSettings.ShowMinimap = !HonamiGraphSettings.ShowMinimap; },
                 _ => HonamiGraphSettings.ShowMinimap ? DropdownMenuAction.Status.Checked : DropdownMenuAction.Status.Normal);
-            sm.menu.AppendAction("Enable Animations",
-                _ => { HonamiGraphSettings.EnableAnimations = !HonamiGraphSettings.EnableAnimations; },
-                _ => HonamiGraphSettings.EnableAnimations ? DropdownMenuAction.Status.Checked : DropdownMenuAction.Status.Normal);
-            sm.menu.AppendAction("Show Grid",
-                _ => { HonamiGraphSettings.ShowGrid = !HonamiGraphSettings.ShowGrid; },
-                _ => HonamiGraphSettings.ShowGrid ? DropdownMenuAction.Status.Checked : DropdownMenuAction.Status.Normal);
-            sm.menu.AppendAction("Tactile 3D Nodes",
-                _ => { HonamiGraphSettings.EnableTactile3D = !HonamiGraphSettings.EnableTactile3D; },
-                _ => HonamiGraphSettings.EnableTactile3D ? DropdownMenuAction.Status.Checked : DropdownMenuAction.Status.Normal);
             sm.menu.AppendSeparator();
             sm.menu.AppendAction("Show Layers Panel",
                 _ => ToggleLeftPanel(!_isLeftPanelVisible),
@@ -912,6 +936,8 @@ namespace HonamiAnimationSystem.Editor
                     if (!_isRightPanelSupported) return DropdownMenuAction.Status.Hidden;
                     return _isRightPanelVisible ? DropdownMenuAction.Status.Checked : DropdownMenuAction.Status.Normal;
                 });
+            sm.menu.AppendSeparator();
+            sm.menu.AppendAction("Graph Preferences...", _ => HonamiPreferences.Open("Graph"));
             Toolbar.Add(sm);
 
             parent.Insert(0, Toolbar);

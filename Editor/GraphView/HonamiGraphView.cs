@@ -64,7 +64,7 @@ namespace HonamiAnimationSystem.Editor
         public void SetGridVisible(bool visible)
         {
             _gridVisible = visible;
-            var grid = this.Q<GridBackground>();
+            var grid = this.Q<HonamiGridBackground>();
             if (grid != null)
                 grid.style.display = visible ? DisplayStyle.Flex : DisplayStyle.None;
         }
@@ -85,7 +85,7 @@ namespace HonamiAnimationSystem.Editor
 
         public HonamiGraphView()
         {
-            Insert(0, new GridBackground());
+            Insert(0, new HonamiGridBackground());
 
             _overrideWatermark = new Label("OVERRIDE CONTROLLER");
             _overrideWatermark.style.position = Position.Absolute;
@@ -133,6 +133,7 @@ namespace HonamiAnimationSystem.Editor
             _miniMap = new MiniMap { anchored = false };
             _miniMap.AddToClassList("honami-minimap");
             _miniMap.SetPosition(new Rect(10, 30, 200, 140));
+            _miniMap.RegisterCallback<AttachToPanelEvent>(_ => HonamiGraphAccent.ApplyMinimapViewport(_miniMap));
             Add(_miniMap);
 
             IsMiniMapVisible = HonamiGraphSettings.ShowMinimap;

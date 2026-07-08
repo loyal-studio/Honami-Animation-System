@@ -475,7 +475,11 @@ namespace HonamiAnimationSystem.Editor
             _transitionPreviewEdge.pickingMode = PickingMode.Ignore;
 
             var badge = _transitionPreviewEdge.Q(className: "honami-transition-badge");
-            if (badge != null) badge.AddToClassList("honami-transition-badge-preview");
+            if (badge != null)
+            {
+                badge.AddToClassList("honami-transition-badge-preview");
+                HonamiGraphAccent.SetBorderColor(badge, HonamiGraphStyles.Accent);
+            }
 
             AddElement(_transitionPreviewEdge);
 

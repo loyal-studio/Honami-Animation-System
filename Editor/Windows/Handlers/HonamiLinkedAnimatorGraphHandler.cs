@@ -44,6 +44,8 @@ namespace HonamiAnimationSystem.Editor.Handlers
 
         public void OnDisable() { }
 
+        public void ApplySettings() { }
+
         public void Update()
         {
             if (!UnityEngine.Application.isPlaying) return;

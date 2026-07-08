@@ -79,6 +79,8 @@ namespace HonamiAnimationSystem.Editor.Timeline
             EditorApplication.update += OnEditorUpdate;
             Undo.undoRedoPerformed -= Repaint;
             Undo.undoRedoPerformed += Repaint;
+            HonamiAppearanceSettings.Changed -= OnAppearanceChanged;
+            HonamiAppearanceSettings.Changed += OnAppearanceChanged;
             Selection.selectionChanged -= OnSelectionChanged;
             Selection.selectionChanged += OnSelectionChanged;
 
@@ -92,6 +94,8 @@ namespace HonamiAnimationSystem.Editor.Timeline
             EditorApplication.update -= OnEditorUpdate;
             Undo.undoRedoPerformed -= Repaint;
             Selection.selectionChanged -= OnSelectionChanged;
+            HonamiAppearanceSettings.Changed -= OnAppearanceChanged;
+            _appearanceRebuild?.Cancel();
 
             for (int i = 0; i < _tabs.Count; i++)
                 _tabs[i]?.ClearCache();
@@ -328,6 +332,20 @@ namespace HonamiAnimationSystem.Editor.Timeline
                 else if (phPos < s.ScrollPos.x)
                     s.ScrollPos.x = Mathf.Max(0f, phPos - 50f);
             }
+        }
+
+        private HonamiAppearanceRebuildScheduler _appearanceRebuild;
+
+        private void OnAppearanceChanged()
+        {
+            Repaint();
+            _appearanceRebuild ??= new HonamiAppearanceRebuildScheduler(() =>
+            {
+                ConstructLayout();
+                RequestRefreshViews();
+                Repaint();
+            });
+            _appearanceRebuild.Request();
         }
 
         private void ConstructLayout()

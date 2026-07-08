@@ -5,17 +5,17 @@ namespace HonamiAnimationSystem.Editor
 {
     public static class HonamiGraphStyles
     {
-        public static readonly Color PanelBg = HonamiEditorTheme.PanelBg;
-        public static readonly Color BoxBg = HonamiEditorTheme.BoxBg;
+        public static Color PanelBg => HonamiEditorTheme.PanelBg;
+        public static Color BoxBg => HonamiEditorTheme.BoxBg;
         public static readonly Color BoxBorder = new(0.045f, 0.048f, 0.054f);
         public static readonly Color ListBoxBg = new(0.115f, 0.124f, 0.138f);
         public static readonly Color ListBoxBorder = new(0.055f, 0.06f, 0.068f);
         public static readonly Color TitleClr = new(0.95f, 0.95f, 0.96f);
-        public static readonly Color SubTitleClr = HonamiEditorTheme.Accent;
+        public static Color SubTitleClr => HonamiEditorTheme.Accent;
         public static readonly Color GreyText = new(0.65f, 0.65f, 0.65f);
-        public static readonly Color Accent = HonamiEditorTheme.Accent;
-        public static readonly Color AccentDim = HonamiEditorTheme.AccentDim;
-        public static readonly Color AccentHeader = HonamiEditorTheme.Accent;
+        public static Color Accent => HonamiEditorTheme.Accent;
+        public static Color AccentDim => HonamiEditorTheme.AccentDim;
+        public static Color AccentHeader => HonamiEditorTheme.Accent;
         public static readonly Color AxisRed = new(1.00f, 0.40f, 0.40f);
         public static readonly Color AxisGreen = new(0.40f, 1.00f, 0.40f);
         public static readonly Color AxisBlue = new(0.40f, 0.60f, 1.00f);
@@ -23,7 +23,7 @@ namespace HonamiAnimationSystem.Editor
         public static readonly Color Green = new(0.35f, 0.85f, 0.55f);
         public static readonly Color Red = new(0.85f, 0.35f, 0.35f);
         public static readonly Color Orange = new(0.90f, 0.75f, 0.20f);
-        public static readonly Color WindowBg = HonamiEditorTheme.WindowBg;
+        public static Color WindowBg => HonamiEditorTheme.WindowBg;
 
         public static Label Title(string text)
         {

@@ -1,3 +1,4 @@
+using System;
 using UnityEditor;
 
 namespace HonamiAnimationSystem.Editor
@@ -9,28 +10,50 @@ namespace HonamiAnimationSystem.Editor
         private const string ShowGridKey = "Honami_ShowGrid";
         private const string Tactile3DKey = "Honami_Tactile3D";
 
+        public static event Action Changed;
+
         public static bool ShowMinimap
         {
             get => EditorPrefs.GetBool(MinimapKey, true);
-            set => EditorPrefs.SetBool(MinimapKey, value);
+            set => SetBool(MinimapKey, value);
         }
 
         public static bool EnableAnimations
         {
             get => EditorPrefs.GetBool(AnimationsKey, true);
-            set => EditorPrefs.SetBool(AnimationsKey, value);
+            set => SetBool(AnimationsKey, value);
         }
 
         public static bool ShowGrid
         {
             get => EditorPrefs.GetBool(ShowGridKey, true);
-            set => EditorPrefs.SetBool(ShowGridKey, value);
+            set => SetBool(ShowGridKey, value);
         }
 
         public static bool EnableTactile3D
         {
             get => EditorPrefs.GetBool(Tactile3DKey, true);
-            set => EditorPrefs.SetBool(Tactile3DKey, value);
+            set => SetBool(Tactile3DKey, value);
+        }
+
+        private static void SetBool(string key, bool value)
+        {
+            if (EditorPrefs.GetBool(key, true) == value) return;
+            EditorPrefs.SetBool(key, value);
+            Changed?.Invoke();
+        }
+
+        [InitializeOnLoadMethod]
+        private static void RegisterPreferences()
+        {
+            HonamiPreferences.Category("Graph")
+                .WithDescription("Visual behaviour of the Honami graph canvas. Changes apply to open graph windows immediately. Right-click a field to reset it.")
+                .AddToggle("Enable Animations", () => EnableAnimations, value => EnableAnimations = value,
+                    "Smooth open and transition animations in the graph canvas", () => EnableAnimations = true)
+                .AddToggle("Show Grid", () => ShowGrid, value => ShowGrid = value,
+                    "Background grid of the graph canvas", () => ShowGrid = true)
+                .AddToggle("Tactile 3D Nodes", () => EnableTactile3D, value => EnableTactile3D = value,
+                    "3D tilt feedback on nodes under the cursor", () => EnableTactile3D = true);
         }
     }
 }

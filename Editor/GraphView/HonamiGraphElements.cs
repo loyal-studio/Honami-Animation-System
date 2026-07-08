@@ -26,6 +26,18 @@ namespace HonamiAnimationSystem.Editor
                 _onChanged?.Invoke();
             }
         }
+
+        public override void OnSelected()
+        {
+            base.OnSelected();
+            HonamiGraphAccent.SetGroupSelected(this, true);
+        }
+
+        public override void OnUnselected()
+        {
+            base.OnUnselected();
+            HonamiGraphAccent.SetGroupSelected(this, false);
+        }
     }
 
     public sealed class HonamiStickyNote : GraphElement

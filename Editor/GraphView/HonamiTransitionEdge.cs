@@ -49,15 +49,34 @@ namespace HonamiAnimationSystem.Editor
         public override void OnSelected()
         {
             base.OnSelected();
-            _badge.AddToClassList("honami-transition-badge-selected");
+            SetBadgeSelected(true);
             _edgeRenderer.UpdateSelection(true);
         }
 
         public override void OnUnselected()
         {
             base.OnUnselected();
-            _badge.RemoveFromClassList("honami-transition-badge-selected");
+            SetBadgeSelected(false);
             _edgeRenderer.UpdateSelection(false);
+        }
+
+        private void SetBadgeSelected(bool isSelected)
+        {
+            if (isSelected) _badge.AddToClassList("honami-transition-badge-selected");
+            else _badge.RemoveFromClassList("honami-transition-badge-selected");
+            HonamiGraphAccent.SetSelectionBorder(_badge, isSelected);
+        }
+
+        public void RefreshAccent()
+        {
+            if (_badge.ClassListContains("honami-transition-badge-preview"))
+            {
+                HonamiGraphAccent.SetBorderColor(_badge, HonamiGraphStyles.Accent);
+                return;
+            }
+
+            HonamiGraphAccent.SetSelectionBorder(_badge, this.selected);
+            _badge.MarkDirtyRepaint();
         }
 
         private bool _lastActive = false;
@@ -297,8 +316,7 @@ namespace HonamiAnimationSystem.Editor
 
             _badge.style.rotate = new StyleRotate(new Rotate(new Angle(angle, AngleUnit.Degree)));
 
-            if (this.selected) _badge.AddToClassList("honami-transition-badge-selected");
-            else _badge.RemoveFromClassList("honami-transition-badge-selected");
+            SetBadgeSelected(this.selected);
         }
 
         private class BadgeIconElement : VisualElement

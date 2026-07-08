@@ -164,6 +164,7 @@ namespace HonamiAnimationSystem.Editor
 
                     badge.RegisterCallback<PointerOverEvent>(evt => badge.AddToClassList("honami-node-subnode-badge-hover"));
                     badge.RegisterCallback<PointerOutEvent>(evt => badge.RemoveFromClassList("honami-node-subnode-badge-hover"));
+                    HonamiGraphAccent.AttachSubNodeBadge(badge);
 
                     subNodesBar.Add(badge);
                     _subNodeBadges[sn] = badge;
@@ -378,7 +379,36 @@ namespace HonamiAnimationSystem.Editor
                 {
                     kvp.Value.RemoveFromClassList("honami-node-subnode-badge-selected");
                 }
+                HonamiGraphAccent.RefreshSubNodeBadge(kvp.Value);
             }
+        }
+
+        public override void OnSelected()
+        {
+            base.OnSelected();
+            ApplySelectionAccent();
+        }
+
+        public override void OnUnselected()
+        {
+            base.OnUnselected();
+            ApplySelectionAccent();
+        }
+
+        private void ApplySelectionAccent()
+        {
+            var border = this.Q("node-border");
+            if (border == null) return;
+            bool accented = selected &&
+                            !ClassListContains("honami-node-overridden") &&
+                            !ClassListContains("honami-node-inherited");
+            HonamiGraphAccent.SetSelectionBorder(border, accented);
+        }
+
+        public void RefreshAccent()
+        {
+            foreach (var badge in _subNodeBadges.Values) HonamiGraphAccent.RefreshSubNodeBadge(badge);
+            ApplySelectionAccent();
         }
     }
 }

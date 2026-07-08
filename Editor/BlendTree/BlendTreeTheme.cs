@@ -19,15 +19,15 @@ namespace HonamiAnimationSystem.Editor.BlendTree
         public const float ArcRadius = 22f;
         public const float ArcThickness = 5f;
 
-        public static readonly Color Accent = HonamiEditorTheme.Accent;
-        public static readonly Color AccentSoft = HonamiEditorTheme.AccentSoft;
-        public static readonly Color WindowBg = HonamiEditorTheme.WindowBg;
-        public static readonly Color PanelBg = HonamiEditorTheme.PanelBg;
-        public static readonly Color ToolbarBg = HonamiEditorTheme.ToolbarBg;
+        public static Color Accent => HonamiEditorTheme.Accent;
+        public static Color AccentSoft => HonamiEditorTheme.AccentSoft;
+        public static Color WindowBg => HonamiEditorTheme.WindowBg;
+        public static Color PanelBg => HonamiEditorTheme.PanelBg;
+        public static Color ToolbarBg => HonamiEditorTheme.ToolbarBg;
         public static readonly Color Divider = HonamiEditorTheme.Divider;
         public static readonly Color SubtleLine = HonamiEditorTheme.SubtleLine;
-        public static readonly Color Text = HonamiEditorTheme.Text;
-        public static readonly Color MutedText = HonamiEditorTheme.MutedText;
+        public static Color Text => HonamiEditorTheme.Text;
+        public static Color MutedText => HonamiEditorTheme.MutedText;
         public static readonly Color ArcTrack = new(0.08f, 0.085f, 0.095f);
 
         public static Color MotionColor(int index, int count)

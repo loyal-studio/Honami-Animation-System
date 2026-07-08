@@ -26,7 +26,7 @@ namespace HonamiAnimationSystem.Editor
 
         public HonamiProfileGraphView()
         {
-            Insert(0, new GridBackground());
+            Insert(0, new HonamiGridBackground());
 
             this.AddManipulator(new ContentZoomer());
             this.AddManipulator(new ContentDragger());
@@ -78,7 +78,7 @@ namespace HonamiAnimationSystem.Editor
 
         public void SetGridVisible(bool visible)
         {
-            var grid = this.Q<GridBackground>();
+            var grid = this.Q<HonamiGridBackground>();
             if (grid != null)
             {
                 grid.style.display = visible ? DisplayStyle.Flex : DisplayStyle.None;

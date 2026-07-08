@@ -64,6 +64,8 @@ namespace HonamiAnimationSystem.Editor
             Undo.undoRedoPerformed += OnUndoRedo;
             EditorApplication.projectChanged -= RequestRefreshViews;
             EditorApplication.projectChanged += RequestRefreshViews;
+            HonamiAppearanceSettings.Changed -= OnAppearanceChanged;
+            HonamiAppearanceSettings.Changed += OnAppearanceChanged;
 
             ConstructLayout();
         }
@@ -73,6 +75,22 @@ namespace HonamiAnimationSystem.Editor
             SaveTabs();
             Undo.undoRedoPerformed -= OnUndoRedo;
             EditorApplication.projectChanged -= RequestRefreshViews;
+            HonamiAppearanceSettings.Changed -= OnAppearanceChanged;
+            _appearanceRebuild?.Cancel();
+        }
+
+        private HonamiAppearanceRebuildScheduler _appearanceRebuild;
+
+        private void OnAppearanceChanged()
+        {
+            Repaint();
+            _appearanceRebuild ??= new HonamiAppearanceRebuildScheduler(() =>
+            {
+                ConstructLayout();
+                RequestRefreshViews();
+                Repaint();
+            });
+            _appearanceRebuild.Request();
         }
 
         private void OnFocus() => RequestRefreshViews();
