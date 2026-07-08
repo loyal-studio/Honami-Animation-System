@@ -360,12 +360,11 @@ namespace HonamiAnimationSystem.Editor
                 }
                 else
                 {
-                    cx += 1f;
                     p.fillColor = color;
                     p.BeginPath();
-                    p.MoveTo(new Vector2(cx - 3.5f, cy - 4.5f));
-                    p.LineTo(new Vector2(cx + 4.5f, cy));
-                    p.LineTo(new Vector2(cx - 3.5f, cy + 4.5f));
+                    p.MoveTo(new Vector2(cx - 2.667f, cy - 4.5f));
+                    p.LineTo(new Vector2(cx + 5.333f, cy));
+                    p.LineTo(new Vector2(cx - 2.667f, cy + 4.5f));
                     p.ClosePath();
                     p.Fill();
                 }

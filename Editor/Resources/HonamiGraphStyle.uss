@@ -365,8 +365,6 @@ Group > .mainContainer > #centralContainer > #contentContainer {
 .honami-transition-icon {
     color: #e8e8e8;
     font-size: 10px;
-    margin-left: 2px;
-    margin-top: -1px;
     -unity-font-style: bold;
 }
 

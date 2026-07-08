@@ -96,7 +96,7 @@ namespace HonamiAnimationSystem.Editor
             if (changed) Changed?.Invoke();
         }
 
-        private static int FindMatchingPreset()
+        internal static int FindMatchingPreset()
         {
             var presets = HonamiThemePresets.All;
             for (int p = 0; p < presets.Length; p++)

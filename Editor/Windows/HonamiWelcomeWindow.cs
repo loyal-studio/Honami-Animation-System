@@ -15,15 +15,32 @@ namespace HonamiAnimationSystem.Editor
     {
         private const string SessionShownKey = "Honami.Welcome.ShownThisSession";
         private const string IntroPlayedKey = "Honami.Welcome.IntroPlayed";
-        private const int Steps = 7;
+        private const int Steps = 8;
         private const double FirstRunSettleSeconds = 0.75;
 
         private static double _idleSince = -1;
 
         private static readonly Vector2 WindowSize = new(880, 720);
-        private static readonly Color CardBg = HonamiGraphStyles.BoxBg;
-        private static readonly Color CardBorder = HonamiGraphStyles.BoxBorder;
         private static readonly Color Hairline = new(1f, 1f, 1f, 0.06f);
+
+        private static Color CardBg => HonamiGraphStyles.BoxBg;
+        private static Color CardBorder => HonamiGraphStyles.BoxBorder;
+        private static Color CardHoverBg => Color.Lerp(HonamiGraphStyles.BoxBg, Color.white, 0.05f);
+        private static Color BarBg => HonamiEditorTheme.ToolbarBg;
+        private static Color TextColor => HonamiEditorTheme.Text;
+        private static Color SoftText => Color.Lerp(HonamiEditorTheme.Text, HonamiEditorTheme.MutedText, 0.45f);
+        private static Color FaintText => HonamiEditorTheme.MutedText;
+        private static Color OverlayBg => HonamiEditorTheme.PanelBg;
+
+        private static Color OverlayBgClear
+        {
+            get
+            {
+                var color = HonamiEditorTheme.PanelBg;
+                color.a = 0f;
+                return color;
+            }
+        }
 
         private int _step;
         private VisualElement _stage;
@@ -91,8 +108,13 @@ namespace HonamiAnimationSystem.Editor
             window.position = pos;
         }
 
+        private HonamiAppearanceRebuildScheduler _appearanceRebuild;
+
         private void OnEnable()
         {
+            _appearanceRebuild ??= new HonamiAppearanceRebuildScheduler(RebuildForAppearance);
+            HonamiAppearanceSettings.Changed += RequestAppearanceRebuild;
+
             BuildShell();
             GoTo(0);
             MarkSeenWhenPresented();
@@ -101,6 +123,15 @@ namespace HonamiAnimationSystem.Editor
 
             EditorApplication.update -= TryPlayIntro;
             EditorApplication.update += TryPlayIntro;
+        }
+
+        private void RequestAppearanceRebuild() => _appearanceRebuild.Request();
+
+        private void RebuildForAppearance()
+        {
+            if (this == null) return;
+            BuildShell();
+            GoTo(_step);
         }
 
         private void MarkSeenWhenPresented()
@@ -114,6 +145,8 @@ namespace HonamiAnimationSystem.Editor
 
         private void OnDisable()
         {
+            HonamiAppearanceSettings.Changed -= RequestAppearanceRebuild;
+            _appearanceRebuild?.Cancel();
             EditorApplication.update -= TryPlayIntro;
         }
 
@@ -163,7 +196,7 @@ namespace HonamiAnimationSystem.Editor
             overlay.style.position = Position.Absolute;
             overlay.style.left = overlay.style.top = 0;
             overlay.style.right = overlay.style.bottom = 0;
-            overlay.style.backgroundColor = new Color(0.115f, 0.12f, 0.13f, 1f);
+            overlay.style.backgroundColor = OverlayBg;
             overlay.style.alignItems = Align.Center;
             overlay.style.justifyContent = Justify.Center;
             root.Add(overlay);
@@ -191,7 +224,7 @@ namespace HonamiAnimationSystem.Editor
             var title = new Label("HONAMI");
             title.style.fontSize = 36;
             title.style.unityFontStyleAndWeight = FontStyle.Bold;
-            title.style.color = Color.white;
+            title.style.color = TextColor;
             title.style.letterSpacing = 8f;
             title.style.marginTop = 22;
             overlay.Add(title);
@@ -306,7 +339,7 @@ namespace HonamiAnimationSystem.Editor
             bar.style.alignItems = Align.Center;
             bar.style.paddingLeft = 18;
             bar.style.paddingRight = 12;
-            bar.style.backgroundColor = HonamiEditorLayout.HeaderBg;
+            bar.style.backgroundColor = BarBg;
             bar.style.borderBottomWidth = 1;
             bar.style.borderBottomColor = HonamiEditorLayout.HeaderBorder;
 
@@ -346,7 +379,7 @@ namespace HonamiAnimationSystem.Editor
             bar.style.alignItems = Align.Center;
             bar.style.paddingLeft = 24;
             bar.style.paddingRight = 24;
-            bar.style.backgroundColor = HonamiEditorLayout.HeaderBg;
+            bar.style.backgroundColor = BarBg;
             bar.style.borderTopWidth = 1;
             bar.style.borderTopColor = HonamiEditorLayout.HeaderBorder;
 
@@ -389,7 +422,7 @@ namespace HonamiAnimationSystem.Editor
             overlay.style.position = Position.Absolute;
             overlay.style.left = overlay.style.top = 0;
             overlay.style.right = overlay.style.bottom = 0;
-            overlay.style.backgroundColor = new Color(0.115f, 0.12f, 0.13f, 0f);
+            overlay.style.backgroundColor = OverlayBgClear;
             overlay.style.alignItems = Align.Center;
             overlay.style.justifyContent = Justify.Center;
             overlay.style.transitionProperty = new List<StylePropertyName> { "background-color" };
@@ -399,7 +432,7 @@ namespace HonamiAnimationSystem.Editor
 
             overlay.schedule.Execute(() =>
             {
-                overlay.style.backgroundColor = new Color(0.115f, 0.12f, 0.13f, 1f);
+                overlay.style.backgroundColor = OverlayBg;
             }).StartingIn(16);
 
             var logoWrap = new VisualElement();
@@ -426,7 +459,7 @@ namespace HonamiAnimationSystem.Editor
             var heading = new Label(Localized("Happy Animating!", "Щасливого анімування!"));
             heading.style.fontSize = 32;
             heading.style.unityFontStyleAndWeight = FontStyle.Bold;
-            heading.style.color = Color.white;
+            heading.style.color = TextColor;
             heading.style.letterSpacing = -0.5f;
             heading.style.marginTop = 18;
             heading.style.opacity = 0f;
@@ -436,7 +469,7 @@ namespace HonamiAnimationSystem.Editor
                 "Good luck with your project — may every frame be smooth!",
                 "Удачі з вашим проєктом — нехай кожен кадр буде плавним!"));
             wish.style.fontSize = 14;
-            wish.style.color = new Color(0.72f, 0.74f, 0.77f);
+            wish.style.color = SoftText;
             wish.style.whiteSpace = WhiteSpace.Normal;
             wish.style.unityTextAlign = TextAnchor.MiddleCenter;
             wish.style.maxWidth = 420;
@@ -455,7 +488,7 @@ namespace HonamiAnimationSystem.Editor
                 "Window ▸ Honami ▸ Welcome to revisit anytime.",
                 "Window ▸ Honami ▸ Welcome — відкрити знову будь-коли."));
             footnote.style.fontSize = 11;
-            footnote.style.color = new Color(0.5f, 0.52f, 0.55f);
+            footnote.style.color = FaintText;
             footnote.style.marginTop = 16;
             footnote.style.opacity = 0f;
             overlay.Add(footnote);
@@ -500,11 +533,12 @@ namespace HonamiAnimationSystem.Editor
             switch (_step)
             {
                 case 0: BuildWelcomeStep(page); break;
-                case 1: BuildFeaturesStep(page); break;
-                case 2: BuildEaseOfUseStep(page); break;
-                case 3: BuildMigrationStep(page); break;
-                case 4: BuildToolsStep(page); break;
-                case 5: BuildQuickSetupStep(page); break;
+                case 1: BuildAppearanceStep(page); break;
+                case 2: BuildFeaturesStep(page); break;
+                case 3: BuildEaseOfUseStep(page); break;
+                case 4: BuildMigrationStep(page); break;
+                case 5: BuildToolsStep(page); break;
+                case 6: BuildQuickSetupStep(page); break;
                 default: BuildGetStartedStep(page); break;
             }
 
@@ -567,7 +601,7 @@ namespace HonamiAnimationSystem.Editor
             var title = new Label("Honami");
             title.style.fontSize = 48;
             title.style.unityFontStyleAndWeight = FontStyle.Bold;
-            title.style.color = Color.white;
+            title.style.color = TextColor;
             title.style.letterSpacing = -1f;
             page.Add(title);
 
@@ -595,7 +629,7 @@ namespace HonamiAnimationSystem.Editor
                 "A complete, high-performance replacement for Unity's Animator — with a live graph, procedural rigging and a zero-allocation runtime.",
                 "Повноцінна, високопродуктивна заміна Unity Animator — з живим графом, процедурним рігінгом та рантаймом без алокацій."));
             tagline.style.fontSize = 14;
-            tagline.style.color = new Color(0.78f, 0.80f, 0.83f);
+            tagline.style.color = SoftText;
             tagline.style.whiteSpace = WhiteSpace.Normal;
             tagline.style.unityTextAlign = TextAnchor.MiddleCenter;
             tagline.style.maxWidth = 480;
@@ -606,7 +640,7 @@ namespace HonamiAnimationSystem.Editor
             langHint.style.fontSize = 10;
             langHint.style.unityFontStyleAndWeight = FontStyle.Bold;
             langHint.style.letterSpacing = 1.5f;
-            langHint.style.color = new Color(0.5f, 0.52f, 0.55f);
+            langHint.style.color = FaintText;
             langHint.style.marginTop = 30;
             langHint.style.marginBottom = 8;
             page.Add(langHint);
@@ -741,6 +775,194 @@ namespace HonamiAnimationSystem.Editor
                 Localized("Retarget marketplace Humanoid clips onto your skeleton and bake them to Generic.", "Ретаргет Humanoid-кліпів з маркетплейсу на ваш скелет і бейк у Generic."),
                 HonamiEditorIcons.BlendTreeWhite, HonamiHumanoidBakerWindow.ShowWindow));
             scroll.Add(grid);
+        }
+
+        private void BuildAppearanceStep(VisualElement page)
+        {
+            var scroll = BuildStepScroll(page,
+                Localized("APPEARANCE", "ВИГЛЯД"),
+                Localized("Make it yours", "Зробіть його своїм"),
+                Localized(
+                    "Pick a theme for every Honami window — it applies instantly and you can change it anytime.",
+                    "Оберіть тему для всіх вікон Honami — вона застосовується миттєво, і її можна змінити будь-коли."));
+
+            var presets = HonamiThemePresets.All;
+            int activePreset = HonamiAppearanceSettings.FindMatchingPreset();
+
+            var grid = NewGrid();
+            for (int i = 0; i < presets.Length; i++)
+            {
+                grid.Add(ThemeCard(presets[i], i == activePreset));
+            }
+            scroll.Add(grid);
+
+            if (activePreset < 0)
+            {
+                var customNote = new Label(Localized(
+                    "You are using a custom theme right now — it stays untouched until you pick a preset.",
+                    "Зараз у вас кастомна тема — вона залишиться, поки ви не оберете пресет."));
+                customNote.style.fontSize = 11;
+                customNote.style.color = FaintText;
+                customNote.style.whiteSpace = WhiteSpace.Normal;
+                customNote.style.marginTop = 4;
+                scroll.Add(customNote);
+            }
+
+            var linksRow = new VisualElement();
+            linksRow.style.flexDirection = FlexDirection.Row;
+            linksRow.style.marginTop = 14;
+            linksRow.Add(TextLink(
+                Localized("Fine-tune every color in Preferences", "Тонко налаштувати кожен колір у Preferences"),
+                () => HonamiPreferences.Open("Appearance")));
+            scroll.Add(linksRow);
+        }
+
+        private VisualElement ThemeCard(HonamiThemePreset preset, bool isActive)
+        {
+            var accent = preset.Colors[0];
+            var windowBg = preset.Colors[2];
+            var panelBg = preset.Colors[3];
+            var toolbarBg = preset.Colors[4];
+            var boxBg = preset.Colors[5];
+            var text = preset.Colors[6];
+            var mutedText = preset.Colors[7];
+            var canvasBg = preset.Colors[8];
+
+            var card = new VisualElement();
+            card.style.width = Length.Percent(31.5f);
+            card.style.marginBottom = 14;
+            card.style.paddingTop = card.style.paddingBottom = 10;
+            card.style.paddingLeft = card.style.paddingRight = 10;
+            card.style.backgroundColor = CardBg;
+            card.style.borderTopLeftRadius = card.style.borderTopRightRadius =
+            card.style.borderBottomLeftRadius = card.style.borderBottomRightRadius = 10;
+            card.style.borderTopWidth = card.style.borderBottomWidth =
+            card.style.borderLeftWidth = card.style.borderRightWidth = 1;
+            var idleBorder = isActive ? accent : CardBorder;
+            card.style.borderTopColor = card.style.borderBottomColor =
+            card.style.borderLeftColor = card.style.borderRightColor = idleBorder;
+            card.style.transitionProperty = new List<StylePropertyName> { "border-color", "background-color", "translate" };
+            card.style.transitionDuration = new List<TimeValue> { new(120, TimeUnit.Millisecond) };
+            card.style.transitionTimingFunction = new List<EasingFunction> { new(EasingMode.EaseOutCubic) };
+
+            var preview = new VisualElement();
+            preview.style.height = 92;
+            preview.style.flexShrink = 0;
+            preview.style.backgroundColor = windowBg;
+            preview.style.overflow = Overflow.Hidden;
+            preview.style.borderTopLeftRadius = preview.style.borderTopRightRadius =
+            preview.style.borderBottomLeftRadius = preview.style.borderBottomRightRadius = 6;
+
+            var toolbar = new VisualElement();
+            toolbar.style.height = 14;
+            toolbar.style.flexShrink = 0;
+            toolbar.style.flexDirection = FlexDirection.Row;
+            toolbar.style.alignItems = Align.Center;
+            toolbar.style.paddingLeft = 7;
+            toolbar.style.backgroundColor = toolbarBg;
+            toolbar.Add(Bar(26, 3, text));
+            var toolbarChip = Bar(12, 3, accent);
+            toolbarChip.style.marginLeft = 5;
+            toolbar.Add(toolbarChip);
+            preview.Add(toolbar);
+
+            var body = new VisualElement();
+            body.style.flexDirection = FlexDirection.Row;
+            body.style.flexGrow = 1;
+
+            var canvas = new VisualElement();
+            canvas.style.flexGrow = 1;
+            canvas.style.backgroundColor = canvasBg;
+            canvas.style.alignItems = Align.Center;
+            canvas.style.justifyContent = Justify.Center;
+
+            var node = new VisualElement();
+            node.style.paddingTop = node.style.paddingBottom = 6;
+            node.style.paddingLeft = node.style.paddingRight = 8;
+            node.style.backgroundColor = boxBg;
+            node.style.borderTopLeftRadius = node.style.borderTopRightRadius =
+            node.style.borderBottomLeftRadius = node.style.borderBottomRightRadius = 3;
+            node.style.borderTopWidth = node.style.borderBottomWidth =
+            node.style.borderLeftWidth = node.style.borderRightWidth = 1;
+            node.style.borderTopColor = node.style.borderBottomColor =
+            node.style.borderLeftColor = node.style.borderRightColor = accent;
+            node.Add(Bar(34, 3, text));
+            var nodeSubBar = Bar(22, 3, mutedText);
+            nodeSubBar.style.marginTop = 4;
+            node.Add(nodeSubBar);
+            canvas.Add(node);
+            body.Add(canvas);
+
+            var panel = new VisualElement();
+            panel.style.width = 30;
+            panel.style.flexShrink = 0;
+            panel.style.backgroundColor = panelBg;
+            panel.style.alignItems = Align.Center;
+            panel.style.paddingTop = 8;
+            panel.Add(Bar(16, 12, boxBg));
+            var panelButton = Bar(16, 6, accent);
+            panelButton.style.marginTop = 5;
+            panel.Add(panelButton);
+            body.Add(panel);
+
+            preview.Add(body);
+            card.Add(preview);
+
+            var nameRow = new VisualElement();
+            nameRow.style.flexDirection = FlexDirection.Row;
+            nameRow.style.alignItems = Align.Center;
+            nameRow.style.justifyContent = Justify.SpaceBetween;
+            nameRow.style.marginTop = 9;
+
+            var nameLabel = new Label(preset.Name);
+            nameLabel.style.fontSize = 12;
+            nameLabel.style.unityFontStyleAndWeight = FontStyle.Bold;
+            nameLabel.style.color = TextColor;
+            nameRow.Add(nameLabel);
+
+            var check = new Label("✓");
+            check.style.fontSize = 12;
+            check.style.unityFontStyleAndWeight = FontStyle.Bold;
+            check.style.color = accent;
+            check.style.visibility = isActive ? Visibility.Visible : Visibility.Hidden;
+            nameRow.Add(check);
+            card.Add(nameRow);
+
+            card.RegisterCallback<MouseOverEvent>(_ =>
+            {
+                card.style.borderTopColor = card.style.borderBottomColor =
+                card.style.borderLeftColor = card.style.borderRightColor = accent;
+                card.style.backgroundColor = CardHoverBg;
+                card.style.translate = new Translate(0, -2, 0);
+            });
+            card.RegisterCallback<MouseOutEvent>(_ =>
+            {
+                card.style.borderTopColor = card.style.borderBottomColor =
+                card.style.borderLeftColor = card.style.borderRightColor = idleBorder;
+                card.style.backgroundColor = CardBg;
+                card.style.translate = new Translate(0, 0, 0);
+            });
+            card.RegisterCallback<ClickEvent>(_ => ApplyThemePreset(preset));
+
+            return card;
+        }
+
+        private void ApplyThemePreset(HonamiThemePreset preset)
+        {
+            HonamiAppearanceSettings.ApplyPreset(preset);
+            _appearanceRebuild.Request(0);
+        }
+
+        private static VisualElement Bar(float width, float height, Color color)
+        {
+            var bar = new VisualElement();
+            bar.style.width = width;
+            bar.style.height = height;
+            bar.style.flexShrink = 0;
+            bar.style.backgroundColor = color;
+            bar.style.borderTopLeftRadius = bar.style.borderTopRightRadius =
+            bar.style.borderBottomLeftRadius = bar.style.borderBottomRightRadius = Mathf.Min(height * 0.5f, 3f);
+            return bar;
         }
 
         private void BuildEaseOfUseStep(VisualElement page)
@@ -883,7 +1105,7 @@ namespace HonamiAnimationSystem.Editor
             linksRow.Add(TextLink(Localized("View on GitHub", "Дивитись на GitHub"), () => Application.OpenURL(HonamiPackageInfo.RepositoryUrl)));
             var dot = new Label("•");
             dot.style.marginLeft = dot.style.marginRight = 10;
-            dot.style.color = new Color(0.35f, 0.36f, 0.38f);
+            dot.style.color = FaintText;
             linksRow.Add(dot);
             linksRow.Add(TextLink(Localized("Report an issue", "Повідомити про баг"), () => Application.OpenURL($"{HonamiPackageInfo.RepositoryUrl}/issues")));
             scroll.Add(linksRow);
@@ -892,7 +1114,7 @@ namespace HonamiAnimationSystem.Editor
                 "You can reopen this anytime from Window ▸ Honami ▸ Welcome.",
                 "Відкрити знову можна будь-коли через Window ▸ Honami ▸ Welcome."));
             footnote.style.fontSize = 11;
-            footnote.style.color = new Color(0.5f, 0.52f, 0.55f);
+            footnote.style.color = FaintText;
             footnote.style.marginTop = 18;
             footnote.style.whiteSpace = WhiteSpace.Normal;
             scroll.Add(footnote);
@@ -918,7 +1140,7 @@ namespace HonamiAnimationSystem.Editor
             var headingLabel = new Label(heading);
             headingLabel.style.fontSize = 30;
             headingLabel.style.unityFontStyleAndWeight = FontStyle.Bold;
-            headingLabel.style.color = Color.white;
+            headingLabel.style.color = TextColor;
             headingLabel.style.letterSpacing = -0.5f;
             headingLabel.style.whiteSpace = WhiteSpace.Normal;
             headingLabel.style.marginBottom = 12;
@@ -926,7 +1148,7 @@ namespace HonamiAnimationSystem.Editor
 
             var leadLabel = new Label(lead);
             leadLabel.style.fontSize = 14;
-            leadLabel.style.color = new Color(0.72f, 0.74f, 0.77f);
+            leadLabel.style.color = SoftText;
             leadLabel.style.whiteSpace = WhiteSpace.Normal;
             leadLabel.style.marginBottom = 26;
             scroll.Add(leadLabel);
@@ -986,7 +1208,7 @@ namespace HonamiAnimationSystem.Editor
                 var chevron = new Label("→");
                 chevron.style.fontSize = 15;
                 chevron.style.unityFontStyleAndWeight = FontStyle.Bold;
-                chevron.style.color = new Color(0.5f, 0.52f, 0.55f);
+                chevron.style.color = FaintText;
                 iconRow.Add(chevron);
             }
             card.Add(iconRow);
@@ -994,13 +1216,13 @@ namespace HonamiAnimationSystem.Editor
             var titleLabel = new Label(title);
             titleLabel.style.fontSize = 14;
             titleLabel.style.unityFontStyleAndWeight = FontStyle.Bold;
-            titleLabel.style.color = Color.white;
+            titleLabel.style.color = TextColor;
             titleLabel.style.marginBottom = 6;
             card.Add(titleLabel);
 
             var descLabel = new Label(desc);
             descLabel.style.fontSize = 12;
-            descLabel.style.color = new Color(0.7f, 0.7f, 0.72f);
+            descLabel.style.color = SoftText;
             descLabel.style.whiteSpace = WhiteSpace.Normal;
             card.Add(descLabel);
 
@@ -1011,7 +1233,7 @@ namespace HonamiAnimationSystem.Editor
             {
                 card.style.borderTopColor = card.style.borderBottomColor =
                 card.style.borderLeftColor = card.style.borderRightColor = hoverBorder;
-                card.style.backgroundColor = new Color(0.16f, 0.17f, 0.185f);
+                card.style.backgroundColor = CardHoverBg;
                 if (onClick != null) card.style.translate = new Translate(0, -2, 0);
             });
             card.RegisterCallback<MouseOutEvent>(_ =>
@@ -1083,13 +1305,13 @@ namespace HonamiAnimationSystem.Editor
             var titleLabel = new Label(title);
             titleLabel.style.fontSize = 14;
             titleLabel.style.unityFontStyleAndWeight = FontStyle.Bold;
-            titleLabel.style.color = Color.white;
+            titleLabel.style.color = TextColor;
             header.Add(titleLabel);
             content.Add(header);
 
             var descLabel = new Label(desc);
             descLabel.style.fontSize = 12;
-            descLabel.style.color = new Color(0.7f, 0.7f, 0.72f);
+            descLabel.style.color = SoftText;
             descLabel.style.whiteSpace = WhiteSpace.Normal;
             content.Add(descLabel);
 
@@ -1104,7 +1326,7 @@ namespace HonamiAnimationSystem.Editor
 
                 var btn = new Button(onBtn) { text = btnText };
                 btn.style.backgroundColor = new Color(1f, 1f, 1f, 0.1f);
-                btn.style.color = Color.white;
+                btn.style.color = TextColor;
                 btn.style.borderTopWidth = btn.style.borderBottomWidth =
                 btn.style.borderLeftWidth = btn.style.borderRightWidth = 0;
                 btn.style.borderTopLeftRadius = btn.style.borderTopRightRadius =
@@ -1309,7 +1531,7 @@ public sealed class HonamiCharacterController : MonoBehaviour
             btn.style.transitionProperty = new List<StylePropertyName> { "background-color" };
             btn.style.transitionDuration = new List<TimeValue> { new(120, TimeUnit.Millisecond) };
 
-            btn.RegisterCallback<MouseOverEvent>(_ => btn.style.backgroundColor = new Color(1f, 0.42f, 0.62f));
+            btn.RegisterCallback<MouseOverEvent>(_ => btn.style.backgroundColor = Color.Lerp(HonamiEditorTheme.Accent, Color.white, 0.2f));
             btn.RegisterCallback<MouseOutEvent>(_ => btn.style.backgroundColor = HonamiEditorTheme.Accent);
             return btn;
         }
@@ -1323,7 +1545,7 @@ public sealed class HonamiCharacterController : MonoBehaviour
             btn.style.marginLeft = 0;
             btn.style.fontSize = 13;
             btn.style.unityFontStyleAndWeight = FontStyle.Bold;
-            btn.style.color = new Color(0.8f, 0.82f, 0.85f);
+            btn.style.color = SoftText;
             btn.style.backgroundColor = Color.clear;
             btn.style.borderTopWidth = btn.style.borderBottomWidth =
             btn.style.borderLeftWidth = btn.style.borderRightWidth = 1;
@@ -1337,12 +1559,12 @@ public sealed class HonamiCharacterController : MonoBehaviour
             btn.RegisterCallback<MouseOverEvent>(_ =>
             {
                 btn.style.backgroundColor = new Color(1f, 1f, 1f, 0.05f);
-                btn.style.color = Color.white;
+                btn.style.color = TextColor;
             });
             btn.RegisterCallback<MouseOutEvent>(_ =>
             {
                 btn.style.backgroundColor = Color.clear;
-                btn.style.color = new Color(0.8f, 0.82f, 0.85f);
+                btn.style.color = SoftText;
             });
             return btn;
         }
