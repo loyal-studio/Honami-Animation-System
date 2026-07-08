@@ -27,7 +27,7 @@ namespace HonamiAnimationSystem.Editor.Timeline
         {
             get
             {
-                if (_tabs.Count == 0) _tabs.Add(NewTabState());
+                if (_tabs.Count == 0) return null;
                 _activeIndex = Mathf.Clamp(_activeIndex, 0, _tabs.Count - 1);
                 return _tabs[_activeIndex];
             }
@@ -72,8 +72,6 @@ namespace HonamiAnimationSystem.Editor.Timeline
             titleContent = HonamiEditorIcons.IconContent("HonamiTimelineWhite", "Honami Timeline");
 
             RestoreTabs();
-            if (_tabs.Count == 0) _tabs.Add(NewTabState());
-            _activeIndex = Mathf.Clamp(_activeIndex, 0, _tabs.Count - 1);
 
             EditorApplication.update -= OnEditorUpdate;
             EditorApplication.update += OnEditorUpdate;
@@ -126,7 +124,7 @@ namespace HonamiAnimationSystem.Editor.Timeline
                 }
             }
 
-            var target = IsTabEmpty(Active) ? Active : null;
+            var target = Active != null && IsTabEmpty(Active) ? Active : null;
             if (target == null)
             {
                 target = NewTabState();
@@ -152,7 +150,7 @@ namespace HonamiAnimationSystem.Editor.Timeline
                 }
             }
 
-            var target = IsTabEmpty(Active) ? Active : null;
+            var target = Active != null && IsTabEmpty(Active) ? Active : null;
             if (target == null)
             {
                 target = NewTabState();
@@ -179,7 +177,6 @@ namespace HonamiAnimationSystem.Editor.Timeline
             _tabs[index].ClearCache();
             _tabs.RemoveAt(index);
 
-            if (_tabs.Count == 0) _tabs.Add(NewTabState());
             if (index < _activeIndex) _activeIndex--;
             _activeIndex = Mathf.Clamp(_activeIndex, 0, _tabs.Count - 1);
 
@@ -209,6 +206,11 @@ namespace HonamiAnimationSystem.Editor.Timeline
                 }
 
                 var s = Active;
+                if (s == null)
+                {
+                    FocusOrOpenTimeline(timeline);
+                    return;
+                }
                 s.Mode = TimelineMode.HonamiTimeline;
                 if (s.ActiveTimeline != timeline)
                 {
@@ -222,7 +224,7 @@ namespace HonamiAnimationSystem.Editor.Timeline
             }
             else
             {
-                Active.ClearCache();
+                Active?.ClearCache();
                 RequestRefreshViews();
             }
         }
@@ -243,7 +245,8 @@ namespace HonamiAnimationSystem.Editor.Timeline
                 }
             }
 
-            bool activeWasPlaying = Active.IsPlaying && !Active.IsDraggingPlayhead;
+            var active = Active;
+            bool activeWasPlaying = active != null && active.IsPlaying && !active.IsDraggingPlayhead;
 
             for (int i = 0; i < _tabs.Count; i++)
                 TickState(_tabs[i]);
@@ -258,7 +261,7 @@ namespace HonamiAnimationSystem.Editor.Timeline
 
             if (!anyPlaying) return;
 
-            if (activeWasPlaying && Active.IsPlaying)
+            if (activeWasPlaying && active.IsPlaying)
                 _panel?.TickRefresh();
             else
                 RequestRefreshViews();
@@ -363,11 +366,23 @@ namespace HonamiAnimationSystem.Editor.Timeline
             };
             rootVisualElement.Add(_tabBar);
 
-            _toolbarView = new TimelineToolbarView(Active, RequestRefreshViews);
-            rootVisualElement.Add(_toolbarView);
+            var active = Active;
+            if (active == null)
+            {
+                _toolbarView = null;
+                _panel = null;
+                rootVisualElement.Add(HonamiEditorLayout.EmptyState(
+                    HonamiEditorIcons.TimelineWhite, "Honami Timeline", "No Tabs Open",
+                    "Open a Honami Timeline asset or a state from the Graph window,\nor create a new tab with +."));
+            }
+            else
+            {
+                _toolbarView = new TimelineToolbarView(active, RequestRefreshViews);
+                rootVisualElement.Add(_toolbarView);
 
-            _panel = new TimelinePanelView(Active, () => true, () => { }, RequestRefreshViews);
-            rootVisualElement.Add(_panel);
+                _panel = new TimelinePanelView(active, () => true, () => { }, RequestRefreshViews);
+                rootVisualElement.Add(_panel);
+            }
 
             _notificationPanel = new HonamiNotificationPanel();
             rootVisualElement.Add(_notificationPanel);

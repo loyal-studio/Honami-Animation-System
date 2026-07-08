@@ -168,6 +168,67 @@ namespace HonamiAnimationSystem.Editor
             button.style.marginLeft = 8;
             return button;
         }
+
+        public static VisualElement EmptyState(Texture2D icon, string title, string subtitle, string description)
+        {
+            VisualElement container = new()
+            {
+                style =
+                {
+                    flexGrow = 1,
+                    alignItems = Align.Center,
+                    justifyContent = Justify.Center
+                }
+            };
+
+            VisualElement box = new()
+            {
+                style =
+                {
+                    alignItems = Align.Center,
+                    backgroundColor = new Color(0f, 0f, 0f, 0.3f),
+                    paddingTop = 40,
+                    paddingBottom = 40,
+                    paddingLeft = 60,
+                    paddingRight = 60,
+                    borderTopLeftRadius = 16,
+                    borderTopRightRadius = 16,
+                    borderBottomLeftRadius = 16,
+                    borderBottomRightRadius = 16
+                }
+            };
+            box.style.borderTopWidth = box.style.borderBottomWidth = box.style.borderLeftWidth = box.style.borderRightWidth = 1;
+            box.style.borderTopColor = box.style.borderBottomColor = box.style.borderLeftColor = box.style.borderRightColor = new Color(1f, 1f, 1f, 0.05f);
+
+            var iconImage = new Image { image = icon };
+            iconImage.style.width = iconImage.style.height = 64;
+            iconImage.tintColor = new Color(1f, 1f, 1f, 0.4f);
+            iconImage.style.marginBottom = 15;
+            box.Add(iconImage);
+
+            var titleLabel = new Label(title);
+            titleLabel.style.fontSize = 24;
+            titleLabel.style.color = new Color(1f, 1f, 1f, 0.7f);
+            titleLabel.style.unityFontStyleAndWeight = FontStyle.Bold;
+            titleLabel.style.marginBottom = 8;
+            box.Add(titleLabel);
+
+            var subtitleLabel = new Label(subtitle);
+            subtitleLabel.style.fontSize = 14;
+            subtitleLabel.style.color = HonamiEditorTheme.Accent;
+            subtitleLabel.style.unityFontStyleAndWeight = FontStyle.Bold;
+            subtitleLabel.style.marginBottom = 20;
+            box.Add(subtitleLabel);
+
+            var descriptionLabel = new Label(description);
+            descriptionLabel.style.fontSize = 13;
+            descriptionLabel.style.color = new Color(1f, 1f, 1f, 0.4f);
+            descriptionLabel.style.unityTextAlign = TextAnchor.MiddleCenter;
+            box.Add(descriptionLabel);
+
+            container.Add(box);
+            return container;
+        }
     }
 }
 #endif

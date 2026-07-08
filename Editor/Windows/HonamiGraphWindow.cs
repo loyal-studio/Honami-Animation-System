@@ -20,7 +20,7 @@ namespace HonamiAnimationSystem.Editor
         [SerializeField] public List<HonamiGraphTab> Tabs = new List<HonamiGraphTab>();
         [SerializeField] public int ActiveTabIndex = -1;
 
-        public VisualElement TabBarContainer { get; private set; }
+        private HonamiTabBar _tabBar;
 
         [SerializeField] public Runtime.Core.HonamiRuntimeController RuntimeController;
         [SerializeField] public Runtime.Core.HonamiController Controller;
@@ -335,57 +335,15 @@ namespace HonamiAnimationSystem.Editor
 
             GenerateToolbar(CenterContainer);
 
-            EmptyStateContainer = new VisualElement();
+            EmptyStateContainer = HonamiEditorLayout.EmptyState(
+                HonamiEditorIcons.Graph, "Honami Animation System", "No Graph Selected",
+                "Please select a HonamiRuntimeController or\nHonamiLinkedAnimatorGraph from your Project or Hierarchy.");
             EmptyStateContainer.style.position = Position.Absolute;
             EmptyStateContainer.style.left = 0;
             EmptyStateContainer.style.right = 0;
             EmptyStateContainer.style.top = 24;
             EmptyStateContainer.style.bottom = 0;
             EmptyStateContainer.style.backgroundColor = new Color(0.13f, 0.13f, 0.13f, 1f);
-            EmptyStateContainer.style.alignItems = Align.Center;
-            EmptyStateContainer.style.justifyContent = Justify.Center;
-
-            var emptyBox = new VisualElement();
-            emptyBox.style.alignItems = Align.Center;
-            emptyBox.style.backgroundColor = new Color(0f, 0f, 0f, 0.3f);
-            emptyBox.style.paddingTop = 40;
-            emptyBox.style.paddingBottom = 40;
-            emptyBox.style.paddingLeft = 60;
-            emptyBox.style.paddingRight = 60;
-            emptyBox.style.borderTopLeftRadius = 16;
-            emptyBox.style.borderTopRightRadius = 16;
-            emptyBox.style.borderBottomLeftRadius = 16;
-            emptyBox.style.borderBottomRightRadius = 16;
-            emptyBox.style.borderTopWidth = emptyBox.style.borderBottomWidth = emptyBox.style.borderLeftWidth = emptyBox.style.borderRightWidth = 1;
-            emptyBox.style.borderTopColor = emptyBox.style.borderBottomColor = emptyBox.style.borderLeftColor = emptyBox.style.borderRightColor = new Color(1f, 1f, 1f, 0.05f);
-
-            var emptyIcon = new Image { image = HonamiEditorIcons.Graph };
-            emptyIcon.style.width = emptyIcon.style.height = 64;
-            emptyIcon.tintColor = new Color(1f, 1f, 1f, 0.4f);
-            emptyIcon.style.marginBottom = 15;
-            emptyBox.Add(emptyIcon);
-
-            var emptyTitle = new Label("Honami Animation System");
-            emptyTitle.style.fontSize = 24;
-            emptyTitle.style.color = new Color(1f, 1f, 1f, 0.7f);
-            emptyTitle.style.unityFontStyleAndWeight = FontStyle.Bold;
-            emptyTitle.style.marginBottom = 8;
-            emptyBox.Add(emptyTitle);
-
-            var emptySubTitle = new Label("No Graph Selected");
-            emptySubTitle.style.fontSize = 14;
-            emptySubTitle.style.color = new Color(0.4f, 0.7f, 1f, 1f);
-            emptySubTitle.style.unityFontStyleAndWeight = FontStyle.Bold;
-            emptySubTitle.style.marginBottom = 20;
-            emptyBox.Add(emptySubTitle);
-
-            var emptyDesc = new Label("Please select a HonamiRuntimeController or\nHonamiLinkedAnimatorGraph from your Project or Hierarchy.");
-            emptyDesc.style.fontSize = 13;
-            emptyDesc.style.color = new Color(1f, 1f, 1f, 0.4f);
-            emptyDesc.style.unityTextAlign = TextAnchor.MiddleCenter;
-            emptyBox.Add(emptyDesc);
-
-            EmptyStateContainer.Add(emptyBox);
             CenterContainer.Add(EmptyStateContainer);
 
             NotificationPanel = new HonamiNotificationPanel();
@@ -422,102 +380,13 @@ namespace HonamiAnimationSystem.Editor
 
         private void BuildTabBar(VisualElement root)
         {
-            TabBarContainer = new VisualElement();
-            TabBarContainer.style.flexDirection = FlexDirection.Row;
-            TabBarContainer.style.height = 24;
-            TabBarContainer.style.backgroundColor = new Color(0.15f, 0.15f, 0.15f, 1f);
-            TabBarContainer.style.borderBottomWidth = 1;
-            TabBarContainer.style.borderBottomColor = new Color(0.1f, 0.1f, 0.1f, 1f);
-
-            var scroll = new ScrollView(ScrollViewMode.Horizontal);
-            scroll.verticalScrollerVisibility = ScrollerVisibility.Hidden;
-            scroll.style.flexGrow = 1;
-            scroll.style.flexDirection = FlexDirection.Row;
-            scroll.contentContainer.style.flexDirection = FlexDirection.Row;
-            TabBarContainer.Add(scroll);
-
-            var addBtn = new Button(() => OpenEmptyTab()) { text = "+" };
-            addBtn.style.width = 24;
-            addBtn.style.height = 24;
-            addBtn.style.marginRight = 4;
-            addBtn.style.paddingLeft = 0;
-            addBtn.style.paddingRight = 0;
-            addBtn.style.backgroundColor = new Color(0, 0, 0, 0);
-            addBtn.style.borderTopWidth = 0; addBtn.style.borderBottomWidth = 0; addBtn.style.borderLeftWidth = 0; addBtn.style.borderRightWidth = 0;
-            addBtn.style.fontSize = 18;
-            addBtn.style.unityFontStyleAndWeight = FontStyle.Bold;
-            addBtn.style.color = new Color(0.6f, 0.6f, 0.6f, 1f);
-            addBtn.RegisterCallback<MouseEnterEvent>(e => addBtn.style.color = Color.white);
-            addBtn.RegisterCallback<MouseLeaveEvent>(e => addBtn.style.color = new Color(0.6f, 0.6f, 0.6f, 1f));
-            TabBarContainer.Add(addBtn);
-
-            root.Add(TabBarContainer);
-            UpdateTabsUI();
+            _tabBar = new HonamiTabBar(
+                () => Tabs.Count, () => ActiveTabIndex, SwitchToTab, CloseTab, OpenEmptyTab,
+                i => Tabs[i].GetTabName(), i => Tabs[i].GetTabIcon());
+            root.Add(_tabBar);
         }
 
-        public void UpdateTabsUI()
-        {
-            if (TabBarContainer == null) return;
-            var scroll = TabBarContainer.Q<ScrollView>();
-            if (scroll == null) return;
-            var container = scroll.contentContainer;
-            container.Clear();
-
-            for (int i = 0; i < Tabs.Count; i++)
-            {
-                int index = i;
-                var tab = Tabs[i];
-                bool isActive = (index == ActiveTabIndex);
-
-                var tabEl = new VisualElement();
-                tabEl.style.flexDirection = FlexDirection.Row;
-                tabEl.style.alignItems = Align.Center;
-                tabEl.style.height = 24;
-                tabEl.style.paddingLeft = 8;
-                tabEl.style.paddingRight = 4;
-                tabEl.style.borderRightWidth = 1;
-                tabEl.style.borderRightColor = new Color(0.1f, 0.1f, 0.1f, 1f);
-                tabEl.style.backgroundColor = isActive ? new Color(0.22f, 0.22f, 0.22f, 1f) : new Color(0.15f, 0.15f, 0.15f, 1f);
-
-                var topBorderColor = isActive ? new Color(0.3f, 0.6f, 1f, 1f) : Color.clear;
-                tabEl.style.borderTopWidth = 2;
-                tabEl.style.borderTopColor = topBorderColor;
-
-                tabEl.RegisterCallback<MouseDownEvent>(e =>
-                {
-                    if (e.button == 0) SwitchToTab(index);
-                    else if (e.button == 2) CloseTab(index); // Middle click
-                });
-
-                var icon = new Image { image = tab.GetTabIcon() };
-                icon.style.width = 16;
-                icon.style.height = 16;
-                icon.style.marginRight = 6;
-                icon.tintColor = isActive ? Color.white : new Color(0.6f, 0.6f, 0.6f, 1f);
-                tabEl.Add(icon);
-
-                var label = new Label(tab.GetTabName());
-                label.style.unityTextAlign = TextAnchor.MiddleLeft;
-                label.style.color = isActive ? Color.white : new Color(0.6f, 0.6f, 0.6f, 1f);
-                label.style.marginRight = 8;
-                tabEl.Add(label);
-
-                var closeBtn = new Button(() => CloseTab(index)) { text = "×" };
-                closeBtn.RegisterCallback<MouseDownEvent>(e => e.StopPropagation());
-                closeBtn.style.width = 16;
-                closeBtn.style.height = 16;
-                closeBtn.style.backgroundColor = new Color(0, 0, 0, 0);
-                closeBtn.style.borderTopWidth = 0; closeBtn.style.borderBottomWidth = 0; closeBtn.style.borderLeftWidth = 0; closeBtn.style.borderRightWidth = 0;
-                closeBtn.style.paddingLeft = 0; closeBtn.style.paddingRight = 0;
-                closeBtn.style.fontSize = 14;
-                closeBtn.style.color = new Color(0.6f, 0.6f, 0.6f, 1f);
-                closeBtn.RegisterCallback<MouseEnterEvent>(e => closeBtn.style.color = new Color(1f, 0.4f, 0.4f, 1f));
-                closeBtn.RegisterCallback<MouseLeaveEvent>(e => closeBtn.style.color = new Color(0.6f, 0.6f, 0.6f, 1f));
-                tabEl.Add(closeBtn);
-
-                container.Add(tabEl);
-            }
-        }
+        public void UpdateTabsUI() => _tabBar?.Refresh();
 
         public void OpenEmptyTab()
         {

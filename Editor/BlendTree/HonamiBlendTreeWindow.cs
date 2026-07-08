@@ -30,7 +30,7 @@ namespace HonamiAnimationSystem.Editor
         {
             get
             {
-                if (_tabs.Count == 0) _tabs.Add(NewTabState());
+                if (_tabs.Count == 0) return null;
                 _activeIndex = Mathf.Clamp(_activeIndex, 0, _tabs.Count - 1);
                 return _tabs[_activeIndex];
             }
@@ -57,8 +57,6 @@ namespace HonamiAnimationSystem.Editor
 
             DeleteLegacyPrefs();
             RestoreTabs();
-            if (_tabs.Count == 0) _tabs.Add(NewTabState());
-            _activeIndex = Mathf.Clamp(_activeIndex, 0, _tabs.Count - 1);
 
             Undo.undoRedoPerformed -= OnUndoRedo;
             Undo.undoRedoPerformed += OnUndoRedo;
@@ -122,7 +120,7 @@ namespace HonamiAnimationSystem.Editor
                 }
             }
 
-            var target = IsTabEmpty(Active) ? Active : null;
+            var target = Active != null && IsTabEmpty(Active) ? Active : null;
             if (target == null)
             {
                 target = NewTabState();
@@ -147,7 +145,6 @@ namespace HonamiAnimationSystem.Editor
             if (index < 0 || index >= _tabs.Count) return;
             _tabs.RemoveAt(index);
 
-            if (_tabs.Count == 0) _tabs.Add(NewTabState());
             if (index < _activeIndex) _activeIndex--;
             _activeIndex = Mathf.Clamp(_activeIndex, 0, _tabs.Count - 1);
 
@@ -172,18 +169,29 @@ namespace HonamiAnimationSystem.Editor
                 rootVisualElement.styleSheets.Add(styleSheet);
 
             var active = Active;
-            active.Resolve();
+            active?.Resolve();
 
             _tabBar = new HonamiTabBar(
                 () => _tabs.Count, () => _activeIndex, SelectTab, CloseTab, AddTab,
                 TabTitle, _ => HonamiEditorIcons.BlendTreeWhite);
             rootVisualElement.Add(_tabBar);
 
-            _panel = new BlendTreePanelView(active, RequestRefreshViews);
-            _toolbarView = new BlendTreeToolbarView(active, RequestRefreshViews, () => _panel);
+            if (active == null)
+            {
+                _panel = null;
+                _toolbarView = null;
+                rootVisualElement.Add(HonamiEditorLayout.EmptyState(
+                    HonamiEditorIcons.BlendTreeWhite, "Honami Blend Tree", "No Tabs Open",
+                    "Open a blend tree state from the Graph window\nor create a new tab with +."));
+            }
+            else
+            {
+                _panel = new BlendTreePanelView(active, RequestRefreshViews);
+                _toolbarView = new BlendTreeToolbarView(active, RequestRefreshViews, () => _panel);
 
-            rootVisualElement.Add(_toolbarView);
-            rootVisualElement.Add(_panel);
+                rootVisualElement.Add(_toolbarView);
+                rootVisualElement.Add(_panel);
+            }
 
             _notificationPanel = new HonamiNotificationPanel();
             rootVisualElement.Add(_notificationPanel);
