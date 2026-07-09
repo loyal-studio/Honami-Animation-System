@@ -148,7 +148,7 @@ Unity Avatar Masks are on/off - a bone is in the mask or it isn't. Honami masks 
 Unity bakes Animation Events into the AnimationClip, which couples every clip to a specific method on a specific GameObject and means a shared clip can only ever fire the same event. Honami puts event markers on the **state** instead. The same clip fires different events in different states, and your `.anim` files stay clean and reusable. Two independent channels:
 
 - **Local Event** - invokes `UnityEvent` actions on a `HonamiLocalEventReceiver` next to the animator. Wire it up in the inspector; no code required.
-- **Global Event** - dispatches to reusable `HonamiGlobalEvent` components you subclass in C# (e.g. a `FootstepEvent` shared across every character).
+- **Global Event** - dispatches to reusable `HonamiGlobalEvent` components you subclass in C#, living on **any** GameObject in the scene (e.g. a `FootstepEvent` shared across every character, or a door the animation opens remotely).
 
 Markers behave sensibly: they re-fire each loop, fire in reverse on reversed states, don't fire on paused states or layers, and can be cancelled when a state is skipped. Separately, `HonamiAnimator` also raises C# events - `OnStateEntered`, `OnStateFinished`, and `OnStateExited` (with a full `HonamiStateExitInfo` telling you exactly why a state ended and what replaced it).
 

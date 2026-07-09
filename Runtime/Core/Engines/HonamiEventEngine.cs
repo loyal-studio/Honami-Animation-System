@@ -125,7 +125,7 @@ namespace HonamiAnimationSystem.Runtime.Core
 
         private static void FireEvent(HonamiAnimator anim, HonamiEventMarker evt)
         {
-            HonamiEventEvaluator.FireEvent(evt, anim._localEventReceiver, anim._globalEvents);
+            HonamiEventEvaluator.FireEvent(evt, anim._localEventReceiver);
         }
 
         public static bool EvaluateConditionTentative(HonamiAnimator anim, HonamiCondition cond, List<int> triggersTentative)

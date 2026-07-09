@@ -12,7 +12,7 @@ namespace HonamiAnimationSystem.Runtime.Events
         public UnityEvent onEventTriggered;
     }
 
-    [AddComponentMenu("Honami Animation/Local Event Receiver")]
+    [AddComponentMenu("Honami Animation/Honami Local Event Receiver")]
     public sealed class HonamiLocalEventReceiver : MonoBehaviour
     {
         public List<LocalEventEntry> localEvents = new List<LocalEventEntry>();

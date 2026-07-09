@@ -217,7 +217,6 @@ namespace HonamiAnimationSystem.Runtime.Core
         internal HonamiState[] _runtimeStates;
         internal int _activeStatesCount;
         internal HonamiLocalEventReceiver _localEventReceiver;
-        internal HonamiGlobalEvent[] _globalEvents;
 
         internal readonly HonamiParameterStore _params = new();
         internal HonamiConstraintProcessor _constraints = new();
@@ -272,9 +271,6 @@ namespace HonamiAnimationSystem.Runtime.Core
             _animator.applyRootMotion = applyRootMotion;
             _animator.cullingMode = cullingMode;
             TryGetComponent<HonamiLocalEventReceiver>(out _localEventReceiver);
-            var eventsList = new System.Collections.Generic.List<HonamiGlobalEvent>();
-            GetComponents(eventsList);
-            _globalEvents = eventsList.ToArray();
             if (captureInitialPoseOnAwake) CaptureInitialPose();
             _params.Initialize(controller);
             InitializeGraph();

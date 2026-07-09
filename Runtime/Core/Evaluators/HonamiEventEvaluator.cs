@@ -4,18 +4,15 @@ namespace HonamiAnimationSystem.Runtime.Core
 {
     public static class HonamiEventEvaluator
     {
-        public static void FireEvent(HonamiEventMarker evt, HonamiLocalEventReceiver localEventReceiver, HonamiGlobalEvent[] globalEvents)
+        public static void FireEvent(HonamiEventMarker evt, HonamiLocalEventReceiver localEventReceiver)
         {
             if (evt.eventType == HonamiEventType.Local && localEventReceiver != null)
             {
                 localEventReceiver.TriggerEvent(evt.eventName);
             }
-            else if (evt.eventType == HonamiEventType.Global && globalEvents != null)
+            else if (evt.eventType == HonamiEventType.Global)
             {
-                foreach (var ge in globalEvents)
-                {
-                    if (ge.eventId == evt.globalEventId) ge.ExecuteEvent();
-                }
+                HonamiGlobalEvent.Execute(evt.globalEventId);
             }
         }
     }
