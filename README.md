@@ -110,6 +110,7 @@ You draw states, transitions and layers instead of writing them. Behaviour is sp
 - **Blend Tree Node** - the smooth locomotion blend: flows continuously between clips like **idle → walk → run** along a float such as speed, with no visible transition. **Standard** mode speed-syncs the clips so footfalls stay in phase; **Simple** plays each at its own speed. Damped, so it eases instead of snapping.
 - **Random Node** - picks one weighted clip on entry for idle/attack variety; can even sync its pick across linked animators.
 - **Sequencer Node** - stitches several clips onto one state's timeline (wind-up → hit → recover) without extra transitions.
+- **Event Node** - a state with no animation at all: a pure logic beat that fires event markers, sets parameters and runs Sub-Nodes for a set duration. Chain a few with exit-time transitions for scripted sequences, timers and decision points - all authored in the UI, no code.
 - **Portal Nodes** - named entrance/exit pairs that "teleport" the flow across a big graph without long messy wires; virtual, zero runtime cost, with optional source filtering.
 - **Any State / Repeater** - global transitions reachable from anywhere (deaths, stuns); the Repeater force-restarts its target for mash-friendly hit reactions with a cooldown and repeat cap.
 

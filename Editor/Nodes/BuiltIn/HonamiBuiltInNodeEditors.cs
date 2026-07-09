@@ -527,6 +527,74 @@ namespace HonamiAnimationSystem.Editor
         }
     }
 
+    [HonamiNodeEditor(typeof(HonamiEventNode), "Logic/Event", 25)]
+    public sealed class HonamiEventNodeEditor : HonamiNodeEditorBase
+    {
+        public override string NodeCssClass => "honami-node-event";
+        public override string TopBarCssClass => "honami-node-top-event";
+        public override string AvatarCssClass => "honami-node-avatar-event";
+        public override string IconCssClass => "honami-node-icon-event";
+        public override string Tooltip => "Plays no animation - a pure logic state that fires events and Sub-Nodes for a set duration.";
+
+        public override string GetSubtitle(HonamiState state)
+        {
+            HonamiEventNode n = state.node as HonamiEventNode;
+            return n != null ? $"EVENT  {n.duration:F1}s" : "EVENT";
+        }
+
+        public override void OnDoubleClick(HonamiState state, HonamiController ctrl)
+        {
+            HonamiTimelineWindow.OpenWindow();
+            HonamiTimelineWindow.InspectState(ctrl, state.guid);
+        }
+
+        public override void AppendActionButtons(VisualElement root, HonamiState state, HonamiController ctrl)
+            => root.Add(TimelineButton(state, ctrl));
+
+        public override VisualElement BuildInspectorUI(HonamiState state, SerializedObject nodeSO, HonamiController controller)
+        {
+            VisualElement box = HonamiGraphStyles.Box();
+            box.Add(HonamiGraphStyles.SubTitle("Event Node"));
+            AddNodeField(box, nodeSO, "duration", "Duration (s)");
+            AddStateField(box, state, "loop", "Loop");
+            AddStateField(box, state, "speed", "Speed");
+            AddStateField(box, state, "isReversed", "Reverse");
+            box.Add(new HelpBox("This state plays no animation. Place Local/Global event markers on its timeline, stack Sub-Nodes and assign parameters on enter/exit to run logic without a clip.", HelpBoxMessageType.Info));
+            return box;
+        }
+
+        public override float GetTimelineDuration(TimelineState state)
+        {
+            var node = state.node as HonamiEventNode;
+            return node != null && node.duration > 0f ? node.duration : 1f;
+        }
+
+        public override void DrawTimelineTracks(TimelineState state, ITimelineTrackDrawer drawer, ref float y)
+        {
+            var node = state.node as HonamiEventNode;
+            if (node == null) return;
+
+            drawer.AddClipWithHandles(
+                0,
+                "Logic Window",
+                0f,
+                Mathf.Max(0.01f, node.duration),
+                1f,
+                y,
+                TimelineTheme.EventTrack,
+                null,
+                newEnd =>
+                {
+                    Undo.RecordObject(node, "Resize Event Duration");
+                    node.duration = Mathf.Max(0.01f, newEnd);
+                    EditorUtility.SetDirty(node);
+                },
+                null,
+                null);
+            y += TimelineTheme.RowHeight;
+        }
+    }
+
     [HonamiNodeEditor(typeof(HonamiRepeaterNode), "Logic/Repeater", 70)]
     public sealed class HonamiRepeaterNodeEditor : HonamiNodeEditorBase
     {
@@ -609,37 +677,6 @@ namespace HonamiAnimationSystem.Editor
             return box;
         }
     }
-#pragma warning disable CS0618
-    [HonamiNodeEditor(typeof(HonamiLinkedStateNode), "Logic/Linked State (Brain)", 100)]
-    public sealed class HonamiLinkedStateNodeEditor : HonamiNodeEditorBase
-    {
-        public override string NodeCssClass => "honami-node-linked";
-        public override string TopBarCssClass => "honami-node-top-linked";
-        public override string AvatarCssClass => "honami-node-avatar-linked";
-        public override string IconCssClass => "honami-node-icon-linked";
-        public override string Tooltip => "Broadcasts actions to linked animators. Used primarily in HonamiLinkedAnimator.";
-
-        public override string GetSubtitle(HonamiState state)
-        {
-            HonamiLinkedStateNode n = state.node as HonamiLinkedStateNode;
-            if (n != null && n.onEnterBroadcastAction != null)
-                return $"BROADCAST  {n.onEnterBroadcastAction.name}";
-            return "LINKED STATE";
-        }
-
-        public override VisualElement BuildInspectorUI(HonamiState state, SerializedObject nodeSO, HonamiController controller)
-        {
-            VisualElement box = HonamiGraphStyles.Box();
-            box.Add(HonamiGraphStyles.SubTitle("Linked State Node"));
-            AddNodeField(box, nodeSO, "onEnterBroadcastAction", "On Enter Action");
-            AddNodeField(box, nodeSO, "onExitBroadcastAction", "On Exit Action");
-            AddNodeField(box, nodeSO, "targetMode", "Target Mode");
-            AddNodeField(box, nodeSO, "targetTag", "Target Tag");
-            box.Add(new HelpBox("When the Brain enters or exits this state, it broadcasts the selected Action IDs to linked animators based on the target mode.", HelpBoxMessageType.Info));
-            return box;
-        }
-    }
-#pragma warning restore CS0618
 }
 #endif
 

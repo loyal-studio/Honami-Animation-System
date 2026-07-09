@@ -35,6 +35,11 @@ namespace HonamiAnimationSystem.Editor
             newNode.name = $"{newState.stateName}_{nodeType.Name}";
             newState.node = newNode;
 
+            if (newNode is HonamiEventNode)
+            {
+                newState.loop = false;
+            }
+
             if (_runtimeController != null && _runtimeController.IsOverride)
             {
                 var ovCtrl = (HonamiOverrideController)_runtimeController;

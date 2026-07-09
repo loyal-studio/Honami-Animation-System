@@ -190,7 +190,7 @@ namespace HonamiAnimationSystem.Editor
         {
             "honami-node-any", "honami-node-repeater", "honami-node-exit",
             "honami-node-blend", "honami-node-random", "honami-node-animation",
-            "honami-node-default", "honami-node-sequencer",
+            "honami-node-default", "honami-node-sequencer", "honami-node-event",
             "honami-node-portal-entrance", "honami-node-portal-exit",
             "honami-node-inherited", "honami-node-overridden"
         };

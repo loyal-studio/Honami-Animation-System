@@ -52,11 +52,6 @@ brain.SetActionID(diveAction, grenade.position, maxDistance: 12f,
                 "When using Honami Linked in a multiplayer game, you only need to sync the Brain's parameters or state changes. The Brain will ensure that all linked animators stay in sync locally for every client.",
                 "При використанні Honami Linked у багатокористувацькій грі вам потрібно лише синхронізувати параметри Мозку або зміни станів. Мозок гарантує, що всі зв'язані аніматори залишаться синхронізованими локально для кожного клієнта."
             ));
-
-            HonamiDocumentationBuilder.AddWarning(root, HonamiDocLocalization.Get(
-                "The old Linked State Node (a graph state that broadcasts an ActionID on enter/exit) is obsolete. Use the Brain's SetActionID / BroadcastAction or the static HonamiLinkedAction API instead.",
-                "Стара нода Linked State Node (стан графа, що розсилає ActionID при вході/виході) — застаріла. Використовуйте SetActionID / BroadcastAction Мозку або статичне API HonamiLinkedAction."
-            ));
         }
     }
 }

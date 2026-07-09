@@ -87,6 +87,7 @@ HonamiNode #selection-border {
 .honami-node-top-random { background-color: #ff4785; }
 .honami-node-top-sequencer { background-color: #6366f1; }
 .honami-node-top-animation { background-color: #8dbb5b; }
+.honami-node-top-event { background-color: #ffc53d; }
 .honami-node-top-portal-entrance { background-color: #3b82f6; }
 .honami-node-top-portal-exit { background-color: #ec4899; }
 .honami-node-top-default { background-color: #e57519; }
@@ -124,6 +125,7 @@ HonamiNode #selection-border {
 .honami-node-avatar-random { border-color: rgba(255, 71, 133, 0.7); border-radius: 18px 6px 14px 10px; }
 .honami-node-avatar-sequencer { border-color: rgba(99, 102, 241, 0.7); border-radius: 4px; }
 .honami-node-avatar-animation { border-color: rgba(141, 187, 91, 0.7); border-radius: 16px; }
+.honami-node-avatar-event { border-color: rgba(255, 197, 61, 0.75); border-radius: 16px; background-color: rgba(255, 197, 61, 0.12); }
 .honami-node-avatar-portal-entrance { border-color: #3b82f6; border-radius: 16px 4px 4px 16px; background-color: rgba(59, 130, 246, 0.1); }
 .honami-node-avatar-portal-exit { border-color: #ec4899; border-radius: 4px 16px 16px 4px; background-color: rgba(236, 72, 153, 0.1); }
 .honami-node-avatar-default { border-color: rgba(229, 117, 25, 0.7); }
@@ -149,6 +151,7 @@ HonamiNode #selection-border {
 .honami-node-icon-random { background-color: #ff4785; border-radius: 10px 4px 8px 3px; }
 .honami-node-icon-sequencer { background-color: #6366f1; border-radius: 2px; }
 .honami-node-icon-animation { background-color: #8dbb5b; border-radius: 7px; }
+.honami-node-icon-event { background-color: #ffc53d; border-radius: 3px 13px 3px 13px; rotate: 45deg; width: 13px; height: 13px; }
 .honami-node-icon-portal-entrance { background-color: #3b82f6; border-radius: 2px; rotate: 45deg; width: 10px; height: 10px; }
 .honami-node-icon-portal-exit { background-color: #ec4899; border-radius: 10px; width: 10px; height: 10px; }
 .honami-node-icon-default { background-color: #e57519; }
