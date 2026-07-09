@@ -366,14 +366,14 @@ namespace HonamiAnimationSystem.Editor.Timeline
 
         private void CopySelection()
         {
-            _state.CopiedEvents.Clear();
-            _state.CopiedEvents.AddRange(_state.SelectedEvents);
+            TimelineState.CopiedEvents.Clear();
+            TimelineState.CopiedEvents.AddRange(_state.SelectedEvents);
 
-            _state.CopiedTimelineClips.Clear();
-            _state.CopiedTimelineClips.AddRange(_state.SelectedTimelineClips);
+            TimelineState.CopiedTimelineClips.Clear();
+            TimelineState.CopiedTimelineClips.AddRange(_state.SelectedTimelineClips);
 
-            _state.CopiedTimelineEvents.Clear();
-            _state.CopiedTimelineEvents.AddRange(_state.SelectedTimelineEvents);
+            TimelineState.CopiedTimelineEvents.Clear();
+            TimelineState.CopiedTimelineEvents.AddRange(_state.SelectedTimelineEvents);
 
             if (_state.Mode == TimelineMode.HonamiClipEdit)
                 CopySelectedKeyframes();
@@ -390,13 +390,13 @@ namespace HonamiAnimationSystem.Editor.Timeline
             if (_state.Mode == TimelineMode.HonamiState && _state.SelectedState != null)
             {
                 var eventsToPaste = new List<HonamiEventMarker>();
-                if (_state.CopiedEvents.Count > 0)
+                if (TimelineState.CopiedEvents.Count > 0)
                 {
-                    eventsToPaste.AddRange(_state.CopiedEvents);
+                    eventsToPaste.AddRange(TimelineState.CopiedEvents);
                 }
-                else if (_state.CopiedTimelineEvents.Count > 0)
+                else if (TimelineState.CopiedTimelineEvents.Count > 0)
                 {
-                    foreach (var te in _state.CopiedTimelineEvents)
+                    foreach (var te in TimelineState.CopiedTimelineEvents)
                         eventsToPaste.Add(new HonamiEventMarker { time = te.time, eventType = HonamiEventType.Global, eventName = te.eventId, globalEventId = te.eventId });
                 }
 
@@ -405,16 +405,16 @@ namespace HonamiAnimationSystem.Editor.Timeline
             }
             else if (_state.Mode == TimelineMode.HonamiTimeline && _state.ActiveTimeline != null && _state.SelectedTimelineTrack != null)
             {
-                var clipsToPaste = new List<HonamiTimelineClip>(_state.CopiedTimelineClips);
+                var clipsToPaste = new List<HonamiTimelineClip>(TimelineState.CopiedTimelineClips);
                 var eventsToPaste = new List<HonamiTimelineEvent>();
 
-                if (_state.CopiedTimelineEvents.Count > 0)
+                if (TimelineState.CopiedTimelineEvents.Count > 0)
                 {
-                    eventsToPaste.AddRange(_state.CopiedTimelineEvents);
+                    eventsToPaste.AddRange(TimelineState.CopiedTimelineEvents);
                 }
-                else if (_state.CopiedEvents.Count > 0)
+                else if (TimelineState.CopiedEvents.Count > 0)
                 {
-                    foreach (var se in _state.CopiedEvents)
+                    foreach (var se in TimelineState.CopiedEvents)
                         eventsToPaste.Add(new HonamiTimelineEvent { time = se.time, eventId = se.eventType == HonamiEventType.Local ? se.eventName : se.globalEventId });
                 }
 

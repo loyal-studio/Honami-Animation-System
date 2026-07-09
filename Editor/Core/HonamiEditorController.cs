@@ -462,13 +462,80 @@ namespace HonamiAnimationSystem.Editor.Core
         #endregion
 
         #region Graph Operations
-        public static void DeleteStateNode(HonamiController controller, HonamiState state)
+        public static void DeleteStateNode(HonamiRuntimeController controller, HonamiState state)
         {
-            Undo.RecordObject(controller, "Remove State Node");
-            controller.states.Remove(state);
+            var owner = FindStateOwner(controller, state);
+            if (owner == null) return;
+
+            Undo.RecordObject(owner, "Remove State Node");
+            if (owner is HonamiOverrideController overrideController) overrideController.additionalStates.Remove(state);
+            else if (owner is HonamiController baseController) baseController.states.Remove(state);
+
+            DestroyStateSubAssets(owner, state);
             Undo.DestroyObjectImmediate(state);
-            EditorUtility.SetDirty(controller);
-            controller.ClearEffectiveStateCache();
+            EditorUtility.SetDirty(owner);
+
+            var cacheOwner = controller.BaseController;
+            if (cacheOwner != null) cacheOwner.ClearEffectiveStateCache();
+        }
+
+        private static HonamiRuntimeController FindStateOwner(HonamiRuntimeController controller, HonamiState state)
+        {
+            if (controller is HonamiOverrideController overrideController &&
+                overrideController.additionalStates != null &&
+                overrideController.additionalStates.Contains(state))
+            {
+                return overrideController;
+            }
+
+            return controller.BaseController;
+        }
+
+        public static void DestroyStateSubAssets(HonamiRuntimeController controller, HonamiState state)
+        {
+            string controllerPath = AssetDatabase.GetAssetPath(controller);
+            if (string.IsNullOrEmpty(controllerPath)) return;
+
+            if (state.node != null &&
+                AssetDatabase.GetAssetPath(state.node) == controllerPath &&
+                !IsNodeReferencedByOtherState(controller, state, state.node))
+            {
+                Undo.DestroyObjectImmediate(state.node);
+            }
+
+            if (state.subNodes == null) return;
+            foreach (var subNode in state.subNodes)
+            {
+                if (subNode != null && AssetDatabase.GetAssetPath(subNode) == controllerPath)
+                    Undo.DestroyObjectImmediate(subNode);
+            }
+        }
+
+        private static bool IsNodeReferencedByOtherState(HonamiRuntimeController controller, HonamiState excludedState, HonamiNodeBase node)
+        {
+            var baseController = controller as HonamiController ?? controller.BaseController;
+            if (baseController != null)
+            {
+                foreach (var s in baseController.states)
+                {
+                    if (s != null && s != excludedState && s.node == node) return true;
+                }
+            }
+
+            if (controller is HonamiOverrideController overrideController)
+            {
+                foreach (var s in overrideController.additionalStates)
+                {
+                    if (s != null && s != excludedState && s.node == node) return true;
+                }
+
+                foreach (var nodeOverride in overrideController.nodeOverrides)
+                {
+                    if (nodeOverride.overrideNode == node) return true;
+                }
+            }
+
+            return false;
         }
 
         public static void AddStateToController(HonamiController baseController, ScriptableObject targetCtrl, HonamiState newState, HonamiNodeBase newNode)

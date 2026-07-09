@@ -392,7 +392,7 @@ namespace HonamiAnimationSystem.Editor.Timeline
                 : _state.BlendNode.blendParameter;
         }
 
-        private static bool IsPreviewableState(HonamiState state)
+        internal static bool IsPreviewableState(HonamiState state)
         {
             return state != null
                 && (state.node is HonamiAnimationNode

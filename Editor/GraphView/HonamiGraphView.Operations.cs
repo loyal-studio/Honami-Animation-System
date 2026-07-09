@@ -603,6 +603,7 @@ namespace HonamiAnimationSystem.Editor
             else
             {
                 CancelMakeTransition();
+                evt.StopPropagation();
             }
         }
 
@@ -619,6 +620,240 @@ namespace HonamiAnimationSystem.Editor
             _transitionSourceNode = null;
             UnregisterCallback<MouseMoveEvent>(OnMakeTransitionMouseMove, TrickleDown.TrickleDown);
             UnregisterCallback<MouseDownEvent>(OnMakeTransitionMouseDown, TrickleDown.TrickleDown);
+        }
+
+        private HonamiTransitionEdge _retargetEdge;
+        private HonamiTransitionEdge _retargetPreviewEdge;
+        private bool _retargetActive;
+        private bool _retargetToEnd;
+        private Vector2 _retargetMouseStart;
+
+        private void OnEdgeRetargetMouseDown(MouseDownEvent evt)
+        {
+            if (_isMakingTransition || _retargetEdge != null) return;
+            if (evt.button != 0 || evt.altKey) return;
+            if (_controller == null) return;
+
+            var edge = evt.target as HonamiTransitionEdge ?? (evt.target as VisualElement)?.GetFirstAncestorOfType<HonamiTransitionEdge>();
+            if (edge == null || edge.userData is not HonamiTransition) return;
+            if (edge.output?.node == null || edge.input?.node == null) return;
+
+            _retargetEdge = edge;
+            _retargetActive = false;
+            _retargetMouseStart = evt.mousePosition;
+
+            if (!edge.selected)
+            {
+                if (!evt.actionKey) ClearSelection();
+                AddToSelection(edge);
+            }
+            else if (evt.actionKey)
+            {
+                RemoveFromSelection(edge);
+            }
+
+            this.CaptureMouse();
+            evt.StopPropagation();
+        }
+
+        private void OnEdgeRetargetMouseMove(MouseMoveEvent evt)
+        {
+            if (_retargetEdge == null) return;
+
+            if (!_retargetActive)
+            {
+                if ((evt.mousePosition - _retargetMouseStart).sqrMagnitude < 64f) return;
+                BeginRetargetDrag(contentViewContainer.WorldToLocal(_retargetMouseStart));
+            }
+
+            if (_retargetPreviewEdge != null)
+            {
+                _retargetPreviewEdge.candidatePosition = contentViewContainer.WorldToLocal(evt.mousePosition);
+                _retargetPreviewEdge.UpdateEdgeControl();
+            }
+
+            evt.StopPropagation();
+        }
+
+        private void BeginRetargetDrag(Vector2 grabPosition)
+        {
+            _retargetActive = true;
+
+            bool isLoop = _retargetEdge.output.node == _retargetEdge.input.node;
+            Vector2 segment = _retargetEdge.EndPoint - _retargetEdge.StartPoint;
+            float segmentLengthSqr = segment.sqrMagnitude;
+            float grabT = segmentLengthSqr > 0.0001f
+                ? Vector2.Dot(grabPosition - _retargetEdge.StartPoint, segment) / segmentLengthSqr
+                : 1f;
+            _retargetToEnd = isLoop || grabT > 0.3f;
+
+            _retargetPreviewEdge = new HonamiTransitionEdge();
+            _retargetPreviewEdge.pickingMode = PickingMode.Ignore;
+            _retargetPreviewEdge.candidatePosition = grabPosition;
+
+            if (_retargetToEnd)
+                _retargetPreviewEdge.output = _retargetEdge.output;
+            else
+                _retargetPreviewEdge.input = _retargetEdge.input;
+
+            var badge = _retargetPreviewEdge.Q(className: "honami-transition-badge");
+            if (badge != null)
+            {
+                badge.AddToClassList("honami-transition-badge-preview");
+                HonamiGraphAccent.SetBorderColor(badge, HonamiGraphStyles.Accent);
+            }
+
+            AddElement(_retargetPreviewEdge);
+            _retargetEdge.style.opacity = 0.3f;
+        }
+
+        private void OnEdgeRetargetMouseUp(MouseUpEvent evt)
+        {
+            if (_retargetEdge == null) return;
+
+            var edge = _retargetEdge;
+            bool wasDragging = _retargetActive;
+            bool toEnd = _retargetToEnd;
+
+            CleanupRetargetDrag();
+
+            if (wasDragging && evt.button == 0)
+            {
+                var dropNode = GetNodeAtWorldPosition(evt.mousePosition);
+                if (dropNode != null)
+                    ApplyRetarget(edge, dropNode, toEnd);
+            }
+
+            if (this.HasMouseCapture()) this.ReleaseMouse();
+            evt.StopPropagation();
+        }
+
+        private void CancelRetargetDrag()
+        {
+            if (_retargetEdge == null) return;
+            CleanupRetargetDrag();
+            if (this.HasMouseCapture()) this.ReleaseMouse();
+        }
+
+        private void CleanupRetargetDrag()
+        {
+            if (_retargetPreviewEdge != null)
+            {
+                RemoveElement(_retargetPreviewEdge);
+                _retargetPreviewEdge = null;
+            }
+
+            if (_retargetEdge != null)
+                _retargetEdge.style.opacity = StyleKeyword.Null;
+
+            _retargetEdge = null;
+            _retargetActive = false;
+        }
+
+        private HonamiNode GetNodeAtWorldPosition(Vector2 worldPosition)
+        {
+            for (int i = _cachedNodes.Count - 1; i >= 0; i--)
+            {
+                var node = _cachedNodes[i];
+                if (node != null && node.worldBound.Contains(worldPosition)) return node;
+            }
+            return null;
+        }
+
+        private void ApplyRetarget(HonamiTransitionEdge edge, HonamiNode dropNode, bool toEnd)
+        {
+            var trans = edge.userData as HonamiTransition;
+            var sourceNode = edge.output?.node as HonamiNode;
+            var targetNode = edge.input?.node as HonamiNode;
+            if (trans == null || sourceNode?.State == null || targetNode?.State == null || dropNode?.State == null) return;
+
+            if (_runtimeController != null && _runtimeController.IsOverride)
+            {
+                HonamiGraphWindow.ShowNotification("Override Controller", "Retargeting transitions by drag is not supported in Override Controllers. Edit the base controller instead.", HonamiNotificationType.Info);
+                return;
+            }
+
+            if (sourceNode.State.isVirtualInheritedState)
+            {
+                HonamiGraphWindow.ShowNotification("Override Required", "Create an override before changing inherited transitions.", HonamiNotificationType.Info);
+                return;
+            }
+
+            if (toEnd)
+            {
+                if (dropNode == targetNode) return;
+
+                if (dropNode == sourceNode)
+                {
+                    HonamiGraphWindow.ShowNotification("Invalid Transition", "Self-transitions are controlled by the 'Can Transition To Itself' property in the Inspector.", HonamiNotificationType.Info);
+                    return;
+                }
+
+                if (dropNode.InputPort == null)
+                {
+                    HonamiGraphWindow.ShowNotification("Invalid Target", $"Node of type '{(dropNode.State.node != null ? dropNode.State.node.GetType().Name : "Unknown")}' cannot be a transition target.", HonamiNotificationType.Warning);
+                    return;
+                }
+
+                if (sourceNode.State.transitions != null && sourceNode.State.transitions.Any(t => t != trans && t != null && t.targetStateGuid == dropNode.StateGuid))
+                {
+                    HonamiGraphWindow.ShowNotification("Duplicate Transition", $"Transition from '{sourceNode.State.stateName}' to '{dropNode.State.stateName}' already exists.", HonamiNotificationType.Warning);
+                    return;
+                }
+
+                Undo.RecordObject(sourceNode.State, "Retarget Transition");
+                trans.targetStateGuid = dropNode.StateGuid;
+                EditorUtility.SetDirty(sourceNode.State);
+
+                edge.input.Disconnect(edge);
+                edge.input = dropNode.InputPort;
+                edge.input.Connect(edge);
+            }
+            else
+            {
+                if (dropNode == sourceNode) return;
+
+                if (dropNode == targetNode)
+                {
+                    HonamiGraphWindow.ShowNotification("Invalid Transition", "Self-transitions are controlled by the 'Can Transition To Itself' property in the Inspector.", HonamiNotificationType.Info);
+                    return;
+                }
+
+                if (dropNode.State.isVirtualInheritedState)
+                {
+                    HonamiGraphWindow.ShowNotification("Override Required", "Create an override before changing inherited transitions.", HonamiNotificationType.Info);
+                    return;
+                }
+
+                if (dropNode.OutputPort == null)
+                {
+                    HonamiGraphWindow.ShowNotification("Invalid Source", "This node type cannot be a source of transitions.", HonamiNotificationType.Warning);
+                    return;
+                }
+
+                if (dropNode.State.transitions != null && dropNode.State.transitions.Any(t => t != null && t.targetStateGuid == targetNode.StateGuid))
+                {
+                    HonamiGraphWindow.ShowNotification("Duplicate Transition", $"Transition from '{dropNode.State.stateName}' to '{targetNode.State.stateName}' already exists.", HonamiNotificationType.Warning);
+                    return;
+                }
+
+                Undo.RecordObjects(new UnityEngine.Object[] { sourceNode.State, dropNode.State }, "Move Transition Source");
+                sourceNode.State.transitions.Remove(trans);
+                dropNode.State.transitions ??= new List<HonamiTransition>();
+                dropNode.State.transitions.Add(trans);
+                EditorUtility.SetDirty(sourceNode.State);
+                EditorUtility.SetDirty(dropNode.State);
+
+                edge.output.Disconnect(edge);
+                edge.output = dropNode.OutputPort;
+                edge.output.Connect(edge);
+            }
+
+            EditorUtility.SetDirty(_controller);
+            DeferredSave();
+
+            edge.UpdateEdgeControl();
+            edge.MarkDirtyRepaint();
         }
     }
 }

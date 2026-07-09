@@ -1260,6 +1260,7 @@ namespace HonamiAnimationSystem.Editor
             foreach (var s in Controller.states.Where(s => s != null && guids.Contains(s.guid)).ToList())
             {
                 Controller.states.Remove(s);
+                HonamiAnimationSystem.Editor.Core.HonamiEditorController.DestroyStateSubAssets(Controller, s);
                 Undo.DestroyObjectImmediate(s);
             }
             Controller.states.RemoveAll(s => s == null);

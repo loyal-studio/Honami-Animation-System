@@ -48,12 +48,69 @@ namespace HonamiAnimationSystem.Editor.Timeline
             }
             else if (_state.Mode == TimelineMode.HonamiState)
             {
-                box.Add(HonamiEmptyStatePanel.CTAButton("Select Honami Controller", () =>
-                {
-                    EditorApplication.delayCall += () =>
-                        EditorGUIUtility.ShowObjectPicker<HonamiController>(null, false, "", 0);
-                }));
+                box.Add(HonamiEmptyStatePanel.CTAButton("Select Honami Controller", ShowControllerPicker));
+                box.Add(HonamiEmptyStatePanel.HintLabel("You can also drop a Honami Controller into the toolbar field above."));
             }
+        }
+
+        private static readonly int ControllerPickerControlId = "HonamiTimelineControllerPicker".GetHashCode();
+        private HonamiController _lastPickedController;
+
+        private void ShowControllerPicker()
+        {
+            EditorApplication.delayCall += () =>
+            {
+                _lastPickedController = null;
+                EditorGUIUtility.ShowObjectPicker<HonamiController>(null, false, "", ControllerPickerControlId);
+                EditorApplication.update -= PollControllerPicker;
+                EditorApplication.update += PollControllerPicker;
+            };
+        }
+
+        private void PollControllerPicker()
+        {
+            if (panel == null)
+            {
+                EditorApplication.update -= PollControllerPicker;
+                return;
+            }
+
+            if (EditorGUIUtility.GetObjectPickerControlID() == ControllerPickerControlId)
+            {
+                if (EditorGUIUtility.GetObjectPickerObject() is HonamiController picked)
+                    _lastPickedController = picked;
+                return;
+            }
+
+            EditorApplication.update -= PollControllerPicker;
+            if (EditorGUIUtility.GetObjectPickerObject() is HonamiController closedPick)
+                _lastPickedController = closedPick;
+            if (_lastPickedController != null)
+                SelectController(_lastPickedController);
+            _lastPickedController = null;
+        }
+
+        private void SelectController(HonamiController controller)
+        {
+            _state.Controller = controller;
+            _state.SelectedState = FirstPreviewableState(controller);
+            _state.SelectedLayerIndex = _state.SelectedState != null ? _state.SelectedState.layerIndex : -1;
+            _state.PlayheadTime = 0f;
+            _state.IsPlaying = false;
+            _rebuild();
+        }
+
+        private static HonamiState FirstPreviewableState(HonamiController controller)
+        {
+            if (controller == null || controller.states == null) return null;
+            HonamiState first = null;
+            foreach (var st in controller.states)
+            {
+                if (st == null) continue;
+                first ??= st;
+                if (TimelineToolbarView.IsPreviewableState(st)) return st;
+            }
+            return first;
         }
 
         private static Texture2D _clipIcon;

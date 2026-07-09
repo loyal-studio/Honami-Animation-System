@@ -158,6 +158,42 @@ namespace HonamiAnimationSystem.Editor
             SelectTab(_tabs.Count - 1);
         }
 
+        private static bool IsSameTabContent(BlendTreeState a, BlendTreeState b)
+        {
+            return a.Controller != null && a.Controller == b.Controller &&
+                   (a.StateGuid ?? string.Empty) == (b.StateGuid ?? string.Empty);
+        }
+
+        private bool DeduplicateTabs()
+        {
+            if (_tabs.Count < 2) return false;
+            var active = Active;
+            bool removedAny = false;
+
+            for (int i = 0; i < _tabs.Count; i++)
+            {
+                var keeper = _tabs[i];
+                if (keeper == null) continue;
+                for (int j = _tabs.Count - 1; j > i; j--)
+                {
+                    var other = _tabs[j];
+                    if (other == null || !IsSameTabContent(keeper, other)) continue;
+                    if (other == active)
+                    {
+                        _tabs[i] = other;
+                        _tabs[j] = keeper;
+                        keeper = other;
+                    }
+                    _tabs.RemoveAt(j);
+                    removedAny = true;
+                }
+            }
+
+            if (removedAny)
+                _activeIndex = Mathf.Max(0, _tabs.IndexOf(active));
+            return removedAny;
+        }
+
         private void ConstructLayout()
         {
             rootVisualElement.Clear();
@@ -208,6 +244,7 @@ namespace HonamiAnimationSystem.Editor
 
         private void RefreshViews()
         {
+            DeduplicateTabs();
             _tabBar?.Refresh();
             _toolbarView?.Refresh();
             _panel?.Refresh();
@@ -336,6 +373,7 @@ namespace HonamiAnimationSystem.Editor
             }
 
             _activeIndex = Mathf.Clamp(data.activeIndex, 0, Mathf.Max(0, _tabs.Count - 1));
+            DeduplicateTabs();
         }
 
         private static string ToObjectId(UnityEngine.Object obj)

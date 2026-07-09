@@ -190,6 +190,49 @@ namespace HonamiAnimationSystem.Editor.Timeline
             SelectTab(_tabs.Count - 1);
         }
 
+        private static bool IsSameTabContent(TimelineState a, TimelineState b)
+        {
+            if (a.Mode != b.Mode) return false;
+            return a.Mode switch
+            {
+                TimelineMode.HonamiTimeline => a.ActiveTimeline != null && a.ActiveTimeline == b.ActiveTimeline,
+                TimelineMode.HonamiClipEdit => a.ActiveClip != null && a.ActiveClip == b.ActiveClip,
+                _ => a.Controller != null && a.Controller == b.Controller &&
+                     (a.SelectedState?.guid ?? string.Empty) == (b.SelectedState?.guid ?? string.Empty)
+            };
+        }
+
+        private bool DeduplicateTabs()
+        {
+            if (_tabs.Count < 2) return false;
+            var active = Active;
+            bool removedAny = false;
+
+            for (int i = 0; i < _tabs.Count; i++)
+            {
+                var keeper = _tabs[i];
+                if (keeper == null) continue;
+                for (int j = _tabs.Count - 1; j > i; j--)
+                {
+                    var other = _tabs[j];
+                    if (other == null || !IsSameTabContent(keeper, other)) continue;
+                    if (other == active)
+                    {
+                        _tabs[i] = other;
+                        _tabs[j] = keeper;
+                        keeper = other;
+                    }
+                    _tabs[j].ClearCache();
+                    _tabs.RemoveAt(j);
+                    removedAny = true;
+                }
+            }
+
+            if (removedAny)
+                _activeIndex = Mathf.Max(0, _tabs.IndexOf(active));
+            return removedAny;
+        }
+
         private void OnSelectionChanged()
         {
             if (Selection.activeObject is HonamiTimeline timeline)
@@ -390,6 +433,7 @@ namespace HonamiAnimationSystem.Editor.Timeline
 
         private void RefreshViews()
         {
+            DeduplicateTabs();
             _toolbarView?.Refresh();
             _tabBar?.Refresh();
             _panel?.Refresh();
@@ -483,6 +527,7 @@ namespace HonamiAnimationSystem.Editor.Timeline
             }
 
             _activeIndex = Mathf.Clamp(data.activeIndex, 0, Mathf.Max(0, _tabs.Count - 1));
+            DeduplicateTabs();
         }
 
         private static string TabTitle(TimelineState state)

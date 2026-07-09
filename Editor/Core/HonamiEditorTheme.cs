@@ -21,9 +21,9 @@ namespace HonamiAnimationSystem.Editor
         public static Color WindowBg => HonamiAppearanceSettings.WindowBg.Value;
         public static Color PanelBg => HonamiAppearanceSettings.PanelBg.Value;
         public static Color ToolbarBg => HonamiAppearanceSettings.ToolbarBg.Value;
-        public static readonly Color ToolbarButton = new(0.13f, 0.14f, 0.155f);
-        public static readonly Color ToolbarButtonHot = new(0.18f, 0.19f, 0.21f);
-        public static readonly Color ToolbarButtonPressed = new(0.08f, 0.085f, 0.095f);
+        public static Color ToolbarButton => BoxBg;
+        public static Color ToolbarButtonHot => Scale(BoxBg, 1.40f);
+        public static Color ToolbarButtonPressed => Scale(BoxBg, 0.625f);
         public static Color BoxBg => HonamiAppearanceSettings.BoxBg.Value;
         public static readonly Color Divider = new(0f, 0f, 0f, 0.58f);
         public static readonly Color SubtleLine = new(1f, 1f, 1f, 0.07f);
@@ -32,6 +32,9 @@ namespace HonamiAnimationSystem.Editor
         public static Color CanvasBg => HonamiAppearanceSettings.CanvasBg.Value;
         public static Color GridLine => HonamiAppearanceSettings.GridLine.Value;
         public static Color GridThickLine => HonamiAppearanceSettings.GridThickLine.Value;
+
+        public static Color Scale(Color color, float factor) =>
+            new(color.r * factor, color.g * factor, color.b * factor, color.a);
     }
 }
 #endif

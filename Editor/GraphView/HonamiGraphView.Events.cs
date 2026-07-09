@@ -294,7 +294,8 @@ namespace HonamiAnimationSystem.Editor
                             if (_stateGuidMap.TryGetValue(node.StateGuid, out var state))
                             {
                                 _stateGuidMap.Remove(node.StateGuid);
-                                HonamiEditorController.DeleteStateNode(_controller, state);
+                                HonamiEditorController.DeleteStateNode(
+                                    _runtimeController != null ? _runtimeController : _controller, state);
                             }
                             break;
                         case HonamiTransitionEdge hEdge:

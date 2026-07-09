@@ -14,6 +14,9 @@ namespace HonamiAnimationSystem.Editor
         private Vector2 _start;
         private Vector2 _end;
 
+        public Vector2 StartPoint => _start;
+        public Vector2 EndPoint => _end;
+
         public new string tooltip
         {
             get => base.tooltip;
@@ -291,6 +294,45 @@ namespace HonamiAnimationSystem.Editor
                     edgeControl.UpdateLayout();
 
                     _edgeRenderer.UpdateEdge(_start, _end, dir, false);
+
+                    Vector2 mid = (_start + _end) * 0.5f;
+                    UpdateBadgePositionAndRotation(mid, lineDir);
+                }
+            }
+            else if (input != null && output == null)
+            {
+                var targetNode = input.node as HonamiNode;
+                if (targetNode != null)
+                {
+                    Rect targetRect = HonamiGraphView.GetNodeWorldRect(targetNode);
+                    Vector2 endCenter = targetRect.center;
+                    Vector2 startPos = candidatePosition;
+
+                    if (targetRect.Contains(startPos)) return updated;
+
+                    Vector2 rawDir = endCenter - startPos;
+                    float rawDist = rawDir.magnitude;
+                    Vector2 dir = rawDist > 0.001f ? rawDir / rawDist : Vector2.right;
+
+                    Vector2 endBorder = HonamiGraphView.RaycastRect(targetRect, endCenter, -dir);
+                    float dist = Vector2.Distance(startPos, endBorder);
+
+                    if (dist < 1f) return updated;
+                    Vector2 lineDir = (endBorder - startPos) / dist;
+
+                    _start = HonamiGraphView.FixNaN(startPos);
+                    _end = HonamiGraphView.FixNaN(endBorder);
+
+                    edgeControl.controlPoints[0] = _start;
+                    edgeControl.controlPoints[1] = _start + lineDir * (dist * 0.33f);
+                    edgeControl.controlPoints[2] = _start + lineDir * (dist * 0.66f);
+                    edgeControl.controlPoints[3] = _end;
+                    for (int i = 4; i < edgeControl.controlPoints.Length; i++)
+                        edgeControl.controlPoints[i] = _end;
+
+                    edgeControl.UpdateLayout();
+
+                    _edgeRenderer.UpdateEdge(_start, _end, lineDir, false);
 
                     Vector2 mid = (_start + _end) * 0.5f;
                     UpdateBadgePositionAndRotation(mid, lineDir);

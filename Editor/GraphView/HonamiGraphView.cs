@@ -147,6 +147,11 @@ namespace HonamiAnimationSystem.Editor
             RegisterCallback<DragUpdatedEvent>(OnDragUpdated);
             RegisterCallback<DragPerformEvent>(OnDragPerform);
 
+            RegisterCallback<MouseDownEvent>(OnEdgeRetargetMouseDown, TrickleDown.TrickleDown);
+            RegisterCallback<MouseMoveEvent>(OnEdgeRetargetMouseMove);
+            RegisterCallback<MouseUpEvent>(OnEdgeRetargetMouseUp);
+            RegisterCallback<MouseCaptureOutEvent>(_ => CancelRetargetDrag());
+
             elementsAddedToGroup = (group, elements) =>
             {
                 if (_suppressGroupCallbacks) return;
@@ -317,6 +322,8 @@ namespace HonamiAnimationSystem.Editor
             {
                 CancelMakeTransition();
             }
+
+            CancelRetargetDrag();
 
             if (_runtimeController == null || _runtimeController.ActiveStates == null) return;
 

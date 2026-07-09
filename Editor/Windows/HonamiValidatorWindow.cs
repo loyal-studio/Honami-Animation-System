@@ -382,6 +382,9 @@ namespace HonamiAnimationSystem.Editor
                 }
             }
 
+            // 8. Check for orphaned sub-assets left behind by deleted states
+            hasIssues |= ValidateOrphanedSubAssets(ctrl, dryRun);
+
             if (!dryRun && hasIssues)
             {
                 EditorUtility.SetDirty(ctrl);
@@ -393,6 +396,77 @@ namespace HonamiAnimationSystem.Editor
             }
 
             return hasIssues;
+        }
+
+        private bool ValidateOrphanedSubAssets(HonamiController ctrl, bool dryRun)
+        {
+            string path = AssetDatabase.GetAssetPath(ctrl);
+            if (string.IsNullOrEmpty(path)) return false;
+
+            var referenced = new HashSet<Object>();
+            AddStateListReferences(ctrl.states, referenced);
+            AddProjectOverrideReferences(referenced);
+
+            bool hasIssues = false;
+            foreach (var asset in AssetDatabase.LoadAllAssetsAtPath(path))
+            {
+                if (asset == null || asset == ctrl) continue;
+                if (asset is not (HonamiState or HonamiNodeBase or HonamiSubNodeBase)) continue;
+                if (referenced.Contains(asset)) continue;
+
+                string assetName = asset.name;
+                string assetType = asset.GetType().Name;
+
+                if (dryRun)
+                {
+                    Log($"[{ctrl.name}] [Issue] Orphaned sub-asset '{assetName}' ({assetType}) is not referenced by any state.");
+                }
+                else
+                {
+                    AssetDatabase.RemoveObjectFromAsset(asset);
+                    Undo.DestroyObjectImmediate(asset);
+                    Log($"[{ctrl.name}] [Fix] Removed orphaned sub-asset '{assetName}' ({assetType}).");
+                }
+                hasIssues = true;
+            }
+
+            return hasIssues;
+        }
+
+        private static void AddStateListReferences(List<HonamiState> states, HashSet<Object> referenced)
+        {
+            if (states == null) return;
+
+            foreach (var state in states)
+            {
+                if (state == null) continue;
+
+                referenced.Add(state);
+                if (state.node != null) referenced.Add(state.node);
+
+                if (state.subNodes == null) continue;
+                foreach (var subNode in state.subNodes)
+                {
+                    if (subNode != null) referenced.Add(subNode);
+                }
+            }
+        }
+
+        private static void AddProjectOverrideReferences(HashSet<Object> referenced)
+        {
+            foreach (string guid in AssetDatabase.FindAssets("t:HonamiOverrideController"))
+            {
+                var overrideController = AssetDatabase.LoadAssetAtPath<HonamiOverrideController>(AssetDatabase.GUIDToAssetPath(guid));
+                if (overrideController == null) continue;
+
+                AddStateListReferences(overrideController.additionalStates, referenced);
+
+                if (overrideController.nodeOverrides == null) continue;
+                foreach (var nodeOverride in overrideController.nodeOverrides)
+                {
+                    if (nodeOverride.overrideNode != null) referenced.Add(nodeOverride.overrideNode);
+                }
+            }
         }
     }
 }

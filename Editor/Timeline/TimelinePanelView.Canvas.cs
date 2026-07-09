@@ -46,7 +46,8 @@ namespace HonamiAnimationSystem.Editor.Timeline
 
             if (_state.Mode == TimelineMode.HonamiState && _state.SelectedState != null)
             {
-                menu.AddItem(new GUIContent("Add Event"), false, () => AddStateEvent(time));
+                menu.AddItem(new GUIContent("Add Local Event"), false, () => AddStateEvent(time, HonamiEventType.Local));
+                menu.AddItem(new GUIContent("Add Global Event"), false, () => AddStateEvent(time, HonamiEventType.Global));
                 if (_state.IsSeqState)
                     menu.AddItem(new GUIContent("Add Clip"), false, () => AddSequencedClip(time));
             }
@@ -65,12 +66,18 @@ namespace HonamiAnimationSystem.Editor.Timeline
                 menu.ShowAsContext();
         }
 
-        private void AddStateEvent(float time)
+        private void AddStateEvent(float time, HonamiEventType eventType)
         {
             if (_state.SelectedState == null) return;
-            Undo.RecordObject(_state.SelectedState, "Add Event");
+            Undo.RecordObject(_state.SelectedState, eventType == HonamiEventType.Local ? "Add Local Event" : "Add Global Event");
             _state.SelectedState.events ??= new List<HonamiEventMarker>();
-            _state.SelectedState.events.Add(new HonamiEventMarker { time = time, eventType = HonamiEventType.Local, eventName = "NewEvent" });
+            _state.SelectedState.events.Add(new HonamiEventMarker
+            {
+                time = time,
+                eventType = eventType,
+                eventName = "NewEvent",
+                globalEventId = eventType == HonamiEventType.Global ? "NewEvent" : string.Empty
+            });
             EditorUtility.SetDirty(_state.SelectedState);
             _rebuild();
         }
@@ -358,7 +365,7 @@ namespace HonamiAnimationSystem.Editor.Timeline
                     else
                     {
                         foreach (var evt in track.events)
-                            AddEventElement(evt, evt.eventId, evt.time, y, _state.SelectedTimelineEvents.Contains(evt));
+                            AddEventElement(evt, evt.eventId, evt.time, y, _state.SelectedTimelineEvents.Contains(evt), TimelineTheme.EventTrack);
                     }
                     y += TimelineTheme.RowHeight;
                 }
@@ -392,7 +399,8 @@ namespace HonamiAnimationSystem.Editor.Timeline
             {
                 var evt = events[i];
                 if (evt.eventType == type)
-                    AddEventElement(evt, type == HonamiEventType.Local ? evt.eventName : evt.globalEventId, evt.time, y, _state.SelectedEvents.Contains(evt));
+                    AddEventElement(evt, type == HonamiEventType.Local ? evt.eventName : evt.globalEventId, evt.time, y, _state.SelectedEvents.Contains(evt),
+                        type == HonamiEventType.Local ? TimelineTheme.EventTrack : TimelineTheme.GlobalEventTrack);
             }
         }
 
@@ -689,9 +697,9 @@ namespace HonamiAnimationSystem.Editor.Timeline
             return root;
         }
 
-        private void AddEventElement(object target, string label, float time, float y, bool selected)
+        private void AddEventElement(object target, string label, float time, float y, bool selected, Color color)
         {
-            var marker = RectElement(time * _state.TimeScale - 8, y + 10, 16, 20, selected ? TimelineTheme.Accent : TimelineTheme.Text);
+            var marker = RectElement(time * _state.TimeScale - 8, y + 10, 16, 20, selected ? TimelineTheme.Accent : color);
             _elements[target] = marker;
             marker.style.borderTopLeftRadius = marker.style.borderTopRightRadius = marker.style.borderBottomLeftRadius = marker.style.borderBottomRightRadius = 3;
             marker.tooltip = $"{label}\n{time:F2}s";

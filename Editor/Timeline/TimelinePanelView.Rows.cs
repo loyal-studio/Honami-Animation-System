@@ -311,7 +311,7 @@ namespace HonamiAnimationSystem.Editor.Timeline
                 }
             }
             if (_state.ShowLocalEventsTrack) _cachedRows.Add(new RowData { Index = index++, Title = "Local Events", IconName = "AnimationWindowEvent Icon", Color = TimelineTheme.EventTrack });
-            if (_state.ShowGlobalEventsTrack) _cachedRows.Add(new RowData { Index = index, Title = "Global Events", IconName = "AudioSource Icon", Color = new Color(0.75f, 0.42f, 0.22f, 0.95f) });
+            if (_state.ShowGlobalEventsTrack) _cachedRows.Add(new RowData { Index = index, Title = "Global Events", IconName = "AudioSource Icon", Color = TimelineTheme.GlobalEventTrack });
         }
 
         private float DisplayFps()

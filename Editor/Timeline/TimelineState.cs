@@ -70,18 +70,18 @@ namespace HonamiAnimationSystem.Editor.Timeline
 
         public List<HonamiEventMarker> SelectedEvents = new();
         public Dictionary<HonamiEventMarker, Rect> EventRects = new();
-        public List<HonamiEventMarker> CopiedEvents = new();
+        public static readonly List<HonamiEventMarker> CopiedEvents = new();
 
         public List<HonamiSequencedAnimationClip> SelectedSeqClips = new();
         public Dictionary<HonamiSequencedAnimationClip, Rect> SeqClipRects = new();
 
         public List<HonamiTimelineClip> SelectedTimelineClips = new();
         public Dictionary<HonamiTimelineClip, Rect> TimelineClipRects = new();
-        public List<HonamiTimelineClip> CopiedTimelineClips = new();
+        public static readonly List<HonamiTimelineClip> CopiedTimelineClips = new();
 
         public List<HonamiTimelineEvent> SelectedTimelineEvents = new();
         public Dictionary<HonamiTimelineEvent, Rect> TimelineEventRects = new();
-        public List<HonamiTimelineEvent> CopiedTimelineEvents = new();
+        public static readonly List<HonamiTimelineEvent> CopiedTimelineEvents = new();
 
         public List<HonamiTimelineMarker> SelectedMarkers = new();
 
