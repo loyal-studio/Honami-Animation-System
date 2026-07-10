@@ -6,9 +6,9 @@ namespace HonamiAnimationSystem.Editor.Documentation.Pages
     public sealed class TimelineDirectorPage : IHonamiDocumentationPage
     {
         public string Title => HonamiDocLocalization.Get("Timeline & Director", "Timeline та Director");
-        public string Category => HonamiDocLocalization.Get("08. Pro Features", "08. Професійні функції");
+        public string Category => HonamiDocLocalization.Get("07. Tools & Pro", "07. Інструменти та Pro");
         public string SearchKeywords => "timeline director cutscene sequence wip in development таймлайн директор катсцена в розробці";
-        public int Order => 820;
+        public int Order => 620;
         public int EstimatedReadTime => 1;
 
         public void BuildContent(VisualElement root)

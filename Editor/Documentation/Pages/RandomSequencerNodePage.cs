@@ -5,9 +5,9 @@ namespace HonamiAnimationSystem.Editor.Documentation.Pages
     public sealed class RandomSequencerNodePage : IHonamiDocumentationPage
     {
         public string Title => HonamiDocLocalization.Get("Random & Sequencer", "Random та Sequencer");
-        public string Category => HonamiDocLocalization.Get("05. Node Library", "05. Бібліотека вузлів");
+        public string Category => HonamiDocLocalization.Get("04. Node Library", "04. Бібліотека вузлів");
         public string SearchKeywords => "random animation sequencer variations idle variety weighted sequence clips вузол випадковість секвенсор варіації послідовність";
-        public int Order => 520;
+        public int Order => 320;
         public int EstimatedReadTime => 3;
 
         public void BuildContent(VisualElement root)

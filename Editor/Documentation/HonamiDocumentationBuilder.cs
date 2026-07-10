@@ -167,6 +167,70 @@ namespace HonamiAnimationSystem.Editor.Documentation
             AddCallout(root, text, calloutType);
         }
 
+        public static void AddPageIntro(VisualElement root, string[] youWillLearn, string[] prerequisites = null)
+        {
+            var box = new VisualElement();
+            box.style.paddingTop = box.style.paddingBottom = 14;
+            box.style.paddingLeft = box.style.paddingRight = 16;
+            box.style.marginBottom = 24;
+            box.style.backgroundColor = HonamiGraphStyles.BoxBg;
+            box.style.borderTopColor = box.style.borderBottomColor =
+            box.style.borderRightColor = HonamiGraphStyles.BoxBorder;
+            box.style.borderTopWidth = box.style.borderBottomWidth =
+            box.style.borderRightWidth = 1;
+            box.style.borderLeftWidth = 4;
+            box.style.borderLeftColor = HonamiGraphStyles.Accent;
+            box.style.borderTopLeftRadius = box.style.borderTopRightRadius =
+            box.style.borderBottomLeftRadius = box.style.borderBottomRightRadius = 6;
+
+            AddIntroSection(box, HonamiDocLocalization.Get("YOU WILL LEARN", "ЩО ВИ ДІЗНАЄТЕСЬ"), HonamiGraphStyles.Accent, youWillLearn, 0);
+
+            if (prerequisites != null && prerequisites.Length > 0)
+            {
+                AddIntroSection(box, HonamiDocLocalization.Get("BEFORE YOU START", "ПЕРЕДУМОВИ"), new Color(0.55f, 0.58f, 0.62f), prerequisites, 12);
+            }
+
+            root.Add(box);
+        }
+
+        private static void AddIntroSection(VisualElement box, string title, Color titleColor, string[] lines, float topMargin)
+        {
+            var titleLabel = new Label(title);
+            titleLabel.style.fontSize = 10;
+            titleLabel.style.unityFontStyleAndWeight = FontStyle.Bold;
+            titleLabel.style.color = titleColor;
+            titleLabel.style.letterSpacing = 1.2f;
+            titleLabel.style.marginTop = topMargin;
+            titleLabel.style.marginBottom = 6;
+            box.Add(titleLabel);
+
+            foreach (var line in lines)
+            {
+                var row = new VisualElement();
+                row.style.flexDirection = FlexDirection.Row;
+                row.style.marginBottom = 4;
+
+                var bullet = new VisualElement();
+                bullet.style.width = 5;
+                bullet.style.height = 5;
+                bullet.style.backgroundColor = titleColor;
+                bullet.style.marginRight = 10;
+                bullet.style.marginTop = 7;
+                bullet.style.borderTopLeftRadius = bullet.style.borderTopRightRadius =
+                bullet.style.borderBottomLeftRadius = bullet.style.borderBottomRightRadius = 2.5f;
+
+                var p = new Label(line);
+                p.style.fontSize = 13;
+                p.style.color = new Color(0.88f, 0.88f, 0.88f);
+                p.style.whiteSpace = WhiteSpace.Normal;
+                p.style.flexShrink = 1;
+
+                row.Add(bullet);
+                row.Add(p);
+                box.Add(row);
+            }
+        }
+
         public static void AddCodeBlock(VisualElement root, string code)
         {
             var container = new VisualElement();

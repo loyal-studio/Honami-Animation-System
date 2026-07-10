@@ -5,9 +5,9 @@ namespace HonamiAnimationSystem.Editor.Documentation.Pages
     public sealed class LinkedOverviewPage : IHonamiDocumentationPage
     {
         public string Title => HonamiDocLocalization.Get("Linked Systems Overview", "Огляд систем Linked");
-        public string Category => HonamiDocLocalization.Get("07. Honami Linked", "07. Honami Linked");
+        public string Category => HonamiDocLocalization.Get("06. Honami Linked", "06. Honami Linked");
         public string SearchKeywords => "linked overview orchestration brain actionid multi-animator оркестрація";
-        public int Order => 700;
+        public int Order => 500;
         public int EstimatedReadTime => 3;
 
         public void BuildContent(VisualElement root)

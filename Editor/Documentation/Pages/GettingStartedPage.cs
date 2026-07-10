@@ -5,9 +5,9 @@ namespace HonamiAnimationSystem.Editor.Documentation.Pages
     public sealed class GettingStartedPage : IHonamiDocumentationPage
     {
         public string Title => HonamiDocLocalization.Get("First Steps", "Перші кроки");
-        public string Category => HonamiDocLocalization.Get("02. Getting Started", "02. Перші Кроки");
+        public string Category => HonamiDocLocalization.Get("01. Start Here", "01. Старт");
         public string SearchKeywords => "setup components animator runtime controller create attach startup updatemode initial pose fps cap налаштування компоненти перші кроки";
-        public int Order => 100;
+        public int Order => 20;
         public int EstimatedReadTime => 7;
 
         public void BuildContent(VisualElement root)
@@ -96,6 +96,12 @@ public sealed class SimpleCharacter : MonoBehaviour
             _honami.PlayState(""Jump"", transitionDuration: 0.1f);
     }
 }");
+
+            HonamiDocumentationBuilder.AddSeparator(root);
+            HonamiDocumentationBuilder.AddParagraph(root, HonamiDocLocalization.Get(
+                "Setup done. Continue with the tutorial series '02. Tutorial: First Character' — it walks you from a single idle state to a moving, jumping character with sound events, one concept per page.",
+                "Налаштування завершено. Продовжуйте серією «02. Туторіал: Перший персонаж» — вона проведе вас від одного idle-стейту до персонажа, що рухається, стрибає та звучить, по одному концепту на сторінку."
+            ));
 
             HonamiDocumentationBuilder.AddHeader(root, HonamiDocLocalization.Get("Quick Actions", "Швидкі дії"), HonamiEditorIcons.Controller);
             HonamiDocumentationBuilder.AddActionGroup(root,

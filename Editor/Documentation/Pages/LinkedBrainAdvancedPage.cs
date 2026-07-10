@@ -5,9 +5,9 @@ namespace HonamiAnimationSystem.Editor.Documentation.Pages
     public sealed class LinkedBrainAdvancedPage : IHonamiDocumentationPage
     {
         public string Title => HonamiDocLocalization.Get("Advanced Brain Techniques", "Просунуті техніки Brain");
-        public string Category => HonamiDocLocalization.Get("07. Honami Linked", "07. Honami Linked");
+        public string Category => HonamiDocLocalization.Get("06. Honami Linked", "06. Honami Linked");
         public string SearchKeywords => "advanced brain choreography sync netcode events distance profile controller просунуті техніки синхронізація";
-        public int Order => 750;
+        public int Order => 550;
         public int EstimatedReadTime => 6;
 
         public void BuildContent(VisualElement root)

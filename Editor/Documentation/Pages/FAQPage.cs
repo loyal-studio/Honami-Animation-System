@@ -6,9 +6,9 @@ namespace HonamiAnimationSystem.Editor.Documentation.Pages
     public sealed class FAQPage : IHonamiDocumentationPage
     {
         public string Title => HonamiDocLocalization.Get("FAQ", "Часті питання");
-        public string Category => HonamiDocLocalization.Get("02. Getting Started", "02. Перші Кроки");
+        public string Category => HonamiDocLocalization.Get("09. Theory & Background", "09. Теорія та довідка");
         public string SearchKeywords => "faq questions help support issues common humanoid mixamo asset store marketplace retarget часті питання допомога куплені кліпи";
-        public int Order => 120;
+        public int Order => 850;
         public int EstimatedReadTime => 3;
 
         public void BuildContent(VisualElement root)

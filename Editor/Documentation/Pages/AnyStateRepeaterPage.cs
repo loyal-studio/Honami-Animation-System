@@ -5,9 +5,9 @@ namespace HonamiAnimationSystem.Editor.Documentation.Pages
     public sealed class AnyStateRepeaterPage : IHonamiDocumentationPage
     {
         public string Title => HonamiDocLocalization.Get("Any State & Repeater", "Any State та Repeater");
-        public string Category => HonamiDocLocalization.Get("05. Node Library", "05. Бібліотека вузлів");
+        public string Category => HonamiDocLocalization.Get("04. Node Library", "04. Бібліотека вузлів");
         public string SearchKeywords => "any state repeater loop cooldown restart global transitions вузол повторювач";
-        public int Order => 530;
+        public int Order => 340;
         public int EstimatedReadTime => 4;
 
         public void BuildContent(VisualElement root)

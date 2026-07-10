@@ -5,13 +5,26 @@ namespace HonamiAnimationSystem.Editor.Documentation.Pages
     public sealed class TransitionsPage : IHonamiDocumentationPage
     {
         public string Title => HonamiDocLocalization.Get("Transitions", "Переходи");
-        public string Category => HonamiDocLocalization.Get("04. Core Systems", "04. Основні системи");
+        public string Category => HonamiDocLocalization.Get("03. Core Concepts", "03. Основні концепти");
         public string SearchKeywords => "transitions blending duration curves exit time conditions priority victim smart inertial interrupt переходи змішування умови пріоритет";
-        public int Order => 410;
+        public int Order => 220;
         public int EstimatedReadTime => 8;
 
         public void BuildContent(VisualElement root)
         {
+            HonamiDocumentationBuilder.AddPageIntro(root,
+                new[]
+                {
+                    HonamiDocLocalization.Get("Transition types: Standard, Victim, Smart", "Типи транзішнів: Standard, Victim, Smart"),
+                    HonamiDocLocalization.Get("Every transition property: duration, exit time, priority, interruption", "Кожна властивість транзішна: тривалість, exit time, пріоритет, переривання"),
+                    HonamiDocLocalization.Get("How conditions combine and when triggers are consumed", "Як поєднуються умови та коли споживаються тригери")
+                },
+                new[]
+                {
+                    HonamiDocLocalization.Get("Tutorial part 3: a basic transition with a condition", "Частина 3 туторіалу: базовий транзішн з умовою"),
+                    HonamiDocLocalization.Get("Parameters page: parameter types", "Сторінка «Параметри»: типи параметрів")
+                });
+
             HonamiDocumentationBuilder.AddParagraph(root, HonamiDocLocalization.Get(
                 "Transitions define how the system moves from one state to another. Beyond the classic duration-and-conditions setup, Honami transitions have a type (blending strategy), a priority, interruption rules and can even write parameters when they fire.",
                 "Переходи визначають, як система рухається від одного стану до іншого. Окрім класичних тривалості та умов, переходи Honami мають тип (стратегію блендінгу), пріоритет, правила переривання і навіть можуть записувати параметри при спрацюванні."

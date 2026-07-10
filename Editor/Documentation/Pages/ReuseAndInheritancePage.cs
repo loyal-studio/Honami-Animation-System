@@ -5,13 +5,25 @@ namespace HonamiAnimationSystem.Editor.Documentation.Pages
     public sealed class ReuseAndInheritancePage : IHonamiDocumentationPage
     {
         public string Title => HonamiDocLocalization.Get("Reuse & Inheritance", "Повторне використання та спадкування");
-        public string Category => HonamiDocLocalization.Get("04. Core Systems", "04. Основні системи");
+        public string Category => HonamiDocLocalization.Get("03. Core Concepts", "03. Основні концепти");
         public string SearchKeywords => "reuse inheritance override controller inherited layer child parent variation перевикористання спадкування override контролер шар";
-        public int Order => 440;
+        public int Order => 260;
         public int EstimatedReadTime => 6;
 
         public void BuildContent(VisualElement root)
         {
+            HonamiDocumentationBuilder.AddPageIntro(root,
+                new[]
+                {
+                    HonamiDocLocalization.Get("Layer inheritance vs Override Controllers — and when to pick which", "Спадкування шарів vs Override Controller — і коли що обирати"),
+                    HonamiDocLocalization.Get("The Create Child Layer / Create Override workflow", "Воркфлоу Create Child Layer / Create Override"),
+                    HonamiDocLocalization.Get("Building families of characters without duplicating graphs", "Побудова сімейств персонажів без дублювання графів")
+                },
+                new[]
+                {
+                    HonamiDocLocalization.Get("Blending & Layers: what a layer is", "«Blending & Layers»: що таке шар")
+                });
+
             HonamiDocumentationBuilder.AddParagraph(root, HonamiDocLocalization.Get(
                 "Honami is designed for reusable animation architecture. Instead of duplicating huge graphs for every character, weapon or character condition, you can reuse proven logic and override only the pieces that actually change.",
                 "Honami створений для архітектури анімації з повторним використанням. Замість дублювання великих графів для кожного персонажа, зброї або стану персонажа, ви можете перевикористовувати перевірену логіку та перевизначати лише те, що справді змінюється."

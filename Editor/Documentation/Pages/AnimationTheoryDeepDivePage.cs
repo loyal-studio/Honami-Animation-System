@@ -5,16 +5,16 @@ namespace HonamiAnimationSystem.Editor.Documentation.Pages
     public sealed class AnimationTheoryDeepDivePage : IHonamiDocumentationPage
     {
         public string Title => HonamiDocLocalization.Get("Deep Dive: Theory", "Глибоке занурення: Теорія");
-        public string Category => HonamiDocLocalization.Get("01. Welcome & Fundamentals", "01. Вступ та Основи");
+        public string Category => HonamiDocLocalization.Get("09. Theory & Background", "09. Теорія та довідка");
         public string SearchKeywords => "theory deep dive math quaternions interpolation slerp lerp математика теорія";
-        public int Order => 40;
+        public int Order => 810;
         public int EstimatedReadTime => 6;
 
         public void BuildContent(VisualElement root)
         {
             HonamiDocumentationBuilder.AddParagraph(root, HonamiDocLocalization.Get(
-                "Game animation is where mathematics meets biological intuition. Honami is built on a data-oriented architecture designed to solve the most complex problems of modern animation engines.",
-                "Ігрова анімація — це місце, де математика зустрічається з біологічною інтуїцією. Honami побудований на дано-орієнтованій архітектурі, розробленій для вирішення найскладніших проблем сучасних анімаційних рушіїв."
+                "Optional background reading: how Honami is structured internally and the math its blending rests on. Nothing here is required to use the system — it explains why it behaves the way it does.",
+                "Необов'язкове читання: як Honami влаштований усередині та на якій математиці тримається його блендінг. Нічого з цього не потрібно для роботи з системою — сторінка пояснює, чому вона поводиться саме так."
             ));
 
             HonamiDocumentationBuilder.AddHeader(root, HonamiDocLocalization.Get("1. High-Performance Blending Architecture", "1. Архітектура високопродуктивного змішування"), HonamiEditorIcons.GraphWhite);

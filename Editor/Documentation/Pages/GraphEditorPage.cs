@@ -5,13 +5,25 @@ namespace HonamiAnimationSystem.Editor.Documentation.Pages
     public sealed class GraphEditorPage : IHonamiDocumentationPage
     {
         public string Title => HonamiDocLocalization.Get("Graph Editor", "Редактор графа");
-        public string Category => HonamiDocLocalization.Get("03. Editor & Workflow", "03. Редактор та Воркфлоу");
+        public string Category => HonamiDocLocalization.Get("03. Core Concepts", "03. Основні концепти");
         public string SearchKeywords => "editor window graph nodes navigation inspector shortcuts редактор вікно вузли навігація";
-        public int Order => 300;
+        public int Order => 200;
         public int EstimatedReadTime => 4;
 
         public void BuildContent(VisualElement root)
         {
+            HonamiDocumentationBuilder.AddPageIntro(root,
+                new[]
+                {
+                    HonamiDocLocalization.Get("Canvas navigation and keyboard shortcuts", "Навігація по полотну та гарячі клавіші"),
+                    HonamiDocLocalization.Get("Where node and transition properties live", "Де живуть властивості вузлів і транзішнів"),
+                    HonamiDocLocalization.Get("Fast node creation via drag & drop", "Швидке створення вузлів через drag & drop")
+                },
+                new[]
+                {
+                    HonamiDocLocalization.Get("'First Steps': a controller assigned to a character", "«First Steps»: контролер, призначений персонажу")
+                });
+
             HonamiDocumentationBuilder.AddParagraph(root, HonamiDocLocalization.Get(
                 "The Graph Editor is where you build the animation logic for your characters. It's a node-based interface that allows for visual state management.",
                 "Редактор графа — це місце, де ви створюєте логіку анімації для ваших персонажів. Це вузловий інтерфейс, що дозволяє візуально керувати станами."
@@ -24,7 +36,7 @@ namespace HonamiAnimationSystem.Editor.Documentation.Pages
                 (HonamiDocLocalization.Get("Description", "Опис"), 0),
                 ("Pan", "Middle Click / Alt+Left", HonamiDocLocalization.Get("Move around the canvas.", "Переміщення по полотну.")),
                 ("Zoom", "Scroll Wheel", HonamiDocLocalization.Get("Zoom in and out.", "Масштабування.")),
-                ("Add Node", "Right Click / Space", HonamiDocLocalization.Get("Open the node creation menu.", "Відкрити меню створення вузлів.")),
+                ("Add Node", "Right Click", HonamiDocLocalization.Get("Open the node creation menu.", "Відкрити меню створення вузлів.")),
                 ("Delete", "Delete / Backspace", HonamiDocLocalization.Get("Remove selected nodes/transitions.", "Видалити вибрані вузли/переходи.")),
                 ("Duplicate", "Ctrl+D", HonamiDocLocalization.Get("Duplicate selected nodes.", "Дублювати вибрані вузли."))
             );

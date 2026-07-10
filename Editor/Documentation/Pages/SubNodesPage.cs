@@ -5,9 +5,9 @@ namespace HonamiAnimationSystem.Editor.Documentation.Pages
     public sealed class SubNodesPage : IHonamiDocumentationPage
     {
         public string Title => HonamiDocLocalization.Get("Sub-Nodes Overview", "Огляд підвузлів");
-        public string Category => HonamiDocLocalization.Get("06. Sub-Nodes", "06. Підвузли");
+        public string Category => HonamiDocLocalization.Get("05. Sub-Nodes", "05. Підвузли");
         public string SearchKeywords => "sub-nodes logic encapsulation states components підвузли логіка інкапсуляція";
-        public int Order => 600;
+        public int Order => 400;
         public int EstimatedReadTime => 3;
 
         public void BuildContent(VisualElement root)

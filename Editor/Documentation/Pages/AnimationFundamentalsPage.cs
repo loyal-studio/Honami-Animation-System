@@ -5,9 +5,9 @@ namespace HonamiAnimationSystem.Editor.Documentation.Pages
     public sealed class AnimationFundamentalsPage : IHonamiDocumentationPage
     {
         public string Title => HonamiDocLocalization.Get("Animation Fundamentals", "Основи анімації");
-        public string Category => HonamiDocLocalization.Get("01. Welcome & Fundamentals", "01. Вступ та Основи");
+        public string Category => HonamiDocLocalization.Get("09. Theory & Background", "09. Теорія та довідка");
         public string SearchKeywords => "fundamentals theory logic states transitions normalized time poses основы теорія логіка";
-        public int Order => 20;
+        public int Order => 800;
         public int EstimatedReadTime => 4;
 
         public void BuildContent(VisualElement root)
@@ -42,8 +42,8 @@ namespace HonamiAnimationSystem.Editor.Documentation.Pages
 
             HonamiDocumentationBuilder.AddCallout(root,
                 HonamiDocLocalization.Get(
-                    "Animation is the ultimate bridge between code (cold mathematics) and art (pure emotion). If the math is sloppy, the art looks fundamentally broken. Honami is the bridge that perfects both.",
-                    "Анімація — це абсолютний міст між кодом (холодною математикою) та мистецтвом (чистими емоціями). Якщо математика неточна, мистецтво виглядатиме фундаментально зламаним. Honami — це міст, що вдосконалює обидва аспекти."
+                    "To see these terms in practice, go through the '02. Tutorial' series — every concept on this page appears there on a live character.",
+                    "Щоб побачити ці терміни на практиці, пройдіть серію «02. Туторіал» — кожен концепт із цієї сторінки з'являється там на живому персонажі."
                 ),
                 HonamiDocumentationBuilder.CalloutType.Info);
         }

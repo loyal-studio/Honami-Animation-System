@@ -466,7 +466,18 @@ namespace HonamiAnimationSystem.Editor
                 }
                 else
                 {
-                    evt.menu.AppendAction("Cannot add new states to an Override Controller\n(Edit Base Controller instead)", (a) => { }, DropdownMenuAction.Status.Disabled);
+                    var overrideGraphPosition = contentViewContainer.WorldToLocal(evt.mousePosition);
+
+                    foreach ((HonamiNodeEditorAttribute attr, _) in HonamiNodeEditorRegistry.AllEntries)
+                    {
+                        Type capturedType = attr.NodeType;
+                        evt.menu.AppendAction($"Create Node/{attr.MenuPath}",
+                            _ => CreateNewStateNodeOfType(overrideGraphPosition, capturedType));
+                    }
+
+                    evt.menu.AppendSeparator();
+                    evt.menu.AppendAction("Create Decoration Group", _ => CreateNewGroup(overrideGraphPosition));
+                    evt.menu.AppendAction("Create Sticky Note", _ => CreateNewStickyNote(overrideGraphPosition));
                 }
                 return;
             }

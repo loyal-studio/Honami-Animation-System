@@ -5,9 +5,9 @@ namespace HonamiAnimationSystem.Editor.Documentation.Pages
     public sealed class AnimationComparisonPage : IHonamiDocumentationPage
     {
         public string Title => HonamiDocLocalization.Get("Comparison of Approaches", "Порівняння підходів");
-        public string Category => HonamiDocLocalization.Get("01. Welcome & Fundamentals", "01. Вступ та Основи");
+        public string Category => HonamiDocLocalization.Get("09. Theory & Background", "09. Теорія та довідка");
         public string SearchKeywords => "comparison mecanim animator playables tweening timeline advantages limits when to use migration retargeting порівняння переваги обмеження коли використовувати заміна міграція";
-        public int Order => 30;
+        public int Order => 820;
         public int EstimatedReadTime => 7;
 
         public void BuildContent(VisualElement root)

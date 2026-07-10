@@ -5,9 +5,9 @@ namespace HonamiAnimationSystem.Editor.Documentation.Pages
     public sealed class BlendTreeNodePage : IHonamiDocumentationPage
     {
         public string Title => HonamiDocLocalization.Get("Blend Tree Node", "Blend Tree Node");
-        public string Category => HonamiDocLocalization.Get("05. Node Library", "05. Бібліотека вузлів");
+        public string Category => HonamiDocLocalization.Get("04. Node Library", "04. Бібліотека вузлів");
         public string SearchKeywords => "blend tree 1d standard simple motion blending interpolation threshold damping дерево змішування інтерполяція поріг демпфування";
-        public int Order => 510;
+        public int Order => 310;
         public int EstimatedReadTime => 3;
 
         public void BuildContent(VisualElement root)

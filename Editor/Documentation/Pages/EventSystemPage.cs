@@ -5,13 +5,25 @@ namespace HonamiAnimationSystem.Editor.Documentation.Pages
     public sealed class EventSystemPage : IHonamiDocumentationPage
     {
         public string Title => HonamiDocLocalization.Get("Event System", "Система подій");
-        public string Category => HonamiDocLocalization.Get("04. Core Systems", "04. Основні системи");
+        public string Category => HonamiDocLocalization.Get("03. Core Concepts", "03. Основні концепти");
         public string SearchKeywords => "events markers animation events callbacks sounds effects local global receiver unityevent setup eventid події маркери колбеки налаштування ресівер";
-        public int Order => 440;
+        public int Order => 240;
         public int EstimatedReadTime => 9;
 
         public void BuildContent(VisualElement root)
         {
+            HonamiDocumentationBuilder.AddPageIntro(root,
+                new[]
+                {
+                    HonamiDocLocalization.Get("Local vs Global markers and their discovery rules", "Local vs Global маркери та правила їх виявлення"),
+                    HonamiDocLocalization.Get("Full receiver setup for both marker kinds", "Повне налаштування ресіверів для обох видів маркерів"),
+                    HonamiDocLocalization.Get("Marker guarantees on loops and reversed states, plus C# state events", "Гарантії маркерів на циклах і реверсі, плюс C#-події станів")
+                },
+                new[]
+                {
+                    HonamiDocLocalization.Get("Tutorial part 4: your first Local event", "Частина 4 туторіалу: перший Local івент")
+                });
+
             HonamiDocumentationBuilder.AddParagraph(root, HonamiDocLocalization.Get(
                 "The Honami Event System triggers logic precisely at specific moments of an animation. It has two halves: event markers authored on states, and C# events raised by the animator itself when states start and end.",
                 "Система подій Honami запускає логіку точно у визначені моменти анімації. Вона складається з двох частин: маркери подій, розставлені на станах, і C#-події, які сам аніматор викликає на початку та в кінці станів."

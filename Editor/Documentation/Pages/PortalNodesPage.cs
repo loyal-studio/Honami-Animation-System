@@ -5,9 +5,9 @@ namespace HonamiAnimationSystem.Editor.Documentation.Pages
     public sealed class PortalNodesPage : IHonamiDocumentationPage
     {
         public string Title => HonamiDocLocalization.Get("Portal Nodes", "Portal Nodes");
-        public string Category => HonamiDocLocalization.Get("05. Node Library", "05. Бібліотека вузлів");
+        public string Category => HonamiDocLocalization.Get("04. Node Library", "04. Бібліотека вузлів");
         public string SearchKeywords => "portal entrance exit jump teleport graph organization source filter портали вузли організація";
-        public int Order => 540;
+        public int Order => 350;
         public int EstimatedReadTime => 4;
 
         public void BuildContent(VisualElement root)

@@ -5,9 +5,9 @@ namespace HonamiAnimationSystem.Editor.Documentation.Pages
     public sealed class LogSubNodePage : IHonamiDocumentationPage
     {
         public string Title => HonamiDocLocalization.Get("Log Sub-Node", "Підвузол Log");
-        public string Category => HonamiDocLocalization.Get("06. Sub-Nodes", "06. Підвузли");
+        public string Category => HonamiDocLocalization.Get("05. Sub-Nodes", "05. Підвузли");
         public string SearchKeywords => "log subnode debug console message format tokens логування дебаг консоль токени формат";
-        public int Order => 620;
+        public int Order => 430;
         public int EstimatedReadTime => 2;
 
         public void BuildContent(VisualElement root)

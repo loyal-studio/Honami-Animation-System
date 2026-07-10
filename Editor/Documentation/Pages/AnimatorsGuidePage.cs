@@ -5,16 +5,16 @@ namespace HonamiAnimationSystem.Editor.Documentation.Pages
     public sealed class AnimatorsGuidePage : IHonamiDocumentationPage
     {
         public string Title => HonamiDocLocalization.Get("Animator's Guide", "Посібник аніматора");
-        public string Category => HonamiDocLocalization.Get("02. Getting Started", "02. Перші Кроки");
+        public string Category => HonamiDocLocalization.Get("09. Theory & Background", "09. Теорія та довідка");
         public string SearchKeywords => "artist guide workflow export blender maya fbx tips аніматор посібник воркфлоу";
-        public int Order => 110;
+        public int Order => 840;
         public int EstimatedReadTime => 3;
 
         public void BuildContent(VisualElement root)
         {
             HonamiDocumentationBuilder.AddParagraph(root, HonamiDocLocalization.Get(
-                "This is the definitive technical guide for animators. It explains NOT just what to do, but WHY things are done this way to avoid common pitfalls in Unity.",
-                "Це ультимативний технічний посібник для аніматорів. Він пояснює НЕ лише те, що робити, а й ЧОМУ це робиться саме так, щоб уникнути типових проблем у Unity."
+                "A practical checklist for animators preparing content for Honami: coordinate systems on export, what to keyframe versus what to leave procedural, the Humanoid/Generic choice, and FBX technical standards — with the reasons behind each rule.",
+                "Практичний чекліст для аніматорів, що готують контент для Honami: системи координат при експорті, що бейкати ключами, а що лишати процедурним, вибір Humanoid/Generic та технічні стандарти FBX — із поясненням, чому саме так."
             ));
 
             // --- Section 1: Coordinates ---
@@ -90,8 +90,8 @@ namespace HonamiAnimationSystem.Editor.Documentation.Pages
             );
 
             HonamiDocumentationBuilder.AddParagraph(root, HonamiDocLocalization.Get(
-                "In short: Humanoid is NOT flexible—it's restrictive. Honami + Generic is the only way to achieve true freedom for any character design, from humans to monsters, with zero performance compromises.",
-                "Коротко: Humanoid НЕ гнучкий — він обмежує. Honami + Generic — це єдиний шлях до справжньої свободи дизайну персонажів, від людей до монстрів, без компромісів у продуктивності."
+                "Practical takeaway: for production characters in Honami, author and import as Generic. Humanoid remains genuinely useful in one role — as an import format for marketplace content (see the tip below).",
+                "Практичний висновок: для продакшн-персонажів у Honami створюйте та імпортуйте контент як Generic. У Humanoid лишається одна справді корисна роль — формат імпорту контенту з маркетплейсів (див. пораду нижче)."
             ));
 
             HonamiDocumentationBuilder.AddTip(root, HonamiDocLocalization.Get(

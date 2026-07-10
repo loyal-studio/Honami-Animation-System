@@ -5,13 +5,25 @@ namespace HonamiAnimationSystem.Editor.Documentation.Pages
     public sealed class AvatarsAndMasksPage : IHonamiDocumentationPage
     {
         public string Title => HonamiDocLocalization.Get("Avatars & Masks", "Аватари та маски");
-        public string Category => HonamiDocLocalization.Get("04. Core Systems", "04. Основні системи");
+        public string Category => HonamiDocLocalization.Get("03. Core Concepts", "03. Основні концепти");
         public string SearchKeywords => "avatar mask skeleton rigging remap bones non humanoid arbitrary creature avatar masks аватари маски скелет не гуманоїд";
-        public int Order => 430;
+        public int Order => 250;
         public int EstimatedReadTime => 7;
 
         public void BuildContent(VisualElement root)
         {
+            HonamiDocumentationBuilder.AddPageIntro(root,
+                new[]
+                {
+                    HonamiDocLocalization.Get("Why Honami has its own Avatar and Mask assets", "Навіщо Honami власні ассети Avatar і Mask"),
+                    HonamiDocLocalization.Get("Creating an avatar: bone lists, mirror pairs, skeleton remapping", "Створення аватара: списки кісток, mirror-пари, ремапінг скелета"),
+                    HonamiDocLocalization.Get("Building per-bone weighted masks for any hierarchy", "Створення масок із вагою на кістку для будь-якої ієрархії")
+                },
+                new[]
+                {
+                    HonamiDocLocalization.Get("Blending & Layers: where masks are applied", "«Blending & Layers»: де маски застосовуються")
+                });
+
             HonamiDocumentationBuilder.AddParagraph(root, HonamiDocLocalization.Get(
                 "Honami uses its own Avatar and Mask assets because Unity's Humanoid Avatar workflow is a poor fit for a game full of strange enemy shapes. Honami does not need a skeleton to pass as a human before it can be blended, masked or mirrored.",
                 "Honami використовує власні Avatar та Mask assets, бо Unity Humanoid Avatar workflow погано підходить для гри з великою кількістю дивних форм ворогів. Honami не вимагає, щоб скелет пройшов як людина, перш ніж його можна буде змішувати, маскувати або віддзеркалювати."
@@ -36,8 +48,8 @@ namespace HonamiAnimationSystem.Editor.Documentation.Pages
             );
 
             HonamiDocumentationBuilder.AddCallout(root, HonamiDocLocalization.Get(
-                "Avoiding the Humanoid tax does not mean losing Humanoid content. Marketplace Humanoid clips can be retargeted onto your skeleton and baked to Generic with the Humanoid Baker tool (see the Editor & Workflow section) — the baked clips then work with Honami avatars, masks and mirroring like any hand-authored clip.",
-                "Уникати податку Humanoid не означає втрачати Humanoid-контент. Куплені Humanoid-кліпи можна ретаргетнути на ваш скелет і забейкати в Generic тулзою Humanoid Baker (див. розділ Editor & Workflow) — запечені кліпи працюють з Honami-аватарами, масками та mirroring як будь-який кліп, зроблений вручну."
+                "Avoiding the Humanoid tax does not mean losing Humanoid content. Marketplace Humanoid clips can be retargeted onto your skeleton and baked to Generic with the Humanoid Baker tool (see the Tools & Pro section) — the baked clips then work with Honami avatars, masks and mirroring like any hand-authored clip.",
+                "Уникати податку Humanoid не означає втрачати Humanoid-контент. Куплені Humanoid-кліпи можна ретаргетнути на ваш скелет і забейкати в Generic тулзою Humanoid Baker (див. розділ Tools & Pro) — запечені кліпи працюють з Honami-аватарами, масками та mirroring як будь-який кліп, зроблений вручну."
             ), HonamiDocumentationBuilder.CalloutType.Tip);
 
             HonamiDocumentationBuilder.AddHeader(root, HonamiDocLocalization.Get("Honami Avatar Asset", "Ассет Honami Avatar"), HonamiEditorIcons.Controller);

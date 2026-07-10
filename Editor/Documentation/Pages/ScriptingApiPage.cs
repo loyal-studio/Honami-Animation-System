@@ -5,9 +5,9 @@ namespace HonamiAnimationSystem.Editor.Documentation.Pages
     public sealed class ScriptingApiPage : IHonamiDocumentationPage
     {
         public string Title => HonamiDocLocalization.Get("Scripting API", "API для скриптів");
-        public string Category => HonamiDocLocalization.Get("09. Developer API", "09. API для розробників");
+        public string Category => HonamiDocLocalization.Get("08. Developer API", "08. API для розробників");
         public string SearchKeywords => "scripting api code access methods animator tick playstate parameters tags pause stop layer controller events callbacks mirror initial pose timescale fps cap апі скрипти події параметри";
-        public int Order => 900;
+        public int Order => 700;
         public int EstimatedReadTime => 15;
 
         public void BuildContent(VisualElement root)

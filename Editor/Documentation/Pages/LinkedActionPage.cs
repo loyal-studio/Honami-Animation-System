@@ -5,9 +5,9 @@ namespace HonamiAnimationSystem.Editor.Documentation.Pages
     public sealed class LinkedActionPage : IHonamiDocumentationPage
     {
         public string Title => HonamiDocLocalization.Get("Global Actions (ActionID)", "Глобальні дії (ActionID)");
-        public string Category => HonamiDocLocalization.Get("07. Honami Linked", "07. Honami Linked");
+        public string Category => HonamiDocLocalization.Get("06. Honami Linked", "06. Honami Linked");
         public string SearchKeywords => "actionid global actions events broadcasting nearby propagated closest reacttoaction децентралізація події радіус хвиля";
-        public int Order => 720;
+        public int Order => 520;
         public int EstimatedReadTime => 6;
 
         public void BuildContent(VisualElement root)

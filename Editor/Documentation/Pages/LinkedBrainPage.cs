@@ -5,9 +5,9 @@ namespace HonamiAnimationSystem.Editor.Documentation.Pages
     public sealed class LinkedBrainPage : IHonamiDocumentationPage
     {
         public string Title => HonamiDocLocalization.Get("Linked Brain Orchestrator", "Оркестратор Linked Brain");
-        public string Category => HonamiDocLocalization.Get("07. Honami Linked", "07. Honami Linked");
+        public string Category => HonamiDocLocalization.Get("06. Honami Linked", "06. Honami Linked");
         public string SearchKeywords => "brain orchestrator linked animator component link modes prevent linking оркестратор";
-        public int Order => 710;
+        public int Order => 510;
         public int EstimatedReadTime => 6;
 
         public void BuildContent(VisualElement root)

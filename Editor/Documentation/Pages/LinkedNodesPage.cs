@@ -5,9 +5,9 @@ namespace HonamiAnimationSystem.Editor.Documentation.Pages
     public sealed class LinkedNodesPage : IHonamiDocumentationPage
     {
         public string Title => HonamiDocLocalization.Get("Brain Graph Nodes", "Вузли Brain Graph");
-        public string Category => HonamiDocLocalization.Get("07. Honami Linked", "07. Honami Linked");
+        public string Category => HonamiDocLocalization.Get("06. Honami Linked", "06. Honami Linked");
         public string SearchKeywords => "brain nodes graph sequences choreography wait condition broadcast вузли хореографія";
-        public int Order => 730;
+        public int Order => 530;
         public int EstimatedReadTime => 5;
 
         public void BuildContent(VisualElement root)

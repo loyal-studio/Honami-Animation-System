@@ -5,9 +5,9 @@ namespace HonamiAnimationSystem.Editor.Documentation.Pages
     public sealed class LinkedTargetingPage : IHonamiDocumentationPage
     {
         public string Title => HonamiDocLocalization.Get("Targeting & Tags", "Таргетинг та теги");
-        public string Category => HonamiDocLocalization.Get("07. Honami Linked", "07. Honami Linked");
+        public string Category => HonamiDocLocalization.Get("06. Honami Linked", "06. Honami Linked");
         public string SearchKeywords => "targeting tags linked brain filtering broadcast bytag children таргетування теги фільтрація";
-        public int Order => 740;
+        public int Order => 540;
         public int EstimatedReadTime => 4;
 
         public void BuildContent(VisualElement root)

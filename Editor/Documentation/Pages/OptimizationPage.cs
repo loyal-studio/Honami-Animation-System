@@ -5,9 +5,9 @@ namespace HonamiAnimationSystem.Editor.Documentation.Pages
     public sealed class OptimizationPage : IHonamiDocumentationPage
     {
         public string Title => HonamiDocLocalization.Get("Optimization & Performance", "Оптимізація та продуктивність");
-        public string Category => HonamiDocLocalization.Get("03. Editor & Workflow", "03. Редактор та Воркфлоу");
+        public string Category => HonamiDocLocalization.Get("07. Tools & Pro", "07. Інструменти та Pro");
         public string SearchKeywords => "optimization performance profile garbage collection zero-alloc пам'ять оптимізація";
-        public int Order => 320;
+        public int Order => 640;
         public int EstimatedReadTime => 4;
 
         public void BuildContent(VisualElement root)

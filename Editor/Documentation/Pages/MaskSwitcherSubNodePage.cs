@@ -5,9 +5,9 @@ namespace HonamiAnimationSystem.Editor.Documentation.Pages
     public sealed class MaskSwitcherSubNodePage : IHonamiDocumentationPage
     {
         public string Title => HonamiDocLocalization.Get("Mask Switcher Sub-Node", "Підвузол Mask Switcher");
-        public string Category => HonamiDocLocalization.Get("06. Sub-Nodes", "06. Підвузли");
+        public string Category => HonamiDocLocalization.Get("05. Sub-Nodes", "05. Підвузли");
         public string SearchKeywords => "mask switcher avatar mask dynamic conditions перемикач масок аватар маска умови";
-        public int Order => 650;
+        public int Order => 420;
         public int EstimatedReadTime => 2;
 
         public void BuildContent(VisualElement root)

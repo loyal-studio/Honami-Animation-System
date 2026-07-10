@@ -5,13 +5,26 @@ namespace HonamiAnimationSystem.Editor.Documentation.Pages
     public sealed class BlendingAndLayersPage : IHonamiDocumentationPage
     {
         public string Title => HonamiDocLocalization.Get("Blending & Layers", "Змішування та шари");
-        public string Category => HonamiDocLocalization.Get("04. Core Systems", "04. Основні системи");
+        public string Category => HonamiDocLocalization.Get("03. Core Concepts", "03. Основні концепти");
         public string SearchKeywords => "blending layers override masking weight inheritance child layer parent layer pipeline attack interact base locomotion змішування шари маски спадкування пайплайн";
-        public int Order => 420;
+        public int Order => 230;
         public int EstimatedReadTime => 9;
 
         public void BuildContent(VisualElement root)
         {
+            HonamiDocumentationBuilder.AddPageIntro(root,
+                new[]
+                {
+                    HonamiDocLocalization.Get("How layers override each other from bottom to top", "Як шари перекривають один одного знизу вгору"),
+                    HonamiDocLocalization.Get("Layer weight, Avatar Mask and mirroring", "Вага шару, Avatar Mask та віддзеркалення"),
+                    HonamiDocLocalization.Get("The layer-per-action pipeline for characters that act while moving", "Пайплайн «шар під дію» для персонажів, що діють під час руху")
+                },
+                new[]
+                {
+                    HonamiDocLocalization.Get("The tutorial: states, blend trees and transitions", "Туторіал: стейти, blend tree і транзішни"),
+                    HonamiDocLocalization.Get("Masks are covered in depth on the Avatars & Masks page", "Маски детально розібрані на сторінці «Аватари та маски»")
+                });
+
             HonamiDocumentationBuilder.AddParagraph(root, HonamiDocLocalization.Get(
                 "Layers allow you to run multiple animation states simultaneously. This is essential for complex characters that need to perform actions while moving.",
                 "Шари дозволяють запускати кілька станів анімації одночасно. Це необхідно для складних персонажів, яким потрібно виконувати дії під час руху."

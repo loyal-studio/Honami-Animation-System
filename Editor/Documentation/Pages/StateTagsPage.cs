@@ -5,9 +5,9 @@ namespace HonamiAnimationSystem.Editor.Documentation.Pages
     public sealed class StateTagsPage : IHonamiDocumentationPage
     {
         public string Title => HonamiDocLocalization.Get("State Tags", "Теги станів");
-        public string Category => HonamiDocLocalization.Get("09. Developer API", "09. API для розробників");
+        public string Category => HonamiDocLocalization.Get("08. Developer API", "08. API для розробників");
         public string SearchKeywords => "tags states logic metadata теги стани логіка";
-        public int Order => 910;
+        public int Order => 710;
         public int EstimatedReadTime => 3;
 
         public void BuildContent(VisualElement root)

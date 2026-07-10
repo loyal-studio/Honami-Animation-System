@@ -5,13 +5,25 @@ namespace HonamiAnimationSystem.Editor.Documentation.Pages
     public sealed class ControllerProfilesPage : IHonamiDocumentationPage
     {
         public string Title => HonamiDocLocalization.Get("Controller Profiles", "Профілі контролерів");
-        public string Category => HonamiDocLocalization.Get("04. Core Systems", "04. Основні системи");
+        public string Category => HonamiDocLocalization.Get("03. Core Concepts", "03. Основні концепти");
         public string SearchKeywords => "controller profile swap runtime setprofile setcontroller loadout weapon profiles профілі контролер зміна";
-        public int Order => 450;
+        public int Order => 270;
         public int EstimatedReadTime => 6;
 
         public void BuildContent(VisualElement root)
         {
+            HonamiDocumentationBuilder.AddPageIntro(root,
+                new[]
+                {
+                    HonamiDocLocalization.Get("The three pieces of the profile system and how they connect", "Три складові системи профілів і як вони з'єднуються"),
+                    HonamiDocLocalization.Get("Switching whole controllers at runtime with SetProfile", "Перемикання цілих контролерів у рантаймі через SetProfile"),
+                    HonamiDocLocalization.Get("ContinueEvaluating vs Freeze cross-fade modes", "Режими кросфейду ContinueEvaluating vs Freeze")
+                },
+                new[]
+                {
+                    HonamiDocLocalization.Get("The tutorial: you can build and assign a controller", "Туторіал: ви вмієте створити та призначити контролер")
+                });
+
             HonamiDocumentationBuilder.AddParagraph(root, HonamiDocLocalization.Get(
                 "Controller Profiles give runtime controller switching a name and a place. Instead of scattering SetController calls with hardcoded transition settings, you author named profile states — 'Unarmed', 'Rifle', 'Vehicle' — each bundling a controller with its own cross-fade duration, curve and transition mode, and switch by name from anywhere.",
                 "Профілі контролерів дають зміні контролера в рантаймі ім'я та місце. Замість розкиданих викликів SetController із зашитими налаштуваннями переходів ви створюєте іменовані стани профілю — «Unarmed», «Rifle», «Vehicle» — кожен поєднує контролер із власними тривалістю кросфейду, кривою та режимом переходу, а перемикання відбувається за назвою звідусіль."

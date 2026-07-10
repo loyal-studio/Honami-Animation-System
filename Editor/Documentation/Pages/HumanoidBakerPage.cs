@@ -6,9 +6,9 @@ namespace HonamiAnimationSystem.Editor.Documentation.Pages
     public sealed class HumanoidBakerPage : IHonamiDocumentationPage
     {
         public string Title => HonamiDocLocalization.Get("Humanoid Baker", "Бейкер Humanoid");
-        public string Category => HonamiDocLocalization.Get("03. Editor & Workflow", "03. Редактор та Воркфлоу");
+        public string Category => HonamiDocLocalization.Get("07. Tools & Pro", "07. Інструменти та Pro");
         public string SearchKeywords => "humanoid baker retarget retargeting bake generic mixamo asset store marketplace muscle space clips convert бейк бейкер ретаргет ретаргетинг куплені кліпи маркетплейс конвертація";
-        public int Order => 315;
+        public int Order => 630;
         public int EstimatedReadTime => 6;
 
         public void BuildContent(VisualElement root)

@@ -5,9 +5,9 @@ namespace HonamiAnimationSystem.Editor.Documentation.Pages
     public sealed class EventNodePage : IHonamiDocumentationPage
     {
         public string Title => HonamiDocLocalization.Get("Event Node", "Event Node");
-        public string Category => HonamiDocLocalization.Get("05. Node Library", "05. Бібліотека вузлів");
+        public string Category => HonamiDocLocalization.Get("04. Node Library", "04. Бібліотека вузлів");
         public string SearchKeywords => "event node logic no animation empty state timer delay markers івент нода логіка без анімації таймер маркери";
-        public int Order => 525;
+        public int Order => 330;
         public int EstimatedReadTime => 4;
 
         public void BuildContent(VisualElement root)

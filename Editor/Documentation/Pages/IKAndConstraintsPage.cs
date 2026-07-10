@@ -5,9 +5,9 @@ namespace HonamiAnimationSystem.Editor.Documentation.Pages
     public sealed class IKAndConstraintsPage : IHonamiDocumentationPage
     {
         public string Title => HonamiDocLocalization.Get("IK & Constraints", "IK та констрейни");
-        public string Category => HonamiDocLocalization.Get("08. Pro Features", "08. Професійні функції");
+        public string Category => HonamiDocLocalization.Get("07. Tools & Pro", "07. Інструменти та Pro");
         public string SearchKeywords => "ik inverse kinematics constraints bones rigging foot ik lookat point constraint pivot fixer pseudo physics non humanoid процедурна анімація";
-        public int Order => 810;
+        public int Order => 610;
         public int EstimatedReadTime => 7;
 
         public void BuildContent(VisualElement root)

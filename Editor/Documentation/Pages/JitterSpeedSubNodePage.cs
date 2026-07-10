@@ -5,9 +5,9 @@ namespace HonamiAnimationSystem.Editor.Documentation.Pages
     public sealed class JitterSpeedSubNodePage : IHonamiDocumentationPage
     {
         public string Title => HonamiDocLocalization.Get("Jitter: Speed", "Jitter: Speed");
-        public string Category => HonamiDocLocalization.Get("06. Sub-Nodes", "06. Підвузли");
+        public string Category => HonamiDocLocalization.Get("05. Sub-Nodes", "05. Підвузли");
         public string SearchKeywords => "jitter speed subnode procedural variation perlin noise scale frequency тремтіння швидкість варіація шум";
-        public int Order => 610;
+        public int Order => 410;
         public int EstimatedReadTime => 2;
 
         public void BuildContent(VisualElement root)

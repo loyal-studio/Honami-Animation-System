@@ -5,13 +5,25 @@ namespace HonamiAnimationSystem.Editor.Documentation.Pages
     public sealed class ParametersPage : IHonamiDocumentationPage
     {
         public string Title => HonamiDocLocalization.Get("Parameters", "Параметри");
-        public string Category => HonamiDocLocalization.Get("04. Core Systems", "04. Основні системи");
+        public string Category => HonamiDocLocalization.Get("03. Core Concepts", "03. Основні концепти");
         public string SearchKeywords => "parameters floats bools triggers ints random hash assignments data drive logic параметри дані логіка хеш";
-        public int Order => 400;
+        public int Order => 210;
         public int EstimatedReadTime => 6;
 
         public void BuildContent(VisualElement root)
         {
+            HonamiDocumentationBuilder.AddPageIntro(root,
+                new[]
+                {
+                    HonamiDocLocalization.Get("The five parameter types and when to use each", "П'ять типів параметрів і коли який використовувати"),
+                    HonamiDocLocalization.Get("Reading and writing parameters from code, name vs hash", "Читання й запис параметрів з коду, назва vs хеш"),
+                    HonamiDocLocalization.Get("Trigger lifetime and Parameter Assignments on states", "Життєвий цикл тригера та Parameter Assignments на стейтах")
+                },
+                new[]
+                {
+                    HonamiDocLocalization.Get("Tutorial parts 2–3: first SetFloat and SetTrigger calls", "Частини 2–3 туторіалу: перші виклики SetFloat і SetTrigger")
+                });
+
             HonamiDocumentationBuilder.AddParagraph(root, HonamiDocLocalization.Get(
                 "Parameters are the primary way to drive your animation graph from external code. They act as the 'variables' of your state machine: transitions read them in conditions, blend trees sample them for weights, and states can even write them back.",
                 "Параметри — це основний спосіб керування графом анімації із зовнішнього коду. Вони виступають як «змінні» вашого скінченного автомата: переходи читають їх в умовах, blend tree беруть із них ваги, а стани можуть навіть записувати їх назад."

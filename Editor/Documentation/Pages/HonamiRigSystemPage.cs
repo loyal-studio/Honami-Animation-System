@@ -5,9 +5,9 @@ namespace HonamiAnimationSystem.Editor.Documentation.Pages
     public sealed class HonamiRigSystemPage : IHonamiDocumentationPage
     {
         public string Title => HonamiDocLocalization.Get("Rig System", "Система рігу (Rig)");
-        public string Category => HonamiDocLocalization.Get("08. Pro Features", "08. Професійні функції");
+        public string Category => HonamiDocLocalization.Get("07. Tools & Pro", "07. Інструменти та Pro");
         public string SearchKeywords => "rigging ik constraints lookat physics foot ik point constraint pivot fixer pseudo physics non humanoid creatures ріг констрейни не гуманоїд";
-        public int Order => 800;
+        public int Order => 600;
         public int EstimatedReadTime => 9;
 
         public void BuildContent(VisualElement root)
