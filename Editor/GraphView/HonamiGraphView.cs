@@ -15,6 +15,7 @@ namespace HonamiAnimationSystem.Editor
         public System.Action<HonamiNode> OnNodeSelected;
         public System.Action<HonamiNode, HonamiSubNodeBase> OnSubNodeSelected;
         public System.Action<Edge, HonamiTransition> OnEdgeSelected;
+        public System.Action<List<HonamiTransition>> OnEdgesSelected;
         public System.Action OnDeselected;
 
         private void ClearEvents()
@@ -22,6 +23,7 @@ namespace HonamiAnimationSystem.Editor
             OnNodeSelected = null;
             OnSubNodeSelected = null;
             OnEdgeSelected = null;
+            OnEdgesSelected = null;
             OnDeselected = null;
         }
 

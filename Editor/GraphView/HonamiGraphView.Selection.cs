@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEditor.Experimental.GraphView;
 using HonamiAnimationSystem.Runtime.Core;
 
@@ -32,6 +33,31 @@ namespace HonamiAnimationSystem.Editor
             {
                 OnDeselected?.Invoke();
                 return;
+            }
+
+            if (selection.Count > 1 && OnEdgesSelected != null)
+            {
+                List<HonamiTransition> multiTransitions = null;
+                bool onlyEdges = true;
+                foreach (var item in selection)
+                {
+                    if (item is HonamiTransitionEdge multiEdge && multiEdge.userData is HonamiTransition t)
+                    {
+                        multiTransitions ??= new List<HonamiTransition>();
+                        multiTransitions.Add(t);
+                    }
+                    else if (item is HonamiNode)
+                    {
+                        onlyEdges = false;
+                        break;
+                    }
+                }
+
+                if (onlyEdges && multiTransitions != null && multiTransitions.Count >= 2)
+                {
+                    OnEdgesSelected.Invoke(multiTransitions);
+                    return;
+                }
             }
 
             var first = selection[0];

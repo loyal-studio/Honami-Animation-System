@@ -12,6 +12,7 @@ namespace HonamiAnimationSystem.Editor.Handlers
         private Runtime.Core.HonamiAnimator _lastRuntimeAnimator;
         private HonamiGraphView _graphView;
         private HonamiLeftPanel _leftPanel;
+        private readonly System.Collections.Generic.List<HonamiTransitionMultiInspector.Entry> _multiTransitions = new();
 
         public string ModeId => "Animator";
 
@@ -217,6 +218,10 @@ namespace HonamiAnimationSystem.Editor.Handlers
 
                 rightContent.Add(pad);
             }
+            else if (_multiTransitions.Count >= 2 && IsMultiSelectionValid())
+            {
+                rightContent.Add(HonamiTransitionMultiInspector.Build(_multiTransitions));
+            }
             else if (_window.SelectedTransition != null && _window.SelectedTransitionOwner != null &&
                      _window.SerializedState?.targetObject != null)
             {
@@ -246,6 +251,31 @@ namespace HonamiAnimationSystem.Editor.Handlers
         public void RebuildLeftPanel()
         {
             _leftPanel?.Rebuild();
+        }
+
+        private bool IsMultiSelectionValid()
+        {
+            foreach (var entry in _multiTransitions)
+            {
+                if (entry.Owner == null) return false;
+
+                var transitions = _window.RuntimeController != null
+                    ? _window.RuntimeController.GetTransitions(entry.Owner)
+                    : entry.Owner.transitions;
+                if (transitions == null) return false;
+
+                bool found = false;
+                for (int i = 0; i < transitions.Count; i++)
+                {
+                    if (transitions[i] == entry.Transition)
+                    {
+                        found = true;
+                        break;
+                    }
+                }
+                if (!found) return false;
+            }
+            return true;
         }
 
         public void OnSelectionChange()
@@ -302,6 +332,7 @@ namespace HonamiAnimationSystem.Editor.Handlers
         {
             _graphView.OnNodeSelected += node =>
             {
+                _multiTransitions.Clear();
                 _window.SelectedNode = node;
                 _window.SelectedNodeGuid = node?.StateGuid;
                 _window.SelectedTransition = null;
@@ -325,6 +356,7 @@ namespace HonamiAnimationSystem.Editor.Handlers
 
             _graphView.OnSubNodeSelected += (node, subNode) =>
             {
+                _multiTransitions.Clear();
                 _window.SelectedNode = node;
                 _window.SelectedNodeGuid = node?.StateGuid;
                 _window.SelectedTransition = null;
@@ -337,6 +369,7 @@ namespace HonamiAnimationSystem.Editor.Handlers
 
             _graphView.OnEdgeSelected += (edge, transition) =>
             {
+                _multiTransitions.Clear();
                 _window.SelectedNode = null;
                 _window.SelectedNodeGuid = null;
                 _window.SelectedTransition = transition;
@@ -374,8 +407,68 @@ namespace HonamiAnimationSystem.Editor.Handlers
                 _window.BuildRightPanel();
             };
 
+            _graphView.OnEdgesSelected += transitions =>
+            {
+                _window.SelectedNode = null;
+                _window.SelectedNodeGuid = null;
+                _window.SelectedTransition = null;
+                _window.SelectedTransitionGuid = null;
+                _window.SelectedTransitionIndex = -1;
+                _window.SelectedTransitionOwner = null;
+                _window.SelectedSubNode = null;
+                _window.SerializedSubNode = null;
+                _window.SerializedState = null;
+
+                _multiTransitions.Clear();
+                if (_window.Controller != null)
+                {
+                    System.Collections.Generic.IReadOnlyList<Runtime.Core.HonamiState> activeStates =
+                        _window.RuntimeController != null ? _window.RuntimeController.ActiveStates : _window.Controller.states;
+
+                    foreach (var transition in transitions)
+                    {
+                        Runtime.Core.HonamiState owner = null;
+                        foreach (var s in activeStates)
+                        {
+                            if (s == null || s.isVirtualInheritedState) continue;
+
+                            var stateTransitions = _window.RuntimeController != null ? _window.RuntimeController.GetTransitions(s) : s.transitions;
+                            if (stateTransitions == null) continue;
+
+                            for (int i = 0; i < stateTransitions.Count; i++)
+                            {
+                                if (stateTransitions[i] == transition)
+                                {
+                                    owner = s;
+                                    break;
+                                }
+                            }
+                            if (owner != null) break;
+                        }
+                        if (owner == null) continue;
+
+                        Runtime.Core.HonamiState target = null;
+                        if (!string.IsNullOrEmpty(transition.targetStateGuid))
+                        {
+                            foreach (var s in activeStates)
+                            {
+                                if (s != null && s.guid == transition.targetStateGuid)
+                                {
+                                    target = s;
+                                    break;
+                                }
+                            }
+                        }
+
+                        _multiTransitions.Add(new HonamiTransitionMultiInspector.Entry(transition, owner, target));
+                    }
+                }
+                _window.BuildRightPanel();
+            };
+
             _graphView.OnDeselected += () =>
             {
+                _multiTransitions.Clear();
                 _window.SelectedNode = null;
                 _window.SelectedNodeGuid = null;
                 _window.SelectedTransition = null;
