@@ -133,7 +133,8 @@ namespace HonamiAnimationSystem.Editor.Handlers
 
             if (Selection.activeGameObject != null)
             {
-                if (Selection.activeGameObject.TryGetComponent(out Runtime.Core.HonamiLinkedAnimator brain) && brain.Graph != null)
+                var brain = Selection.activeGameObject.GetComponentInParent<Runtime.Core.HonamiLinkedAnimator>(true);
+                if (brain != null && brain.Graph != null)
                 {
                     _window.SetLinkedGraph(brain.Graph, brain);
                     return;

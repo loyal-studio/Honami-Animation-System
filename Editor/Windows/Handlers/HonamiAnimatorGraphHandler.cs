@@ -55,23 +55,20 @@ namespace HonamiAnimationSystem.Editor.Handlers
 
             if (_window.Controller == null) return;
 
-            Runtime.Core.HonamiAnimator found = null;
             if (!_window.IsLocked)
             {
-                if (Selection.activeGameObject != null && Selection.activeGameObject.TryGetComponent(out Runtime.Core.HonamiAnimator anim))
-                    found = anim;
-                if (found?.CurrentController == _window.Controller) _window.RuntimeAnimator = found;
+                var found = ResolveSelectedAnimator();
+                if (IsCompatible(found)) _window.RuntimeAnimator = found;
             }
 
-            if (_window.RuntimeAnimator == null || _window.RuntimeAnimator.CurrentController != _window.Controller ||
-                !_window.RuntimeAnimator.gameObject.activeInHierarchy)
+            if (!IsCompatible(_window.RuntimeAnimator) || !_window.RuntimeAnimator.gameObject.activeInHierarchy)
             {
                 _window.RuntimeAnimator = null;
                 if (Time.realtimeSinceStartup > _window.NextAnimatorSearchTime)
                 {
                     _window.NextAnimatorSearchTime = Time.realtimeSinceStartup + 1.2f;
                     _window.RuntimeAnimator = Object.FindObjectsByType<Runtime.Core.HonamiAnimator>(FindObjectsSortMode.None)
-                        .FirstOrDefault(a => a.gameObject.activeInHierarchy && a.CurrentController == _window.Controller);
+                        .FirstOrDefault(a => a.gameObject.activeInHierarchy && IsCompatible(a));
                 }
             }
 
@@ -282,19 +279,34 @@ namespace HonamiAnimationSystem.Editor.Handlers
         {
             if (_window.IsLocked) return;
 
-            if (Selection.activeGameObject != null)
+            var anim = ResolveSelectedAnimator();
+            if (anim != null)
             {
-                if (Selection.activeGameObject.TryGetComponent(out Runtime.Core.HonamiAnimator anim))
-                {
-                    if (_window.RuntimeController != anim.CurrentController) _window.SetController(anim.CurrentController);
-                    return;
-                }
+                if (_window.RuntimeController != anim.CurrentController) _window.SetController(anim.CurrentController);
+                return;
             }
 
             if (Selection.activeObject is Runtime.Core.HonamiRuntimeController ca)
             {
                 if (_window.RuntimeController != ca) _window.SetController(ca);
             }
+        }
+
+        private static Runtime.Core.HonamiAnimator ResolveSelectedAnimator()
+        {
+            var go = Selection.activeGameObject;
+            return go != null ? go.GetComponentInParent<Runtime.Core.HonamiAnimator>(true) : null;
+        }
+
+        private bool IsCompatible(Runtime.Core.HonamiAnimator anim)
+        {
+            if (anim == null) return false;
+
+            var current = anim.CurrentController;
+            if (current == null) return false;
+            if (current == _window.RuntimeController) return true;
+
+            return _window.Controller != null && current.BaseController == _window.Controller;
         }
 
         public void OnUndoRedo()
