@@ -106,6 +106,103 @@ namespace HonamiAnimationSystem.Runtime.Core
             return true;
         }
 
+        internal void CompleteExitState(int stateIdx, int layer)
+        {
+            if (stateIdx < 0 || stateIdx >= _activeStatesCount)
+            {
+                return;
+            }
+
+            ResetTime(stateIdx, layer);
+            TryTriggerStateExited(layer, stateIdx, HonamiStateExitReason.Completed);
+            TriggerStateFinished(_runtimeStates[stateIdx].stateName);
+        }
+
+        internal void FireGlobalStatePulse(int stateIdx, int layer, int nextStateIndex = -1)
+        {
+            if (stateIdx < 0 || stateIdx >= _activeStatesCount)
+            {
+                return;
+            }
+
+            if (_layerMixers == null || layer < 0 || layer >= _layerMixers.Count)
+            {
+                return;
+            }
+
+            HonamiState state = _runtimeStates[stateIdx];
+            if (state == null)
+            {
+                return;
+            }
+
+            ApplyParameterAssignments(state, false);
+
+            var node = controller.GetActiveNode(state);
+            HonamiExecutionContext ctx = new(
+                this,
+                state,
+                stateIdx,
+                layer,
+                stateIdx,
+                Playable.Null,
+                _layerMixers[layer],
+                _params,
+                _pickedRandomIdx,
+                _blendTreeParamHashes,
+                0f);
+
+            if (node != null)
+            {
+                node.OnEnter(in ctx);
+            }
+
+            var subNodes = state.subNodes;
+            int snCount = subNodes?.Count ?? 0;
+
+            for (int s = 0; s < snCount; s++)
+            {
+                var sn = subNodes[s];
+                if (sn != null)
+                {
+                    sn.OnEnter(in ctx);
+                }
+            }
+
+            TriggerStateEntered(state.stateName);
+
+            if (node != null)
+            {
+                node.OnExit(in ctx);
+            }
+
+            for (int s = 0; s < snCount; s++)
+            {
+                var sn = subNodes[s];
+                if (sn != null)
+                {
+                    sn.OnExit(in ctx);
+                }
+            }
+
+            ApplyParameterAssignments(state, true);
+
+            HonamiState nextState = nextStateIndex >= 0 && nextStateIndex < _activeStatesCount
+                ? _runtimeStates[nextStateIndex]
+                : null;
+
+            TriggerStateExited(new HonamiStateExitInfo(
+                state.stateName,
+                state.guid,
+                stateIdx,
+                layer,
+                stateIdx,
+                HonamiStateExitReason.Transition,
+                nextState?.stateName,
+                nextState?.guid,
+                nextStateIndex));
+        }
+
         internal void NotifyActiveStatesExited(HonamiStateExitReason reason)
         {
             if (_layerMixers == null || _portStates == null)

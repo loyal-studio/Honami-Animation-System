@@ -130,6 +130,11 @@ public sealed class FootstepEvent : HonamiGlobalEvent
                 "Independently of markers, HonamiAnimator raises three C# events: OnStateEntered(string), OnStateFinished(string) for non-loop states that reached their end, and OnStateExited(HonamiStateExitInfo) with the exact exit reason. See the Scripting API page for the full HonamiStateExitInfo reference.",
                 "Незалежно від маркерів, HonamiAnimator викликає три C#-події: OnStateEntered(string), OnStateFinished(string) для non-loop станів, що дійшли до кінця, та OnStateExited(HonamiStateExitInfo) з точною причиною виходу. Повний довідник HonamiStateExitInfo — на сторінці Scripting API."
             ));
+
+            HonamiDocumentationBuilder.AddParagraph(root, HonamiDocLocalization.Get(
+                "Exit and Any State take part in the same lifecycle. Entering an Exit node raises OnStateEntered, and once its transition completes the animator raises OnStateExited (reason Completed) and OnStateFinished — so gameplay code can react to a layer finishing its graph. When an Any State transition fires, the node emits a one-frame pulse: OnStateEntered immediately followed by OnStateExited (reason Transition, with the destination as the next state). Sub-Nodes attached to either node receive OnEnter/OnExit at the same moments, and their parameter assignments apply as usual.",
+                "Exit та Any State беруть участь у тому самому лайфциклі. Вхід у Exit-ноду викликає OnStateEntered, а коли її транзішн завершується — аніматор викликає OnStateExited (причина Completed) та OnStateFinished, тож ігровий код може реагувати на те, що шар завершив свій граф. Коли спрацьовує транзішн з Any State, нода видає одно-кадровий пульс: OnStateEntered і одразу OnStateExited (причина Transition, з ціллю транзішна як наступним стейтом). Sub-Nodes, причеплені до цих нод, отримують OnEnter/OnExit у ті самі моменти, а їхні parameter assignments застосовуються як зазвичай."
+            ));
             HonamiDocumentationBuilder.AddCodeBlock(root,
 @"private void OnEnable()
 {

@@ -58,7 +58,7 @@ namespace HonamiAnimationSystem.Runtime.Core
             result = result.Replace("{layer}", context.Layer.ToString());
             result = result.Replace("{controller}", GetControllerName(context));
             result = result.Replace("{previousState}", GetPreviousStateName(context));
-            result = result.Replace("{time}", context.Playable.GetTime().ToString("F2"));
+            result = result.Replace("{time}", context.Playable.IsValid() ? context.Playable.GetTime().ToString("F2") : "0.00");
             result = result.Replace("{normalizedTime}", context.Animator.GetStateProgress(context.Layer, context.PortIndex).ToString("F2"));
 
             return ReplaceParameterTokens(result, context.Params);

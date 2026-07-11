@@ -255,6 +255,11 @@ namespace HonamiAnimationSystem.Runtime.Core
                 {
                     anim._layerMixer.SetInputWeight(layer, isCurrExit2 ? 0f : configWeight);
                 }
+
+                if (isCurrExit2)
+                {
+                    anim.CompleteExitState(targetIndex, layer);
+                }
             }
         }
 
@@ -527,14 +532,10 @@ namespace HonamiAnimationSystem.Runtime.Core
             anim.ApplyParameterAssignments(state, false);
 
             var playable = anim._layerMixers[layer].GetInput(stateIndex);
-
-            if (!playable.IsValid())
-            {
-                return;
-            }
+            bool hasPlayable = playable.IsValid();
 
             Playable actualPlayable = playable;
-            if (actualPlayable.GetPlayableType() == typeof(AnimationScriptPlayable) && actualPlayable.GetInputCount() > 0)
+            if (hasPlayable && actualPlayable.GetPlayableType() == typeof(AnimationScriptPlayable) && actualPlayable.GetInputCount() > 0)
             {
                 actualPlayable = actualPlayable.GetInput(0);
             }
@@ -573,6 +574,13 @@ namespace HonamiAnimationSystem.Runtime.Core
             }
 
             anim.TriggerStateEntered(state.stateName);
+
+            // Playable-less states (e.g. Exit) still get the full enter lifecycle above.
+            if (!hasPlayable)
+            {
+                ResetPortEventFlags(anim, layer, stateIndex, state);
+                return;
+            }
 
             float duration = HonamiStateEvaluator.GetUnscaledStateDuration(
                 anim.controller,
@@ -668,6 +676,11 @@ namespace HonamiAnimationSystem.Runtime.Core
                 }
             }
 
+            ResetPortEventFlags(anim, layer, stateIndex, state);
+        }
+
+        private static void ResetPortEventFlags(HonamiAnimator anim, int layer, int stateIndex, HonamiState state)
+        {
             if (state.events != null && anim._firedEventsPerPort != null && layer < anim._firedEventsPerPort.Length)
             {
                 if (stateIndex >= 0 && stateIndex < anim._firedEventsPerPort[layer].Length)
@@ -678,17 +691,11 @@ namespace HonamiAnimationSystem.Runtime.Core
                 }
             }
 
-            if (anim._portStates != null && layer < anim._portStates.Length)
+            if (anim._portStates != null && layer < anim._portStates.Length
+                && stateIndex >= 0 && stateIndex < anim._portStates[layer].Length)
             {
-                if (stateIndex >= 0 && stateIndex < anim._portStates[layer].Length)
-                {
-                    anim._portStates[layer][stateIndex].StateFinishedFired = false;
-                }
-
-                if (stateIndex >= 0 && stateIndex < anim._portStates[layer].Length)
-                {
-                    anim._portStates[layer][stateIndex].StateExitedFired = false;
-                }
+                anim._portStates[layer][stateIndex].StateFinishedFired = false;
+                anim._portStates[layer][stateIndex].StateExitedFired = false;
             }
         }
 
@@ -860,14 +867,10 @@ namespace HonamiAnimationSystem.Runtime.Core
             anim.ApplyParameterAssignments(state, true);
 
             var playable = anim._layerMixers[layer].GetInput(portIndex);
-
-            if (!playable.IsValid())
-            {
-                return;
-            }
+            bool hasPlayable = playable.IsValid();
 
             Playable actualPlayable = playable;
-            if (actualPlayable.GetPlayableType() == typeof(AnimationScriptPlayable) && actualPlayable.GetInputCount() > 0)
+            if (hasPlayable && actualPlayable.GetPlayableType() == typeof(AnimationScriptPlayable) && actualPlayable.GetInputCount() > 0)
             {
                 actualPlayable = actualPlayable.GetInput(0);
             }
@@ -903,6 +906,11 @@ namespace HonamiAnimationSystem.Runtime.Core
                         }
                     }
                 }
+            }
+
+            if (!hasPlayable)
+            {
+                return;
             }
 
             playable.Pause();

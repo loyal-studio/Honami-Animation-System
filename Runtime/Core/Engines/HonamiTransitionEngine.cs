@@ -65,7 +65,7 @@ namespace HonamiAnimationSystem.Runtime.Core
                 IReadOnlyList<HonamiTransition> anyTransitions = anim.controller.GetTransitions(anyState);
                 if (anyTransitions == null || anyTransitions.Count == 0) continue;
 
-                if (!CheckTransitions(anim, anyTransitions, layer, currentIdx, isTransitioning, isRepeater, isCurrentExit)) continue;
+                if (!CheckTransitions(anim, anyTransitions, layer, currentIdx, isTransitioning, isRepeater, isCurrentExit, anyStateIdx)) continue;
 
                 if (isRepeater)
                     RegisterRepeaterFire(anim, anyStateIdx);
@@ -100,7 +100,7 @@ namespace HonamiAnimationSystem.Runtime.Core
             anim._repeaterFireCount[anyStateIdx] = anim._repeaterFireCount.TryGetValue(anyStateIdx, out int count) ? count + 1 : 1;
         }
 
-        private static bool CheckTransitions(HonamiAnimator anim, IReadOnlyList<HonamiTransition> transitions, int layer, int currentIdx, bool isTransitioning, bool isFromRepeater, bool isCurrentExit = false)
+        private static bool CheckTransitions(HonamiAnimator anim, IReadOnlyList<HonamiTransition> transitions, int layer, int currentIdx, bool isTransitioning, bool isFromRepeater, bool isCurrentExit = false, int pulseStateIdx = -1)
         {
             if (transitions == null || transitions.Count == 0) return false;
 
@@ -178,7 +178,11 @@ namespace HonamiAnimationSystem.Runtime.Core
                 if (anim._bakedPortalExits.TryGetValue(tr, out var portalExit))
                 {
                     if (anim.EvaluatePortalRecursive(portalExit, layer, currentIdx, isFromRepeater, tr, anim._tentativeBuffer))
+                    {
+                        if (pulseStateIdx >= 0)
+                            anim.FireGlobalStatePulse(pulseStateIdx, layer, targetIdxResolved);
                         return true;
+                    }
                     continue;
                 }
 
@@ -197,6 +201,10 @@ namespace HonamiAnimationSystem.Runtime.Core
                 if (isSelfTransition)
                 {
                     if (!tr.canTransitionToSelf && !isFromRepeater) continue;
+
+                    if (pulseStateIdx >= 0)
+                        anim.FireGlobalStatePulse(pulseStateIdx, layer, targetIdxResolved);
+
                     anim._params.CommitTriggers(anim._tentativeBuffer);
                     anim.ApplyTransitionAssignments(tr);
 
@@ -212,6 +220,9 @@ namespace HonamiAnimationSystem.Runtime.Core
                         (tr.type == HonamiTransitionType.Victim && tr.useCustomVictimCurve) ? tr.victimWeightCurve : null);
                     return true;
                 }
+
+                if (pulseStateIdx >= 0)
+                    anim.FireGlobalStatePulse(pulseStateIdx, layer, targetIdxResolved);
 
                 anim._params.CommitTriggers(anim._tentativeBuffer);
                 anim.ApplyTransitionAssignments(tr);
@@ -343,10 +354,14 @@ namespace HonamiAnimationSystem.Runtime.Core
                         {
                             layerMixer.SetInputWeight(i, 0f);
                             if (i == anim.TransientPortIndex) anim.ClearTransientPort(layer);
-                            else anim.ResetTime(i, layer);
+                            else if (i != currIdx) anim.ResetTime(i, layer);
                         }
                     }
-                    if (isCurrExit) anim._layerStates[layer].CurrentStateIndex = -1;
+                    if (isCurrExit)
+                    {
+                        anim.CompleteExitState(currIdx, layer);
+                        anim._layerStates[layer].CurrentStateIndex = -1;
+                    }
                     anim._layerStates[layer].PreviousStateIndex = -1;
                     anim._layerStates[layer].TransitionDuration = 0.0;
                     anim._layerStates[layer].TransitionTime = 0.0;
