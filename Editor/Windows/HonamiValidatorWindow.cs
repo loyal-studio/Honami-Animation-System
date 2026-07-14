@@ -1,6 +1,8 @@
 using UnityEngine;
 using UnityEditor;
 using System.Collections.Generic;
+using System.IO;
+using HonamiAnimationSystem.Editor.Core;
 using HonamiAnimationSystem.Runtime.Core;
 
 namespace HonamiAnimationSystem.Editor
@@ -10,6 +12,7 @@ namespace HonamiAnimationSystem.Editor
         private HonamiController _controller;
         private Vector2 _scrollPos;
         private List<string> _logMessages = new List<string>();
+        private readonly List<string> _pendingMissingScriptPaths = new();
 
         [MenuItem("Window/Honami/Honami Controller Validator")]
         public static void ShowWindow()
@@ -99,6 +102,7 @@ namespace HonamiAnimationSystem.Editor
             if (_controller == null) return;
 
             _logMessages.Clear();
+            _pendingMissingScriptPaths.Clear();
             Log($"Starting validation and fix for controller: '{_controller.name}'...");
 
             bool dirty = ValidateController(_controller, false);
@@ -106,6 +110,7 @@ namespace HonamiAnimationSystem.Editor
             if (dirty)
             {
                 AssetDatabase.SaveAssets();
+                FlushMissingScriptCleanup();
                 Log("\nDone. Fixes were applied and saved successfully.");
                 Debug.Log($"[Honami Validator] Validated controller '{_controller.name}', applied and saved fixes.");
             }
@@ -118,6 +123,7 @@ namespace HonamiAnimationSystem.Editor
         private void ProcessAllControllers(bool dryRun)
         {
             _logMessages.Clear();
+            _pendingMissingScriptPaths.Clear();
             Log(dryRun ? "Scanning all HonamiControllers in project..." : "Fixing all HonamiControllers in project...");
 
             string[] guids = AssetDatabase.FindAssets("t:HonamiController");
@@ -143,6 +149,7 @@ namespace HonamiAnimationSystem.Editor
             if (!dryRun && issueCount > 0)
             {
                 AssetDatabase.SaveAssets();
+                FlushMissingScriptCleanup();
             }
 
             string action = dryRun ? "had issues" : "were fixed";
@@ -385,6 +392,9 @@ namespace HonamiAnimationSystem.Editor
             // 8. Check for orphaned sub-assets left behind by deleted states
             hasIssues |= ValidateOrphanedSubAssets(ctrl, dryRun);
 
+            // 9. Check for sub-assets whose node/sub-node script was deleted or renamed
+            hasIssues |= ValidateMissingScriptSubAssets(ctrl, dryRun);
+
             if (!dryRun && hasIssues)
             {
                 EditorUtility.SetDirty(ctrl);
@@ -431,6 +441,61 @@ namespace HonamiAnimationSystem.Editor
             }
 
             return hasIssues;
+        }
+
+        private bool ValidateMissingScriptSubAssets(HonamiController ctrl, bool dryRun)
+        {
+            string path = AssetDatabase.GetAssetPath(ctrl);
+            if (string.IsNullOrEmpty(path)) return false;
+
+            int missingCount = 0;
+            foreach (var asset in AssetDatabase.LoadAllAssetsAtPath(path))
+            {
+                if (asset == null) missingCount++;
+            }
+
+            if (missingCount == 0) return false;
+
+            if (dryRun)
+            {
+                Log($"[{ctrl.name}] [Issue] Found {missingCount} sub-asset(s) with missing scripts (node/sub-node class deleted or renamed).");
+            }
+            else
+            {
+                _pendingMissingScriptPaths.Add(path);
+                Log($"[{ctrl.name}] [Fix] Scheduled removal of {missingCount} missing-script sub-asset(s).");
+            }
+
+            return true;
+        }
+
+        // Missing-script sub-assets survive AssetDatabase.SaveAssets, so they are stripped from the
+        // saved YAML afterwards and the asset is reimported.
+        private void FlushMissingScriptCleanup()
+        {
+            if (_pendingMissingScriptPaths.Count == 0) return;
+
+            var cleanedPaths = new List<string>();
+            foreach (string path in _pendingMissingScriptPaths)
+            {
+                string text = File.ReadAllText(path);
+                string cleaned = HonamiMissingScriptYamlUtility.CleanControllerYaml(text, out List<string> removedNames);
+                if (removedNames.Count == 0) continue;
+
+                File.WriteAllText(path, cleaned);
+                cleanedPaths.Add(path);
+                Log($"[Fix] {Path.GetFileName(path)}: removed {removedNames.Count} missing-script sub-asset(s): {string.Join(", ", removedNames)}");
+                Debug.Log($"[Honami Validator] Cleaned '{path}': removed missing-script sub-asset(s): {string.Join(", ", removedNames)}");
+            }
+
+            _pendingMissingScriptPaths.Clear();
+            if (cleanedPaths.Count == 0) return;
+
+            AssetDatabase.Refresh();
+            foreach (string path in cleanedPaths)
+            {
+                AssetDatabase.ImportAsset(path, ImportAssetOptions.ForceUpdate);
+            }
         }
 
         private static void AddStateListReferences(List<HonamiState> states, HashSet<Object> referenced)

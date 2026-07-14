@@ -13,18 +13,13 @@ namespace HonamiAnimationSystem.Runtime.Core
 
         public override Playable CreatePlayable(PlayableGraph graph, HonamiState state) => Playable.Null;
 
-        public override float GetDuration(HonamiState state, int stateIndex, Dictionary<int, int> pickedIdx, float blendParam) => 0f;
+        public override float GetDuration(HonamiState state, int stateIndex, HonamiNodeRuntime runtime, float blendParam) => 0f;
 
         public override void UpdateRuntime(in HonamiExecutionContext ctx)
         {
         }
 
-        public override void OnBuildMetadata(
-            int stateIndex,
-            HonamiState state,
-            List<int> anyStateIndices,
-            Dictionary<int, double> repeaterLastFireTime,
-            Dictionary<int, int> repeaterFireCount)
+        public override void OnBuildMetadata(int stateIndex, HonamiState state, List<int> anyStateIndices)
         {
             anyStateIndices.Add(stateIndex);
         }

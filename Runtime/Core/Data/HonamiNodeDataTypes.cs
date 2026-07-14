@@ -25,6 +25,7 @@ namespace HonamiAnimationSystem.Runtime.Core
         public float weight = 1f;
         public float speed = 1f;
         public bool mirror = false;
+        public bool muted = false;
         public float startTime = 0f;
         public float endTime = 0f;
     }

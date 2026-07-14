@@ -25,6 +25,8 @@ namespace HonamiAnimationSystem.Runtime.Core
         public float blendParameterDampTime = 0.1f;
         public List<HonamiBlendTreeMotion> blendMotions = new();
 
+        public override string GetBlendParameterName() => blendParameter;
+
         public override Playable CreatePlayable(PlayableGraph graph, HonamiState state)
             => CreatePlayable(graph, state, null);
 
@@ -54,7 +56,7 @@ namespace HonamiAnimationSystem.Runtime.Core
             return mixer;
         }
 
-        public override float GetDuration(HonamiState state, int stateIndex, Dictionary<int, int> pickedIdx, float blendParam)
+        public override float GetDuration(HonamiState state, int stateIndex, HonamiNodeRuntime runtime, float blendParam)
         {
             if (blendMotions == null || blendMotions.Count == 0)
             {
@@ -65,7 +67,7 @@ namespace HonamiAnimationSystem.Runtime.Core
             return HonamiBlendTreeEvaluator.GetDurationFromMotions(blendMotions, blendParam) / stateSpeed;
         }
 
-        public override float GetUnscaledDuration(HonamiState state, int stateIndex, Dictionary<int, int> pickedIdx, float blendParam)
+        public override float GetUnscaledDuration(HonamiState state, int stateIndex, HonamiNodeRuntime runtime, float blendParam)
         {
             if (blendMotions == null || blendMotions.Count == 0)
             {

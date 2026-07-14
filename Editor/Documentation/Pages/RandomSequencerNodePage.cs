@@ -6,7 +6,7 @@ namespace HonamiAnimationSystem.Editor.Documentation.Pages
     {
         public string Title => HonamiDocLocalization.Get("Random & Sequencer", "Random та Sequencer");
         public string Category => HonamiDocLocalization.Get("04. Node Library", "04. Бібліотека вузлів");
-        public string SearchKeywords => "random animation sequencer variations idle variety weighted sequence clips вузол випадковість секвенсор варіації послідовність";
+        public string SearchKeywords => "random animation sequencer variations idle variety weighted sequence clips split convert вузол випадковість секвенсор варіації послідовність";
         public int Order => 320;
         public int EstimatedReadTime => 3;
 
@@ -31,8 +31,13 @@ namespace HonamiAnimationSystem.Editor.Documentation.Pages
                 (HonamiDocLocalization.Get("Weight", "Weight"), HonamiDocLocalization.Get("Relative probability of this clip being picked (higher = more likely).", "Відносна ймовірність вибору цього кліпу (більше = ймовірніше).")),
                 (HonamiDocLocalization.Get("Speed", "Speed"), HonamiDocLocalization.Get("Per-clip playback speed multiplier.", "Множник швидкості відтворення для окремого кліпу.")),
                 (HonamiDocLocalization.Get("Start / End Time", "Start / End Time"), HonamiDocLocalization.Get("Optional trim range within the clip (End 0 = to the clip's end).", "Опціональний діапазон обрізки в межах кліпу (End 0 = до кінця кліпу).")),
-                (HonamiDocLocalization.Get("Mirror", "Mirror"), HonamiDocLocalization.Get("Play this specific variation mirrored.", "Відтворити саме цю варіацію віддзеркалено."))
+                (HonamiDocLocalization.Get("Mirror", "Mirror"), HonamiDocLocalization.Get("Play this specific variation mirrored.", "Відтворити саме цю варіацію віддзеркалено.")),
+                (HonamiDocLocalization.Get("Muted", "Muted"), HonamiDocLocalization.Get("Temporarily excludes this clip from the random pool without deleting it — handy for quickly testing specific variations.", "Тимчасово виключає цей кліп із random-пулу без видалення — зручно, щоб швидко протестити конкретні варіації."))
             );
+            HonamiDocumentationBuilder.AddParagraph(root, HonamiDocLocalization.Get(
+                "Enable No Repeat on the node to force unique picks: a clip is never chosen again until every other clip has played (shuffle-bag), and the same clip never plays twice in a row. Weights still bias the order within each cycle.",
+                "Увімкніть No Repeat на вузлі, щоб форсити унікальні вибори: кліп не буде обрано знову, доки не зіграють усі інші (shuffle-bag), і той самий кліп ніколи не грає двічі підряд. Weights і далі впливають на порядок у межах кожного циклу."
+            ));
 
             HonamiDocumentationBuilder.AddHeader(root, HonamiDocLocalization.Get("Sequencer Node", "Вузол Sequencer"), HonamiEditorIcons.TimelineWhite);
             HonamiDocumentationBuilder.AddParagraph(root, HonamiDocLocalization.Get(
@@ -48,6 +53,11 @@ namespace HonamiAnimationSystem.Editor.Documentation.Pages
             HonamiDocumentationBuilder.AddTip(root, HonamiDocLocalization.Get(
                 "Both nodes respect the state's Loop, Speed and Reversed settings. Combine the Random node with a Repeater to re-roll a fresh variation on demand.",
                 "Обидва вузли враховують налаштування стану Loop, Speed та Reversed. Поєднайте вузол Random із Repeater, щоб на вимогу перекидати нову варіацію."
+            ));
+
+            HonamiDocumentationBuilder.AddTip(root, HonamiDocLocalization.Get(
+                "Need each variation as its own state (e.g. to build a Repeater combo chain)? Right-click the Random node and pick Split Into N Animation States: every active clip becomes a separate Animation state, and all incoming and outgoing transitions are ported to each of them.",
+                "Потрібна кожна варіація як окремий стан (напр. для комбо-ланцюжка через Repeater)? Клікніть правою по Random-ноді та оберіть Split Into N Animation States: кожен активний кліп стане окремим Animation-станом, а всі вхідні та вихідні транзішни портуються на кожен із них."
             ));
         }
     }

@@ -15,16 +15,17 @@ namespace HonamiAnimationSystem.Runtime.Core
 
         public virtual bool IsVirtual => false;
         public virtual bool IsGlobal => false;
+        public virtual bool IsExit => false;
 
         public abstract Playable CreatePlayable(PlayableGraph graph, HonamiState state);
 
         public virtual Playable CreatePlayable(PlayableGraph graph, HonamiState state, Func<PlayableGraph, Playable> mirrorFactory)
             => CreatePlayable(graph, state);
 
-        public abstract float GetDuration(HonamiState state, int stateIndex, Dictionary<int, int> pickedIdx, float blendParam);
+        public abstract float GetDuration(HonamiState state, int stateIndex, HonamiNodeRuntime runtime, float blendParam);
 
-        public virtual float GetUnscaledDuration(HonamiState state, int stateIndex, Dictionary<int, int> pickedIdx, float blendParam)
-            => GetDuration(state, stateIndex, pickedIdx, blendParam);
+        public virtual float GetUnscaledDuration(HonamiState state, int stateIndex, HonamiNodeRuntime runtime, float blendParam)
+            => GetDuration(state, stateIndex, runtime, blendParam);
 
         public virtual double GetCurrentTime(HonamiState state, int stateIndex, Playable playable)
             => playable.GetTime();
@@ -39,12 +40,38 @@ namespace HonamiAnimationSystem.Runtime.Core
         {
         }
 
-        public virtual void OnBuildMetadata(
-            int stateIndex,
-            HonamiState state,
-            List<int> anyStateIndices,
-            Dictionary<int, double> repeaterLastFireTime,
-            Dictionary<int, int> repeaterFireCount)
+        public virtual HonamiNodeRuntime CreateRuntime() => null;
+
+        public virtual void OnBuildMetadata(int stateIndex, HonamiState state, List<int> anyStateIndices)
+        {
+        }
+
+        // If true, transitions fired from this global node force-restart their target even mid-transition.
+        public virtual bool ForcesRestartOnGlobalFire => false;
+
+        public virtual bool CanFireGlobal(HonamiNodeRuntime runtime) => true;
+
+        public virtual bool SelectGlobalTransition(
+            HonamiAnimator animator,
+            int layer,
+            int currentStateIndex,
+            HonamiNodeRuntime runtime,
+            IReadOnlyList<HonamiTransition> transitions,
+            out int transitionIndex,
+            out bool forceConditionsMet)
+        {
+            transitionIndex = -1;
+            forceConditionsMet = false;
+            return true;
+        }
+
+        public virtual void OnGlobalFired(HonamiNodeRuntime runtime, int transitionCount)
+        {
+        }
+
+        public virtual string GetBlendParameterName() => null;
+
+        public virtual void OnValidateNode()
         {
         }
     }

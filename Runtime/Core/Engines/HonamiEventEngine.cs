@@ -48,7 +48,7 @@ namespace HonamiAnimationSystem.Runtime.Core
 
         private static void EvaluateEventsForState(HonamiAnimator anim, int layer, int portIdx, HonamiState state, int stateIdx, Playable playable)
         {
-            float unscaledDuration = HonamiStateEvaluator.GetUnscaledStateDuration(anim.controller, state, stateIdx, anim._pickedRandomIdx, GetStateBlendParam(anim, state));
+            float unscaledDuration = HonamiStateEvaluator.GetUnscaledStateDuration(anim.controller, state, stateIdx, anim.GetNodeRuntime(stateIdx), GetStateBlendParam(anim, state));
             if (unscaledDuration <= 0f) return;
 
             double rawTime = playable.GetTime();
@@ -144,7 +144,7 @@ namespace HonamiAnimationSystem.Runtime.Core
             HonamiConditionEvaluator.ApplyTransitionAssignments(transition, anim._params, anim._assignmentParamHashes);
         }
 
-        public static bool EvaluatePortalRecursive(HonamiAnimator anim, HonamiState portalExit, int layer, int currentIdx, bool isFromRepeater, HonamiTransition originalTrans, List<int> originalTentative, int depth = 0)
+        public static bool EvaluatePortalRecursive(HonamiAnimator anim, HonamiState portalExit, int layer, int currentIdx, bool forceRestart, HonamiTransition originalTrans, List<int> originalTentative, int depth = 0)
         {
             if (depth > 32)
             {
@@ -201,7 +201,7 @@ namespace HonamiAnimationSystem.Runtime.Core
                         {
                             anim._params.CommitTriggers(anim._exitTentativeBuffer);
                             ApplyTransitionAssignments(anim, exitTrans);
-                            return EvaluatePortalRecursive(anim, nextExit, layer, currentIdx, isFromRepeater, originalTrans, originalTentative, depth + 1);
+                            return EvaluatePortalRecursive(anim, nextExit, layer, currentIdx, forceRestart, originalTrans, originalTentative, depth + 1);
                         }
                     }
                     else if (!nextState.node.IsVirtual)
@@ -212,9 +212,11 @@ namespace HonamiAnimationSystem.Runtime.Core
                         ApplyTransitionAssignments(anim, exitTrans);
 
                         anim.PlayStateByGuid(nextState.guid, originalTrans.duration, layer,
-                            isFromRepeater,
+                            forceRestart,
                             originalTrans.useCurve ? originalTrans.curve : null,
                             exitTrans.destinationStartTime);
+
+                        HonamiPlaybackEngine.ApplyTransitionFreeze(anim, layer, originalTrans.freezeMode);
                         return true;
                     }
                 }

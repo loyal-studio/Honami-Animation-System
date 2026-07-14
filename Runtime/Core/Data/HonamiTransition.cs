@@ -26,6 +26,16 @@ namespace HonamiAnimationSystem.Runtime.Core
     }
 
     /// <summary>
+    /// Defines which side of a transition holds its pose while the blend runs.
+    /// </summary>
+    public enum HonamiTransitionFreezeMode
+    {
+        None,
+        Destination,
+        Source
+    }
+
+    /// <summary>
     /// Defines how a transition condition compares a parameter value.
     /// </summary>
     public enum HonamiConditionMode
@@ -102,6 +112,10 @@ namespace HonamiAnimationSystem.Runtime.Core
 
         [Tooltip("Offset in seconds to start the target animation from.")]
         public float destinationStartTime = 0f;
+
+        [Tooltip("Destination: the target holds its first frame during the blend and starts playing once the transition completes — keeps fast attacks crisp. Source: the state being left freezes on its current pose and fades out static.")]
+        [UnityEngine.Serialization.FormerlySerializedAs("freezeDestination")]
+        public HonamiTransitionFreezeMode freezeMode = HonamiTransitionFreezeMode.None;
 
         [Tooltip("If true, this transition can fire and interrupt an already in-progress blend.")]
         public bool canInterruptTransition = false;

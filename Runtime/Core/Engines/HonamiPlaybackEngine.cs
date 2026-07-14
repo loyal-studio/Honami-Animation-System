@@ -130,6 +130,8 @@ namespace HonamiAnimationSystem.Runtime.Core
                 anim._layerStates[layer].VictimMode = victimMode;
                 anim._layerStates[layer].VictimSpeedMultiplier = victimSpeedMultiplier;
                 anim._layerStates[layer].AcceleratedWeightDrop = acceleratedWeightDrop;
+                anim._layerStates[layer].DestinationFrozen = false;
+                anim._layerStates[layer].SourceFrozen = false;
                 anim._activeVictimCurve[layer] = victimCurve;
 
                 PlayClip(anim, targetIndex, layer, destinationStartTime, true);
@@ -207,6 +209,8 @@ namespace HonamiAnimationSystem.Runtime.Core
                 anim._layerStates[layer].VictimMode = victimMode;
                 anim._layerStates[layer].VictimSpeedMultiplier = victimSpeedMultiplier;
                 anim._layerStates[layer].AcceleratedWeightDrop = acceleratedWeightDrop;
+                anim._layerStates[layer].DestinationFrozen = false;
+                anim._layerStates[layer].SourceFrozen = false;
                 anim._activeVictimCurve[layer] = victimCurve;
 
                 if (anim._constraintsEnabled)
@@ -243,12 +247,14 @@ namespace HonamiAnimationSystem.Runtime.Core
                 anim._layerStates[layer].CurrentStateIndex = targetIndex;
                 anim._layerStates[layer].TransitionDuration = 0.0;
                 anim._layerStates[layer].TransitionWeight = 1.0f;
+                anim._layerStates[layer].DestinationFrozen = false;
+                anim._layerStates[layer].SourceFrozen = false;
                 anim._activeTransitionCurve[layer] = null;
 
                 PlayClip(anim, targetIndex, layer, destinationStartTime, true);
                 mixer.SetInputWeight(targetIndex, anim._runtimeStates[targetIndex].weight);
 
-                bool isCurrExit2 = anim._runtimeStates[targetIndex].node is HonamiExitNode;
+                bool isCurrExit2 = anim._runtimeStates[targetIndex].node is { IsExit: true };
                 float configWeight = GetConfiguredLayerWeight(anim, layer);
 
                 if (anim._layerMixer.IsValid())
@@ -261,6 +267,29 @@ namespace HonamiAnimationSystem.Runtime.Core
                     anim.CompleteExitState(targetIndex, layer);
                 }
             }
+        }
+
+        public static void ApplyTransitionFreeze(HonamiAnimator anim, int layer, HonamiTransitionFreezeMode mode)
+        {
+            if (mode == HonamiTransitionFreezeMode.None) return;
+            if (anim._layerStates[layer].TransitionDuration <= 0.0) return;
+
+            int portIdx;
+            if (mode == HonamiTransitionFreezeMode.Destination)
+            {
+                anim._layerStates[layer].DestinationFrozen = true;
+                portIdx = anim._layerStates[layer].CurrentStateIndex;
+            }
+            else
+            {
+                anim._layerStates[layer].SourceFrozen = true;
+                portIdx = anim._layerStates[layer].PreviousStateIndex;
+            }
+
+            if (portIdx < 0) return;
+
+            var playable = anim._layerMixers[layer].GetInput(portIdx);
+            if (playable.IsValid()) playable.SetSpeed(0f);
         }
 
         private static void TakeWeightSnapshot(HonamiAnimator anim, int layer)
@@ -320,9 +349,6 @@ namespace HonamiAnimationSystem.Runtime.Core
 
             ClearTransientPort(anim, layer);
             anim._layerStates[layer].TransientStateIndex = sourceIndex;
-
-            if (anim._pickedRandomIdx.TryGetValue(sourceIndex, out int picked))
-                anim._pickedRandomIdx[transPort] = picked;
 
             anim._blendParamIndices[layer * anim._pCountTotal + transPort] = anim._blendParamIndices[layer * anim._pCountTotal + sourceIndex];
 
@@ -413,7 +439,11 @@ namespace HonamiAnimationSystem.Runtime.Core
 
                     if (playable.IsValid())
                     {
-                        float speed = state.isReversed ? -state.speed : state.speed;
+                        bool isTransitioning = anim._layerStates[layer].PreviousStateIndex != -1;
+                        bool frozen = isTransitioning
+                            && ((anim._layerStates[layer].DestinationFrozen && i == anim._layerStates[layer].CurrentStateIndex)
+                                || (anim._layerStates[layer].SourceFrozen && i == anim._layerStates[layer].PreviousStateIndex));
+                        float speed = frozen ? 0f : (state.isReversed ? -state.speed : state.speed);
                         playable.SetSpeed(speed);
                     }
 
@@ -465,7 +495,7 @@ namespace HonamiAnimationSystem.Runtime.Core
                 // HonamiExecutionContext must be created passing `anim` context
                 HonamiExecutionContext ctx = new HonamiExecutionContext(
                     anim, state, stateIdx, layer, portIdx, actualPlayable,
-                    layerMixer, anim._params, anim._pickedRandomIdx,
+                    layerMixer, anim._params, anim.GetNodeRuntime(stateIdx),
                     anim._blendTreeParamHashes, (float)anim._cachedDeltaTime);
 
                 if (activeNode is HonamiBlendTreeNode btNode)
@@ -552,7 +582,7 @@ namespace HonamiAnimationSystem.Runtime.Core
                     actualPlayable,
                     anim._layerMixers[layer],
                     anim._params,
-                    anim._pickedRandomIdx,
+                    anim.GetNodeRuntime(stateIndex),
                     anim._blendTreeParamHashes,
                     0f);
 
@@ -586,7 +616,7 @@ namespace HonamiAnimationSystem.Runtime.Core
                 anim.controller,
                 state,
                 stateIndex,
-                anim._pickedRandomIdx,
+                anim.GetNodeRuntime(stateIndex),
                 anim.GetStateBlendParam(state));
 
             if (resetTime)
@@ -612,13 +642,10 @@ namespace HonamiAnimationSystem.Runtime.Core
                 bool isSeq = activeNode is HonamiSequencerNode;
                 int pickedIdx = -1;
 
-                if (isRandom && activeNode is HonamiRandomAnimationNode randomNode && randomNode.randomClips?.Count > 0)
+                if (isRandom && activeNode is HonamiRandomAnimationNode randomNode && randomNode.randomClips?.Count > 0
+                    && anim.GetNodeRuntime(stateIndex) is HonamiRandomAnimationNode.Runtime randomRuntime)
                 {
-                    pickedIdx = PickRandomClip(anim, randomNode, stateIndex);
-                }
-                else
-                {
-                    anim._pickedRandomIdx.Remove(stateIndex);
+                    pickedIdx = PickRandomClip(anim, randomNode, randomRuntime, stateIndex);
                 }
 
                 for (int i = 0; i < mixer.GetInputCount(); i++)
@@ -699,17 +726,21 @@ namespace HonamiAnimationSystem.Runtime.Core
             }
         }
 
-        private static int PickRandomClip(HonamiAnimator anim, HonamiRandomAnimationNode randomNode, int stateIndex)
+        private static int PickRandomClip(HonamiAnimator anim, HonamiRandomAnimationNode randomNode, HonamiRandomAnimationNode.Runtime runtime, int stateIndex)
         {
-            float totalWeight = 0f;
             int count = randomNode.randomClips.Count;
-            for (int i = 0; i < count; i++)
-            {
-                var c = randomNode.randomClips[i];
+            HashSet<int> playedClips = GetNoRepeatPlayedClips(randomNode, runtime, count);
+            float totalWeight = GetSelectableWeight(randomNode, playedClips);
 
-                if (c.clip != null)
+            if (playedClips != null && totalWeight <= 0f)
+            {
+                RestartNoRepeatBag(runtime, playedClips);
+                totalWeight = GetSelectableWeight(randomNode, playedClips);
+
+                if (totalWeight <= 0f)
                 {
-                    totalWeight += c.weight;
+                    playedClips.Clear();
+                    totalWeight = GetSelectableWeight(randomNode, playedClips);
                 }
             }
 
@@ -719,7 +750,8 @@ namespace HonamiAnimationSystem.Runtime.Core
 
             if (useLinkedSync && TryGetSyncedRandomPick(syncKey, count, out pickedIdx))
             {
-                anim._pickedRandomIdx[stateIndex] = pickedIdx;
+                MarkNoRepeatPlayed(playedClips, pickedIdx);
+                runtime.PickedIndex = pickedIdx;
                 return pickedIdx;
             }
 
@@ -743,7 +775,7 @@ namespace HonamiAnimationSystem.Runtime.Core
                 {
                     HonamiRandomAnimationClip c = randomNode.randomClips[i];
 
-                    if (c.clip == null)
+                    if (!IsSelectable(c, i, playedClips))
                     {
                         continue;
                     }
@@ -757,13 +789,69 @@ namespace HonamiAnimationSystem.Runtime.Core
                 }
             }
 
+            MarkNoRepeatPlayed(playedClips, pickedIdx);
+
             if (useLinkedSync)
             {
                 _syncedRandomPicks[syncKey] = new SyncedRandomPick { frame = Time.frameCount, pickedIndex = pickedIdx };
             }
 
-            anim._pickedRandomIdx[stateIndex] = pickedIdx;
+            runtime.PickedIndex = pickedIdx;
             return pickedIdx;
+        }
+
+        private static HashSet<int> GetNoRepeatPlayedClips(HonamiRandomAnimationNode randomNode, HonamiRandomAnimationNode.Runtime runtime, int clipCount)
+        {
+            if (!randomNode.noRepeat || clipCount <= 1)
+            {
+                return null;
+            }
+
+            runtime.PlayedClips ??= new HashSet<int>();
+            return runtime.PlayedClips;
+        }
+
+        private static void RestartNoRepeatBag(HonamiRandomAnimationNode.Runtime runtime, HashSet<int> playedClips)
+        {
+            playedClips.Clear();
+
+            if (runtime.PickedIndex >= 0)
+            {
+                playedClips.Add(runtime.PickedIndex);
+            }
+        }
+
+        private static float GetSelectableWeight(HonamiRandomAnimationNode randomNode, HashSet<int> playedClips)
+        {
+            float totalWeight = 0f;
+            for (int i = 0; i < randomNode.randomClips.Count; i++)
+            {
+                HonamiRandomAnimationClip c = randomNode.randomClips[i];
+                if (IsSelectable(c, i, playedClips))
+                {
+                    totalWeight += c.weight;
+                }
+            }
+
+            return totalWeight;
+        }
+
+        private static bool IsSelectable(HonamiRandomAnimationClip c, int index, HashSet<int> playedClips)
+        {
+            if (c.clip == null || c.muted)
+            {
+                return false;
+            }
+
+            return playedClips == null || (c.weight > 0f && !playedClips.Contains(index));
+        }
+
+        private static void MarkNoRepeatPlayed(HashSet<int> playedClips, int pickedIdx)
+        {
+            if (playedClips != null && pickedIdx >= 0)
+            {
+                playedClips.Add(pickedIdx);
+            }
         }
 
         private static bool TryGetSyncedRandomPick(int syncKey, int clipCount, out int pickedIdx)
@@ -887,7 +975,7 @@ namespace HonamiAnimationSystem.Runtime.Core
                     actualPlayable,
                     anim._layerMixers[layer],
                     anim._params,
-                    anim._pickedRandomIdx,
+                    anim.GetNodeRuntime(stateIdx),
                     anim._blendTreeParamHashes,
                     0f);
 
@@ -924,7 +1012,7 @@ namespace HonamiAnimationSystem.Runtime.Core
                 anim.controller,
                 state,
                 stateIdx,
-                anim._pickedRandomIdx,
+                anim.GetNodeRuntime(stateIdx),
                 anim.GetStateBlendParam(state));
 
             playable.SetTime(state.isReversed ? duration : 0f);

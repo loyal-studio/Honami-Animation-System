@@ -45,7 +45,7 @@ namespace HonamiAnimationSystem.Runtime.Core
             return mixer;
         }
 
-        public override float GetDuration(HonamiState state, int stateIndex, Dictionary<int, int> pickedIdx, float blendParam)
+        public override float GetDuration(HonamiState state, int stateIndex, HonamiNodeRuntime runtime, float blendParam)
         {
             if (sequencedClips == null || sequencedClips.Count == 0)
             {
@@ -56,7 +56,7 @@ namespace HonamiAnimationSystem.Runtime.Core
             return GetSequenceDuration() / stateSpeed;
         }
 
-        public override float GetUnscaledDuration(HonamiState state, int stateIndex, Dictionary<int, int> pickedIdx, float blendParam)
+        public override float GetUnscaledDuration(HonamiState state, int stateIndex, HonamiNodeRuntime runtime, float blendParam)
         {
             if (sequencedClips == null || sequencedClips.Count == 0)
             {
@@ -74,7 +74,7 @@ namespace HonamiAnimationSystem.Runtime.Core
             }
 
             AnimationMixerPlayable mixer = (AnimationMixerPlayable)ctx.Playable;
-            float sequenceDuration = GetUnscaledDuration(ctx.State, ctx.StateIndex, ctx.PickedRandomIdx, 0f);
+            float sequenceDuration = GetUnscaledDuration(ctx.State, ctx.StateIndex, ctx.Runtime, 0f);
             double normalizedTime = NormalizeTime(ctx.Playable.GetTime(), sequenceDuration, ctx.State.loop);
             float finalTime = ctx.State.isReversed ? sequenceDuration - (float)normalizedTime : (float)normalizedTime;
 

@@ -148,6 +148,139 @@ namespace HonamiAnimationSystem.Editor
             HonamiNotificationPanel.ShowGlobal("Node Type Changed", $"Changed to {newType.Name.Replace("Honami", "").Replace("Node", "")}", HonamiNotificationType.Success);
         }
 
+        public void SplitRandomIntoAnimationStates(HonamiNode node)
+        {
+            if (node?.State == null || _controller == null) return;
+
+            if (_runtimeController != null && _runtimeController.IsOverride)
+            {
+                HonamiGraphWindow.ShowNotification("Override Controller", "Splitting nodes is not supported in Override Controllers. Edit the base controller instead.", HonamiNotificationType.Info);
+                return;
+            }
+
+            HonamiState sourceState = node.State;
+            if (sourceState.node is not HonamiRandomAnimationNode randomNode) return;
+
+            var clips = randomNode.randomClips?.Where(c => c != null && c.clip != null && !c.muted).ToList();
+            if (clips == null || clips.Count == 0)
+            {
+                HonamiGraphWindow.ShowNotification("Nothing to Split", "The Random node has no active clips.", HonamiNotificationType.Warning);
+                return;
+            }
+
+            Undo.SetCurrentGroupName("Split Random Into Animations");
+            int groupIdx = Undo.GetCurrentGroup();
+            Undo.RecordObject(_controller, "Split Random Into Animations");
+
+            var newStates = new List<HonamiState>();
+            for (int i = 1; i < clips.Count; i++)
+            {
+                newStates.Add(CreateSplitAnimationState(sourceState, clips[i], i));
+            }
+
+            foreach (var st in _controller.states)
+            {
+                if (st == null || st == sourceState || st.transitions == null || newStates.Count == 0) continue;
+
+                bool recorded = false;
+                for (int t = 0; t < st.transitions.Count; t++)
+                {
+                    var tr = st.transitions[t];
+                    if (tr == null || tr.targetStateGuid != sourceState.guid) continue;
+
+                    if (!recorded)
+                    {
+                        Undo.RecordObject(st, "Split Random Into Animations");
+                        recorded = true;
+                    }
+
+                    int insertAt = t + 1;
+                    foreach (var newState in newStates)
+                    {
+                        var clone = JsonUtility.FromJson<HonamiTransition>(JsonUtility.ToJson(tr));
+                        clone.targetStateGuid = newState.guid;
+                        st.transitions.Insert(insertAt++, clone);
+                    }
+                    t = insertAt - 1;
+                }
+
+                if (recorded) EditorUtility.SetDirty(st);
+            }
+
+            var firstClip = clips[0];
+            var animNode = ScriptableObject.CreateInstance<HonamiAnimationNode>();
+            animNode.name = $"{sourceState.stateName}_{nameof(HonamiAnimationNode)}";
+            animNode.clip = firstClip.clip;
+            animNode.startTime = firstClip.startTime;
+            animNode.endTime = firstClip.endTime;
+            AssetDatabase.AddObjectToAsset(animNode, _controller);
+            Undo.RegisterCreatedObjectUndo(animNode, "Split Random Into Animations");
+
+            Undo.RecordObject(sourceState, "Split Random Into Animations");
+            sourceState.node = animNode;
+            sourceState.speed *= firstClip.speed != 0f ? firstClip.speed : 1f;
+            sourceState.mirror |= firstClip.mirror;
+            Undo.DestroyObjectImmediate(randomNode);
+
+            _controller.ClearEffectiveStateCache();
+            EditorUtility.SetDirty(sourceState);
+            EditorUtility.SetDirty(_controller);
+
+            Undo.CollapseUndoOperations(groupIdx);
+            DeferredSave();
+            PopulateView(_runtimeController, currentLayerIndex);
+
+            HonamiNotificationPanel.ShowGlobal("Random Node Split", $"'{sourceState.stateName}' split into {clips.Count} Animation states, transitions ported.", HonamiNotificationType.Success);
+        }
+
+        private HonamiState CreateSplitAnimationState(HonamiState sourceState, HonamiRandomAnimationClip clip, int index)
+        {
+            var newState = UnityEngine.Object.Instantiate(sourceState);
+            newState.guid = Guid.NewGuid().ToString();
+            newState.stateName = $"{sourceState.stateName} {index + 1}";
+            newState.name = newState.stateName;
+            newState.isDefaultState = false;
+            newState.inheritedFromStateGuid = null;
+            newState.isVirtualInheritedState = false;
+            newState.inheritedSourceState = null;
+            newState.editorPosition = sourceState.editorPosition + new Vector2(0f, 170f * index);
+            newState.speed *= clip.speed != 0f ? clip.speed : 1f;
+            newState.mirror |= clip.mirror;
+
+            var animNode = ScriptableObject.CreateInstance<HonamiAnimationNode>();
+            animNode.clip = clip.clip;
+            animNode.startTime = clip.startTime;
+            animNode.endTime = clip.endTime;
+            newState.node = animNode;
+
+            if (newState.subNodes != null)
+            {
+                var copiedSubNodes = new List<HonamiSubNodeBase>();
+                foreach (var subNode in newState.subNodes)
+                {
+                    if (subNode == null) continue;
+                    var copied = UnityEngine.Object.Instantiate(subNode);
+                    copied.name = subNode.name;
+                    AssetDatabase.AddObjectToAsset(copied, _controller);
+                    Undo.RegisterCreatedObjectUndo(copied, "Split Random Into Animations");
+                    copiedSubNodes.Add(copied);
+                }
+                newState.subNodes = copiedSubNodes;
+            }
+
+            HonamiAnimationSystem.Editor.Core.HonamiEditorController.EnsureUniqueStateName(_runtimeController, newState);
+            animNode.name = $"{newState.stateName}_{nameof(HonamiAnimationNode)}";
+
+            AssetDatabase.AddObjectToAsset(newState, _controller);
+            AssetDatabase.AddObjectToAsset(animNode, _controller);
+            Undo.RegisterCreatedObjectUndo(newState, "Split Random Into Animations");
+            Undo.RegisterCreatedObjectUndo(animNode, "Split Random Into Animations");
+
+            _controller.states.Add(newState);
+            EditorUtility.SetDirty(newState);
+            return newState;
+        }
+
         private HonamiTransitionEdge GetEdgeAtPosition(Vector2 localPos)
         {
             var worldPos = contentViewContainer.LocalToWorld(localPos);

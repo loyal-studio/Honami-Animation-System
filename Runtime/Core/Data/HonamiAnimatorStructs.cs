@@ -21,6 +21,8 @@ namespace HonamiAnimationSystem.Runtime.Core
         public HonamiVictimMode VictimMode;
         public float VictimSpeedMultiplier;
         public bool AcceleratedWeightDrop;
+        public bool DestinationFrozen;
+        public bool SourceFrozen;
     }
 
     /// <summary>

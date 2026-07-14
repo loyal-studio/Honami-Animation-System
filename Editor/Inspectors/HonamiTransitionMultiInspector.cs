@@ -60,23 +60,6 @@ namespace HonamiAnimationSystem.Editor
             timingBox.Add(HonamiGraphStyles.SubTitle("Timing"));
 
             VisualElement exitTimeContainer = null;
-            if (allCanExit)
-            {
-                var exitToggle = BindField(new Toggle("Has Exit Time"), entries, "Edit Transitions Exit Time",
-                    t => t.hasExitTime, (t, v) => t.hasExitTime = v);
-                exitToggle.tooltip = "If enabled, the transition will only fire after a specific point in the animation.";
-                timingBox.Add(exitToggle);
-
-                exitTimeContainer = new VisualElement();
-                exitTimeContainer.style.paddingLeft = 12;
-                var exitTimeField = BindField(new FloatField("Exit Time (Normalized)"), entries, "Edit Transitions Exit Time",
-                    t => t.exitTime, (t, v) => t.exitTime = v);
-                exitTimeField.tooltip = "Normalized time (0.0 to 1.0) when the transition should occur.";
-                exitTimeContainer.Add(exitTimeField);
-                timingBox.Add(exitTimeContainer);
-                timingBox.Add(HonamiGraphStyles.Separator());
-            }
-
             VisualElement smartContainer = null;
             VisualElement victimContainer = null;
 
@@ -90,6 +73,23 @@ namespace HonamiAnimationSystem.Editor
                     victimContainer.style.display = All(entries, t => t.type == HonamiTransitionType.Victim) ? DisplayStyle.Flex : DisplayStyle.None;
             }
 
+            if (allCanExit)
+            {
+                var exitToggle = BindField(new Toggle("Has Exit Time"), entries, "Edit Transitions Exit Time",
+                    t => t.hasExitTime, (t, v) => t.hasExitTime = v, RefreshConditionalVisibility);
+                exitToggle.tooltip = "If enabled, the transition will only fire after a specific point in the animation.";
+                timingBox.Add(exitToggle);
+
+                exitTimeContainer = new VisualElement();
+                exitTimeContainer.style.paddingLeft = 12;
+                var exitTimeField = BindField(new FloatField("Exit Time (Normalized)"), entries, "Edit Transitions Exit Time",
+                    t => t.exitTime, (t, v) => t.exitTime = v);
+                exitTimeField.tooltip = "Normalized time when the transition should occur. Values above 1 act as a cooldown: 1.5 fires after one and a half state durations.";
+                exitTimeContainer.Add(exitTimeField);
+                timingBox.Add(exitTimeContainer);
+                timingBox.Add(HonamiGraphStyles.Separator());
+            }
+
             var typeField = BindField(new EnumField("Transition Type", entries[0].Transition.type), entries, "Edit Transitions Type",
                 t => (Enum)t.type, (t, v) => t.type = (HonamiTransitionType)v, RefreshConditionalVisibility);
             timingBox.Add(typeField);
@@ -98,6 +98,11 @@ namespace HonamiAnimationSystem.Editor
                 t => t.duration, (t, v) => t.duration = Mathf.Max(0f, v));
             durationField.tooltip = "Time (in seconds) to fade between the source and target states.";
             timingBox.Add(durationField);
+
+            var freezeField = BindField(new EnumField("Freeze Mode", entries[0].Transition.freezeMode), entries, "Edit Transitions Freeze Mode",
+                t => (Enum)t.freezeMode, (t, v) => t.freezeMode = (HonamiTransitionFreezeMode)v);
+            freezeField.tooltip = "Destination: the target holds its first frame during the blend and starts playing when the transition completes — keeps fast attacks crisp. Source: the state being left freezes on its current pose and fades out static.";
+            timingBox.Add(freezeField);
 
             smartContainer = new VisualElement();
             smartContainer.style.paddingLeft = 12;
@@ -216,17 +221,22 @@ namespace HonamiAnimationSystem.Editor
             where TField : BaseField<TValue>
         {
             var firstValue = get(entries[0].Transition);
-            field.SetValueWithoutNotify(firstValue);
 
+            bool mixed = false;
             var comparer = EqualityComparer<TValue>.Default;
             for (int i = 1; i < entries.Count; i++)
             {
                 if (!comparer.Equals(get(entries[i].Transition), firstValue))
                 {
-                    field.showMixedValue = true;
+                    mixed = true;
                     break;
                 }
             }
+
+            // A mixed field holds a sentinel instead of the first entry's value: committing a value equal
+            // to that entry's would otherwise not raise ChangeEvent and silently skip the whole selection.
+            field.SetValueWithoutNotify(mixed ? GetMixedSentinel(field, firstValue) : firstValue);
+            field.showMixedValue = mixed;
 
             field.RegisterValueChangedCallback(ev =>
             {
@@ -237,6 +247,18 @@ namespace HonamiAnimationSystem.Editor
 
             field.style.marginTop = field.style.marginBottom = 3;
             return field;
+        }
+
+        private static TValue GetMixedSentinel<TValue>(BaseField<TValue> field, TValue firstValue)
+        {
+            switch (field)
+            {
+                case FloatField: return (TValue)(object)float.NaN;
+                case IntegerField: return (TValue)(object)int.MinValue;
+                case Toggle: return (TValue)(object)false;
+                case EnumField when firstValue is Enum enumValue: return (TValue)(object)Enum.ToObject(enumValue.GetType(), int.MinValue);
+            }
+            return firstValue;
         }
 
         private static void ApplyToAll(List<Entry> entries, string undoName, Action<HonamiTransition> apply)

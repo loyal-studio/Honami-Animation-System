@@ -17,7 +17,7 @@ namespace HonamiAnimationSystem.Runtime.Core
         public readonly Playable Playable;
         public readonly AnimationMixerPlayable LayerMixer;
         public readonly HonamiParameterStore Params;
-        public readonly Dictionary<int, int> PickedRandomIdx;
+        public readonly HonamiNodeRuntime Runtime;
         public readonly int[] BlendTreeParamHashes;
         public readonly float DeltaTime;
 
@@ -30,7 +30,7 @@ namespace HonamiAnimationSystem.Runtime.Core
             Playable playable,
             AnimationMixerPlayable layerMixer,
             HonamiParameterStore parms,
-            Dictionary<int, int> pickedRandomIdx,
+            HonamiNodeRuntime runtime,
             int[] blendTreeParamHashes,
             float deltaTime)
         {
@@ -42,7 +42,7 @@ namespace HonamiAnimationSystem.Runtime.Core
             Playable = playable;
             LayerMixer = layerMixer;
             Params = parms;
-            PickedRandomIdx = pickedRandomIdx;
+            Runtime = runtime;
             BlendTreeParamHashes = blendTreeParamHashes;
             DeltaTime = deltaTime;
         }

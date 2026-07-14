@@ -131,7 +131,7 @@ namespace HonamiAnimationSystem.Editor
                 var etProp = tp.FindPropertyRelative("exitTime");
                 var etf = new PropertyField(etProp, "Exit Time (Normalized)");
                 etf.style.marginTop = etf.style.marginBottom = 3;
-                etf.tooltip = "Normalized time (0.0 to 1.0) when the transition should occur.";
+                etf.tooltip = "Normalized time when the transition should occur. Values above 1 act as a cooldown: 1.5 fires after one and a half state durations.";
                 HonamiStateInspector.SetupPropertyContextMenu(etf, etProp);
                 etf.BindProperty(etProp);
                 exitTimeContainer.Add(etf);
@@ -162,6 +162,13 @@ namespace HonamiAnimationSystem.Editor
             HonamiStateInspector.SetupPropertyContextMenu(durField, durProp);
             durField.BindProperty(durProp);
             timingBox.Add(durField);
+
+            var freezeProp = tp.FindPropertyRelative("freezeMode");
+            var freezeField = new PropertyField(freezeProp, "Freeze Mode");
+            freezeField.style.marginTop = freezeField.style.marginBottom = 3;
+            freezeField.tooltip = "Destination: the target holds its first frame during the blend and starts playing when the transition completes — keeps fast attacks crisp. Source: the state being left freezes on its current pose and fades out static.";
+            freezeField.BindProperty(freezeProp);
+            timingBox.Add(freezeField);
 
             var smartContainer = new VisualElement();
             smartContainer.style.paddingLeft = 12;

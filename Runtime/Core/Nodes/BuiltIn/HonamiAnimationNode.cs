@@ -15,6 +15,19 @@ namespace HonamiAnimationSystem.Runtime.Core
         public float startTime = 0f;
         public float endTime = 0f;
 
+        public override void OnValidateNode()
+        {
+            if (clip == null) return;
+
+            if (endTime <= 0)
+            {
+                endTime = clip.length;
+            }
+
+            startTime = Mathf.Clamp(startTime, 0f, clip.length);
+            endTime = Mathf.Clamp(endTime, startTime, clip.length);
+        }
+
         public override Playable CreatePlayable(PlayableGraph graph, HonamiState state)
         {
             if (clip == null)
@@ -41,7 +54,7 @@ namespace HonamiAnimationSystem.Runtime.Core
             return mixer;
         }
 
-        public override float GetDuration(HonamiState state, int stateIndex, Dictionary<int, int> pickedIdx, float blendParam)
+        public override float GetDuration(HonamiState state, int stateIndex, HonamiNodeRuntime runtime, float blendParam)
         {
             if (clip == null)
             {
@@ -52,7 +65,7 @@ namespace HonamiAnimationSystem.Runtime.Core
             return GetClipRangeDuration() / stateSpeed;
         }
 
-        public override float GetUnscaledDuration(HonamiState state, int stateIndex, Dictionary<int, int> pickedIdx, float blendParam)
+        public override float GetUnscaledDuration(HonamiState state, int stateIndex, HonamiNodeRuntime runtime, float blendParam)
         {
             return clip == null ? 1f : GetClipRangeDuration();
         }

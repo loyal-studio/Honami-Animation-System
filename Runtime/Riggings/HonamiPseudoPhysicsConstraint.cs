@@ -8,6 +8,12 @@ using System;
 
 namespace HonamiAnimationSystem.Runtime.Riggings
 {
+    public enum HonamiPhysicsSimulationSpace
+    {
+        BoneLocal,
+        World
+    }
+
     [Serializable]
     public sealed class HonamiPhysicsBoneData
     {
@@ -23,6 +29,13 @@ namespace HonamiAnimationSystem.Runtime.Riggings
         internal Quaternion lastWorldRot;
         internal Vector3 lastVelocity;
         internal Vector3 lastAngularVelocity;
+
+        internal Vector3 appliedPosOffset;
+        internal Vector3 appliedRotOffset;
+        internal Vector3 lastWrittenLocalPos;
+        internal Quaternion lastWrittenLocalRot;
+        internal bool hasAppliedOffsets;
+        internal bool appliedInWorldSpace;
     }
 
     [BurstCompile]
@@ -39,6 +52,7 @@ namespace HonamiAnimationSystem.Runtime.Riggings
 
         private const int ParamGlobalWeight = 0;
         private const int ParamBoneCount = 1;
+        private const int ParamWorldSpace = 2;
 
         public void ProcessAnimation(AnimationStream stream)
         {
@@ -46,6 +60,7 @@ namespace HonamiAnimationSystem.Runtime.Riggings
             if (gw <= 0.001f) return;
 
             int count = (int)parameters[ParamBoneCount];
+            bool worldSpace = parameters[ParamWorldSpace] > 0.5f;
             float3 posMask = posAxisMask[0];
             float3 rotMask = rotAxisMask[0];
 
@@ -60,8 +75,16 @@ namespace HonamiAnimationSystem.Runtime.Riggings
                 float3 currentPos = (float3)boneHandles[i].GetPosition(stream);
                 quaternion currentRot = (quaternion)boneHandles[i].GetRotation(stream);
 
-                boneHandles[i].SetPosition(stream, (Vector3)(currentPos + math.mul(currentRot, finalPosOffset)));
-                boneHandles[i].SetRotation(stream, (Quaternion)math.mul(currentRot, quaternion.Euler(math.radians(finalRotOffset))));
+                if (worldSpace)
+                {
+                    boneHandles[i].SetPosition(stream, (Vector3)(currentPos + finalPosOffset));
+                    boneHandles[i].SetRotation(stream, (Quaternion)math.mul(quaternion.Euler(math.radians(finalRotOffset)), currentRot));
+                }
+                else
+                {
+                    boneHandles[i].SetPosition(stream, (Vector3)(currentPos + math.mul(currentRot, finalPosOffset)));
+                    boneHandles[i].SetRotation(stream, (Quaternion)math.mul(currentRot, quaternion.Euler(math.radians(finalRotOffset))));
+                }
             }
         }
 
@@ -69,12 +92,18 @@ namespace HonamiAnimationSystem.Runtime.Riggings
     }
 
     [AddComponentMenu("Honami Animation/Riggings/Honami Pseudo-Physics Constraint")]
+    [ExecuteAlways]
     public sealed class HonamiPseudoPhysicsConstraint : HonamiRig
     {
         [Header("Target Bones")]
         public HonamiPhysicsBoneData[] bones;
 
+        [Header("Simulation Space")]
+        [Tooltip("BoneLocal: offsets rotate with the bone — jiggle that sticks to the animation (chest, hair). World: offsets and gravity stay world-aligned — dangling items that sag down and swing (keychains, pouches, pendants).")]
+        public HonamiPhysicsSimulationSpace simulationSpace = HonamiPhysicsSimulationSpace.BoneLocal;
+
         [Header("Axis Setup")]
+        [Tooltip("Masks are applied in the selected simulation space.")]
         public Vector3 positionAxisMask = Vector3.one;
         public Vector3 rotationAxisMask = Vector3.one;
 
@@ -84,7 +113,8 @@ namespace HonamiAnimationSystem.Runtime.Riggings
         public float positionStiffness = 50f;
         public float positionDamping = 5f;
         public Vector3 maxPositionOffset = new Vector3(0.5f, 0.5f, 0.5f);
-        public Vector3 positionLocalGravity = Vector3.zero;
+        [Tooltip("Constant force in the simulation space. In World space, (0, -y, 0) makes bones sag toward the ground no matter how the parent rotates.")]
+        public Vector3 positionGravity = Vector3.zero;
 
         [Header("Rotation Physics")]
         public Vector3 rotationDrag = new Vector3(2f, 2f, 2f);
@@ -93,10 +123,36 @@ namespace HonamiAnimationSystem.Runtime.Riggings
         public float rotationDamping = 5f;
         public Vector3 maxRotationOffset = new Vector3(45f, 45f, 45f);
 
+        [Header("Rotation Gravity (Pendulum)")]
+        [Tooltip("Torque (deg/s²) pulling Hang Axis toward Gravity Direction, scaled by the sine of the misalignment. 0 disables. It fights rotationStiffness: equilibrium tilt ≈ torque / stiffness, so lower the stiffness or raise the torque until the bone actually hangs.")]
+        public float rotationGravity = 0f;
+        [Tooltip("Bone-local axis that should point along Gravity Direction — the axis running from the attachment point toward the dangling tip.")]
+        public Vector3 rotationHangAxis = Vector3.down;
+        [Tooltip("World-space direction the Hang Axis is pulled toward.")]
+        public Vector3 rotationGravityDirection = Vector3.down;
+
         [Header("Cross Effects")]
         public Vector3 movementToRotation = Vector3.zero;
 
+        [Header("Stability")]
+        [Tooltip("Animated-pose jump (meters per frame) treated as a teleport: physics state resets instead of receiving a huge impulse. 0 disables.")]
+        public float teleportDistanceThreshold = 0.75f;
+        [Tooltip("Animated-pose jump (degrees per frame) treated as a teleport: physics state resets instead of receiving a huge impulse. 0 disables.")]
+        public float teleportAngleThreshold = 90f;
+
+        [Header("Editor Preview")]
+        [Tooltip("Runs the simulation in edit mode so it can be tested without entering Play mode: move the object or bones in the Scene view and watch the response. Turning it off restores the animated pose.")]
+        public bool simulateInEditMode;
+
+        private const float MaxSpringSubstep = 1f / 120f;
+        private const int MaxSpringSubstepCount = 8;
+
         private bool _isInitialized;
+
+#if UNITY_EDITOR
+        private const float MaxEditorDeltaTime = 1f / 20f;
+        private double _lastEditorTime;
+#endif
 
         private AnimationScriptPlayable _playable;
         private NativeArray<TransformStreamHandle> _boneHandles;
@@ -133,7 +189,7 @@ namespace HonamiAnimationSystem.Runtime.Riggings
             _nativeBoneWeights = new NativeArray<float>(validCount, Allocator.Persistent);
             _nativePosMask = new NativeArray<float3>(1, Allocator.Persistent);
             _nativeRotMask = new NativeArray<float3>(1, Allocator.Persistent);
-            _nativeParams = new NativeArray<float>(2, Allocator.Persistent);
+            _nativeParams = new NativeArray<float>(3, Allocator.Persistent);
 
             int idx = 0;
             for (int i = 0; i < bones.Length; i++)
@@ -160,25 +216,16 @@ namespace HonamiAnimationSystem.Runtime.Riggings
 
         public override void PrepareJobData(float deltaTime)
         {
-            if (!_playable.IsValid() || !Application.isPlaying)
+            if (!_playable.IsValid() || !Application.isPlaying
+                || bones == null || bones.Length == 0 || weight <= 0.001f)
             {
                 if (_nativeParams.IsCreated) _nativeParams[0] = 0f;
                 _isInitialized = false;
                 return;
             }
 
-            if (bones == null || bones.Length == 0 || weight <= 0.001f)
-            {
-                if (_nativeParams.IsCreated) _nativeParams[0] = 0f;
-                _isInitialized = false;
-                return;
-            }
-
-            if (deltaTime <= 0.0001f)
-            {
-                if (_nativeParams.IsCreated) _nativeParams[0] = 0f;
-                return;
-            }
+            // keep last frame's offsets applied on paused frames; zeroing the weight pops the bone for one frame
+            if (deltaTime <= 0.0001f) return;
 
             float dt = deltaTime;
 
@@ -186,8 +233,6 @@ namespace HonamiAnimationSystem.Runtime.Riggings
             {
                 InitializeBones();
                 _isInitialized = true;
-                if (_nativeParams.IsCreated) _nativeParams[0] = 0f;
-                return;
             }
 
             _nativePosMask[0] = positionAxisMask;
@@ -199,62 +244,47 @@ namespace HonamiAnimationSystem.Runtime.Riggings
                 var b = bones[i];
                 if (b == null || b.bone == null) continue;
 
-                Vector3 currentWorldPos = b.bone.position;
-                Quaternion currentWorldRot = b.bone.rotation;
+                b.bone.GetPositionAndRotation(out Vector3 currentPos, out Quaternion currentRot);
 
-                Vector3 deltaPos = currentWorldPos - b.lastWorldPos;
-                Vector3 velocity = deltaPos / dt;
-                Vector3 acceleration = (velocity - b.lastVelocity) / dt;
+                Vector3 animPos = currentPos;
+                Quaternion animRot = currentRot;
+                if (b.hasAppliedOffsets)
+                {
+                    // the transform still holds last frame's applied offset; recover the pure animated
+                    // pose so velocity estimation never feeds on the physics' own output
+                    UnapplyOffsets(b, currentPos, currentRot, out animPos, out animRot);
+                    // unanimated bones keep the scene pose as the stream default, so restore the pure
+                    // pose before evaluation or the job's offset accumulates every frame
+                    b.bone.SetPositionAndRotation(animPos, animRot);
+                }
 
-                Quaternion deltaRot = currentWorldRot * Quaternion.Inverse(b.lastWorldRot);
-                deltaRot.ToAngleAxis(out float angle, out Vector3 axis);
-                if (angle > 180f) angle -= 360f;
+                StepBonePhysics(b, animPos, animRot, dt);
 
-                Vector3 angularVelocity = Vector3.zero;
-                if (angle != 0f && axis.sqrMagnitude > 0f)
-                    angularVelocity = axis.normalized * (angle / dt);
-                Vector3 angularAcceleration = (angularVelocity - b.lastAngularVelocity) / dt;
-
-                Vector3 localVelocity = Quaternion.Inverse(currentWorldRot) * velocity;
-                Vector3 localAcceleration = Quaternion.Inverse(currentWorldRot) * acceleration;
-                Vector3 localAngVelocity = Quaternion.Inverse(currentWorldRot) * angularVelocity;
-                Vector3 localAngAcceleration = Quaternion.Inverse(currentWorldRot) * angularAcceleration;
-
-                b.currentPosOffset -= Vector3.Scale(localVelocity, positionDrag) * dt;
-                b.currentPosVelocity -= Vector3.Scale(localAcceleration, positionInertia) * dt;
-
-                b.currentRotOffset -= Vector3.Scale(localAngVelocity, rotationDrag) * dt;
-                b.currentRotVelocity -= Vector3.Scale(localAngAcceleration, rotationInertia) * dt;
-
-                b.currentRotOffset -= Vector3.Scale(localVelocity, movementToRotation) * dt;
-
-                Vector3 posForce = -b.currentPosOffset * positionStiffness + positionLocalGravity;
-                b.currentPosVelocity += posForce * dt;
-                b.currentPosVelocity -= b.currentPosVelocity * Mathf.Clamp01(positionDamping * dt);
-                b.currentPosOffset += b.currentPosVelocity * dt;
-
-                Vector3 rotForce = -b.currentRotOffset * rotationStiffness;
-                b.currentRotVelocity += rotForce * dt;
-                b.currentRotVelocity -= b.currentRotVelocity * Mathf.Clamp01(rotationDamping * dt);
-                b.currentRotOffset += b.currentRotVelocity * dt;
-
-                b.currentPosOffset = ClampVector(b.currentPosOffset, maxPositionOffset);
-                b.currentRotOffset = ClampVector(b.currentRotOffset, maxRotationOffset);
+                float w = b.weightMultiplier * weight;
+                if (w > 0.001f)
+                {
+                    b.appliedPosOffset = Vector3.Scale(b.currentPosOffset, positionAxisMask) * w;
+                    b.appliedRotOffset = Vector3.Scale(b.currentRotOffset, rotationAxisMask) * w;
+                    b.hasAppliedOffsets = true;
+                    b.appliedInWorldSpace = simulationSpace == HonamiPhysicsSimulationSpace.World;
+                }
+                else
+                {
+                    b.appliedPosOffset = Vector3.zero;
+                    b.appliedRotOffset = Vector3.zero;
+                    b.hasAppliedOffsets = false;
+                }
 
                 _nativePosOffsets[idx] = b.currentPosOffset;
                 _nativeRotOffsets[idx] = b.currentRotOffset;
                 _nativeBoneWeights[idx] = b.weightMultiplier;
-
-                b.lastWorldPos = currentWorldPos;
-                b.lastWorldRot = currentWorldRot;
-                b.lastVelocity = velocity;
-                b.lastAngularVelocity = angularVelocity;
 
                 idx++;
             }
 
             _nativeParams[0] = weight;
             _nativeParams[1] = _boundBoneCount;
+            _nativeParams[2] = simulationSpace == HonamiPhysicsSimulationSpace.World ? 1f : 0f;
         }
 
         public override void DisposeJobData()
@@ -275,114 +305,274 @@ namespace HonamiAnimationSystem.Runtime.Riggings
             {
                 var b = bones[i];
                 if (b == null || b.bone == null) continue;
-                b.lastWorldPos = b.bone.position;
-                b.lastWorldRot = b.bone.rotation;
+                b.bone.GetPositionAndRotation(out b.lastWorldPos, out b.lastWorldRot);
                 b.lastVelocity = Vector3.zero;
                 b.lastAngularVelocity = Vector3.zero;
                 b.currentPosOffset = Vector3.zero;
                 b.currentPosVelocity = Vector3.zero;
                 b.currentRotOffset = Vector3.zero;
                 b.currentRotVelocity = Vector3.zero;
+                b.appliedPosOffset = Vector3.zero;
+                b.appliedRotOffset = Vector3.zero;
+                b.hasAppliedOffsets = false;
+                b.appliedInWorldSpace = false;
             }
         }
 
-        private Vector3 ClampVector(Vector3 v, Vector3 max)
+        private void StepBonePhysics(HonamiPhysicsBoneData b, Vector3 animPos, Quaternion animRot, float dt)
         {
-            return new Vector3(
-                Mathf.Clamp(v.x, -Mathf.Abs(max.x), Mathf.Abs(max.x)),
-                Mathf.Clamp(v.y, -Mathf.Abs(max.y), Mathf.Abs(max.y)),
-                Mathf.Clamp(v.z, -Mathf.Abs(max.z), Mathf.Abs(max.z))
-            );
+            Vector3 deltaPos = animPos - b.lastWorldPos;
+            Quaternion deltaRot = animRot * Quaternion.Inverse(b.lastWorldRot);
+            deltaRot.ToAngleAxis(out float angle, out Vector3 axis);
+            if (angle > 180f) angle -= 360f;
+
+            bool teleported =
+                (teleportDistanceThreshold > 0f && deltaPos.sqrMagnitude > teleportDistanceThreshold * teleportDistanceThreshold)
+                || (teleportAngleThreshold > 0f && Mathf.Abs(angle) > teleportAngleThreshold);
+            if (teleported)
+            {
+                b.lastWorldPos = animPos;
+                b.lastWorldRot = animRot;
+                b.lastVelocity = Vector3.zero;
+                b.lastAngularVelocity = Vector3.zero;
+                return;
+            }
+
+            Vector3 velocity = deltaPos / dt;
+            Vector3 acceleration = (velocity - b.lastVelocity) / dt;
+
+            Vector3 angularVelocity = Vector3.zero;
+            if (Mathf.Abs(angle) > 1e-4f && !float.IsInfinity(axis.x) && axis.sqrMagnitude > 1e-6f)
+                angularVelocity = axis.normalized * (angle / dt);
+            Vector3 angularAcceleration = (angularVelocity - b.lastAngularVelocity) / dt;
+
+            Vector3 simVelocity = velocity;
+            Vector3 simAcceleration = acceleration;
+            Vector3 simAngVelocity = angularVelocity;
+            Vector3 simAngAcceleration = angularAcceleration;
+            if (simulationSpace == HonamiPhysicsSimulationSpace.BoneLocal)
+            {
+                Quaternion invRot = Quaternion.Inverse(animRot);
+                simVelocity = invRot * velocity;
+                simAcceleration = invRot * acceleration;
+                simAngVelocity = invRot * angularVelocity;
+                simAngAcceleration = invRot * angularAcceleration;
+            }
+
+            b.currentPosOffset -= Vector3.Scale(simVelocity, positionDrag) * dt;
+            b.currentPosVelocity -= Vector3.Scale(simAcceleration, positionInertia) * dt;
+            b.currentRotOffset -= Vector3.Scale(simAngVelocity, rotationDrag) * dt;
+            b.currentRotVelocity -= Vector3.Scale(simAngAcceleration, rotationInertia) * dt;
+            b.currentRotOffset -= Vector3.Scale(simVelocity, movementToRotation) * dt;
+
+            IntegrateSpring(ref b.currentPosOffset, ref b.currentPosVelocity,
+                positionStiffness, positionDamping, positionGravity, maxPositionOffset, dt);
+            IntegrateSpring(ref b.currentRotOffset, ref b.currentRotVelocity,
+                rotationStiffness, rotationDamping, ComputeRotationGravityTorque(b, animRot), maxRotationOffset, dt);
+
+            b.lastWorldPos = animPos;
+            b.lastWorldRot = animRot;
+            b.lastVelocity = velocity;
+            b.lastAngularVelocity = angularVelocity;
+        }
+
+        private Vector3 ComputeRotationGravityTorque(HonamiPhysicsBoneData b, Quaternion animRot)
+        {
+            if (rotationGravity == 0f) return Vector3.zero;
+
+            Vector3 hangAxis = rotationHangAxis;
+            Vector3 gravityDir = rotationGravityDirection;
+            if (hangAxis.sqrMagnitude < 1e-6f || gravityDir.sqrMagnitude < 1e-6f) return Vector3.zero;
+
+            bool worldSpace = simulationSpace == HonamiPhysicsSimulationSpace.World;
+            Quaternion offsetRot = Quaternion.Euler(b.currentRotOffset);
+            Quaternion effectiveRot = worldSpace ? offsetRot * animRot : animRot * offsetRot;
+
+            Vector3 worldHang = effectiveRot * hangAxis.normalized;
+            // cross magnitude is sin(misalignment): real pendulum torque, zero when hanging straight
+            Vector3 torque = Vector3.Cross(worldHang, gravityDir.normalized) * rotationGravity;
+            return worldSpace ? torque : Quaternion.Inverse(animRot) * torque;
+        }
+
+        private static void IntegrateSpring(ref Vector3 offset, ref Vector3 velocity,
+            float stiffness, float damping, Vector3 constantForce, Vector3 maxOffset, float dt)
+        {
+            int substeps = Mathf.Clamp(Mathf.CeilToInt(dt / MaxSpringSubstep), 1, MaxSpringSubstepCount);
+            float h = dt / substeps;
+            float dampingFactor = Mathf.Exp(-Mathf.Max(0f, damping) * h);
+
+            for (int s = 0; s < substeps; s++)
+            {
+                velocity += (-offset * stiffness + constantForce) * h;
+                velocity *= dampingFactor;
+                offset += velocity * h;
+                ClampOffset(ref offset, ref velocity, maxOffset);
+            }
+        }
+
+        private static void ClampOffset(ref Vector3 offset, ref Vector3 velocity, Vector3 max)
+        {
+            ClampAxis(ref offset.x, ref velocity.x, Mathf.Abs(max.x));
+            ClampAxis(ref offset.y, ref velocity.y, Mathf.Abs(max.y));
+            ClampAxis(ref offset.z, ref velocity.z, Mathf.Abs(max.z));
+        }
+
+        private static void ClampAxis(ref float offset, ref float velocity, float limit)
+        {
+            if (offset > limit)
+            {
+                offset = limit;
+                if (velocity > 0f) velocity = 0f;
+            }
+            else if (offset < -limit)
+            {
+                offset = -limit;
+                if (velocity < 0f) velocity = 0f;
+            }
+        }
+
+        private static void UnapplyOffsets(HonamiPhysicsBoneData b, Vector3 currentPos, Quaternion currentRot,
+            out Vector3 animPos, out Quaternion animRot)
+        {
+            if (b.appliedInWorldSpace)
+            {
+                animRot = Quaternion.Inverse(Quaternion.Euler(b.appliedRotOffset)) * currentRot;
+                animPos = currentPos - b.appliedPosOffset;
+            }
+            else
+            {
+                animRot = currentRot * Quaternion.Inverse(Quaternion.Euler(b.appliedRotOffset));
+                animPos = currentPos - animRot * b.appliedPosOffset;
+            }
         }
 
         public override void ProcessRig(float deltaTime)
         {
-            if (!Application.isPlaying)
+            bool isPlaying = Application.isPlaying;
+
+            if ((!isPlaying && !simulateInEditMode) || bones == null || bones.Length == 0 || weight <= 0.001f)
             {
+#if UNITY_EDITOR
+                if (!isPlaying)
+                {
+                    RestoreBonesToAnimatedPose();
+                    _lastEditorTime = 0d;
+                }
+#endif
                 _isInitialized = false;
                 return;
             }
 
-            if (bones == null || bones.Length == 0 || weight <= 0.001f)
-            {
-                _isInitialized = false;
-                return;
-            }
-
-            if (deltaTime <= 0.0001f) return;
             float dt = deltaTime;
+#if UNITY_EDITOR
+            // Time.deltaTime is 0 outside Play mode, so the editor preview keeps its own clock
+            if (!isPlaying)
+            {
+                double now = Time.realtimeSinceStartupAsDouble;
+                dt = _lastEditorTime > 0d ? (float)(now - _lastEditorTime) : 0f;
+                _lastEditorTime = now;
+                if (dt > MaxEditorDeltaTime) dt = MaxEditorDeltaTime;
+            }
+#endif
+
+            if (dt <= 0.0001f) return;
 
             if (!_isInitialized)
             {
                 InitializeBones();
                 _isInitialized = true;
-                return;
             }
 
-            foreach (var b in bones)
+            for (int i = 0; i < bones.Length; i++)
             {
-                if (b.bone == null) continue;
+                var b = bones[i];
+                if (b == null || b.bone == null) continue;
 
-                Vector3 currentWorldPos = b.bone.position;
-                Quaternion currentWorldRot = b.bone.rotation;
+                b.bone.GetPositionAndRotation(out Vector3 currentPos, out Quaternion currentRot);
+                b.bone.GetLocalPositionAndRotation(out Vector3 currentLocalPos, out Quaternion currentLocalRot);
 
-                Vector3 delta = currentWorldPos - b.lastWorldPos;
-                Vector3 velocity = delta / dt;
-                Vector3 acceleration = (velocity - b.lastVelocity) / dt;
+                Vector3 animPos = currentPos;
+                Quaternion animRot = currentRot;
+                // an unchanged local pose means the animator did not overwrite our last write,
+                // so the transform still contains the applied offset and must be un-applied
+                if (b.hasAppliedOffsets
+                    && (currentLocalPos - b.lastWrittenLocalPos).sqrMagnitude < 1e-10f
+                    && Mathf.Abs(Quaternion.Dot(currentLocalRot, b.lastWrittenLocalRot)) > 0.9999999f)
+                {
+                    UnapplyOffsets(b, currentPos, currentRot, out animPos, out animRot);
+                }
 
-                Quaternion deltaRot = currentWorldRot * Quaternion.Inverse(b.lastWorldRot);
-                deltaRot.ToAngleAxis(out float angle, out Vector3 axis);
-                if (angle > 180f) angle -= 360f;
+                StepBonePhysics(b, animPos, animRot, dt);
 
-                Vector3 angularVelocity = Vector3.zero;
-                if (angle != 0f && axis.sqrMagnitude > 0f)
-                    angularVelocity = axis.normalized * (angle / dt);
-                Vector3 angularAcceleration = (angularVelocity - b.lastAngularVelocity) / dt;
+                float w = weight * b.weightMultiplier;
+                Vector3 finalPosOffset = Vector3.Scale(b.currentPosOffset, positionAxisMask) * w;
+                Vector3 finalRotOffset = Vector3.Scale(b.currentRotOffset, rotationAxisMask) * w;
 
-                Vector3 localVelocity = Quaternion.Inverse(currentWorldRot) * velocity;
-                Vector3 localAcceleration = Quaternion.Inverse(currentWorldRot) * acceleration;
-                Vector3 localAngVelocity = Quaternion.Inverse(currentWorldRot) * angularVelocity;
-                Vector3 localAngAcceleration = Quaternion.Inverse(currentWorldRot) * angularAcceleration;
+                bool worldSpace = simulationSpace == HonamiPhysicsSimulationSpace.World;
+                if (worldSpace)
+                    b.bone.SetPositionAndRotation(animPos + finalPosOffset, Quaternion.Euler(finalRotOffset) * animRot);
+                else
+                    b.bone.SetPositionAndRotation(animPos + animRot * finalPosOffset, animRot * Quaternion.Euler(finalRotOffset));
 
-                b.currentPosOffset -= Vector3.Scale(localVelocity, positionDrag) * dt;
-                b.currentPosVelocity -= Vector3.Scale(localAcceleration, positionInertia) * dt;
-                b.currentRotOffset -= Vector3.Scale(localAngVelocity, rotationDrag) * dt;
-                b.currentRotVelocity -= Vector3.Scale(localAngAcceleration, rotationInertia) * dt;
-                b.currentRotOffset -= Vector3.Scale(localVelocity, movementToRotation) * dt;
-
-                Vector3 posForce = -b.currentPosOffset * positionStiffness + positionLocalGravity;
-                b.currentPosVelocity += posForce * dt;
-                b.currentPosVelocity -= b.currentPosVelocity * Mathf.Clamp01(positionDamping * dt);
-                b.currentPosOffset += b.currentPosVelocity * dt;
-
-                Vector3 rotForce = -b.currentRotOffset * rotationStiffness;
-                b.currentRotVelocity += rotForce * dt;
-                b.currentRotVelocity -= b.currentRotVelocity * Mathf.Clamp01(rotationDamping * dt);
-                b.currentRotOffset += b.currentRotVelocity * dt;
-
-                b.currentPosOffset = ClampVector(b.currentPosOffset, maxPositionOffset);
-                b.currentRotOffset = ClampVector(b.currentRotOffset, maxRotationOffset);
-
-                Vector3 finalPosOffset = Vector3.Scale(b.currentPosOffset, positionAxisMask) * weight * b.weightMultiplier;
-                Vector3 finalRotOffset = Vector3.Scale(b.currentRotOffset, rotationAxisMask) * weight * b.weightMultiplier;
-
-                b.bone.position = currentWorldPos + currentWorldRot * finalPosOffset;
-                b.bone.rotation = currentWorldRot * Quaternion.Euler(finalRotOffset);
-
-                b.lastWorldPos = currentWorldPos;
-                b.lastWorldRot = currentWorldRot;
-                b.lastVelocity = velocity;
-                b.lastAngularVelocity = angularVelocity;
+                b.appliedPosOffset = finalPosOffset;
+                b.appliedRotOffset = finalRotOffset;
+                b.hasAppliedOffsets = w > 0.001f;
+                b.appliedInWorldSpace = worldSpace;
+                b.bone.GetLocalPositionAndRotation(out b.lastWrittenLocalPos, out b.lastWrittenLocalRot);
             }
         }
 
 #if UNITY_EDITOR
+        protected override void OnDisable()
+        {
+            base.OnDisable();
+            if (!Application.isPlaying)
+            {
+                RestoreBonesToAnimatedPose();
+                _lastEditorTime = 0d;
+                _isInitialized = false;
+            }
+        }
+
+        private void LateUpdate()
+        {
+            if (Application.isPlaying || !simulateInEditMode) return;
+            ProcessRig(0f);
+            // without this the editor loop only ticks on repaints and the preview freezes
+            UnityEditor.EditorApplication.QueuePlayerLoopUpdate();
+        }
+
+        private void RestoreBonesToAnimatedPose()
+        {
+            if (bones == null) return;
+            for (int i = 0; i < bones.Length; i++)
+            {
+                var b = bones[i];
+                if (b == null || b.bone == null || !b.hasAppliedOffsets) continue;
+
+                b.bone.GetLocalPositionAndRotation(out Vector3 localPos, out Quaternion localRot);
+                bool untouchedSinceOurWrite =
+                    (localPos - b.lastWrittenLocalPos).sqrMagnitude < 1e-10f
+                    && Mathf.Abs(Quaternion.Dot(localRot, b.lastWrittenLocalRot)) > 0.9999999f;
+                if (untouchedSinceOurWrite)
+                {
+                    b.bone.GetPositionAndRotation(out Vector3 currentPos, out Quaternion currentRot);
+                    UnapplyOffsets(b, currentPos, currentRot, out Vector3 animPos, out Quaternion animRot);
+                    b.bone.SetPositionAndRotation(animPos, animRot);
+                }
+
+                b.appliedPosOffset = Vector3.zero;
+                b.appliedRotOffset = Vector3.zero;
+                b.hasAppliedOffsets = false;
+            }
+        }
+
         private void OnDrawGizmosSelected()
         {
             if (bones == null) return;
             foreach (var b in bones)
             {
-                if (b.bone == null) continue;
+                if (b == null || b.bone == null) continue;
                 Gizmos.color = Color.cyan * new Color(1, 1, 1, weight * b.weightMultiplier);
                 Gizmos.DrawWireSphere(b.bone.position, 0.02f);
             }

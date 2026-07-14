@@ -11,7 +11,22 @@ namespace HonamiAnimationSystem.Runtime.Core
     /// </summary>
     public sealed class HonamiRandomAnimationNode : HonamiNodeBase
     {
+        public sealed class Runtime : HonamiNodeRuntime
+        {
+            public int PickedIndex = -1;
+            public HashSet<int> PlayedClips;
+
+            public override void Reset()
+            {
+                PickedIndex = -1;
+                PlayedClips?.Clear();
+            }
+        }
+
         public List<HonamiRandomAnimationClip> randomClips = new();
+        public bool noRepeat;
+
+        public override HonamiNodeRuntime CreateRuntime() => new Runtime();
 
         public override Playable CreatePlayable(PlayableGraph graph, HonamiState state)
             => CreatePlayable(graph, state, null);
@@ -28,7 +43,7 @@ namespace HonamiAnimationSystem.Runtime.Core
             for (int i = 0; i < randomClips.Count; i++)
             {
                 HonamiRandomAnimationClip randomClip = randomClips[i];
-                if (randomClip.clip == null)
+                if (randomClip.clip == null || randomClip.muted)
                 {
                     continue;
                 }
@@ -41,7 +56,7 @@ namespace HonamiAnimationSystem.Runtime.Core
             return mixer;
         }
 
-        public override float GetDuration(HonamiState state, int stateIndex, Dictionary<int, int> pickedIdx, float blendParam)
+        public override float GetDuration(HonamiState state, int stateIndex, HonamiNodeRuntime runtime, float blendParam)
         {
             if (randomClips == null || randomClips.Count == 0)
             {
@@ -49,17 +64,17 @@ namespace HonamiAnimationSystem.Runtime.Core
             }
 
             float stateSpeed = state.speed != 0f ? Mathf.Abs(state.speed) : 1f;
-            return GetSelectedOrMaxDuration(stateIndex, pickedIdx) / stateSpeed;
+            return GetSelectedOrMaxDuration(runtime) / stateSpeed;
         }
 
-        public override float GetUnscaledDuration(HonamiState state, int stateIndex, Dictionary<int, int> pickedIdx, float blendParam)
+        public override float GetUnscaledDuration(HonamiState state, int stateIndex, HonamiNodeRuntime runtime, float blendParam)
         {
             if (randomClips == null || randomClips.Count == 0)
             {
                 return 1f;
             }
 
-            return GetSelectedOrMaxDuration(stateIndex, pickedIdx);
+            return GetSelectedOrMaxDuration(runtime);
         }
 
         public override void UpdateRuntime(in HonamiExecutionContext ctx)
@@ -122,9 +137,9 @@ namespace HonamiAnimationSystem.Runtime.Core
             return mirrorPlayable;
         }
 
-        private float GetSelectedOrMaxDuration(int stateIndex, Dictionary<int, int> pickedIdx)
+        private float GetSelectedOrMaxDuration(HonamiNodeRuntime runtime)
         {
-            if (TryGetPickedClip(stateIndex, pickedIdx, out HonamiRandomAnimationClip pickedClip))
+            if (TryGetPickedClip(runtime, out HonamiRandomAnimationClip pickedClip))
             {
                 return GetClipDuration(pickedClip);
             }
@@ -132,7 +147,7 @@ namespace HonamiAnimationSystem.Runtime.Core
             float maxDuration = 0f;
             foreach (HonamiRandomAnimationClip randomClip in randomClips)
             {
-                if (randomClip.clip == null)
+                if (randomClip.clip == null || randomClip.muted)
                 {
                     continue;
                 }
@@ -147,15 +162,16 @@ namespace HonamiAnimationSystem.Runtime.Core
             return maxDuration > 0f ? maxDuration : 1f;
         }
 
-        private bool TryGetPickedClip(int stateIndex, Dictionary<int, int> pickedIdx, out HonamiRandomAnimationClip randomClip)
+        private bool TryGetPickedClip(HonamiNodeRuntime runtime, out HonamiRandomAnimationClip randomClip)
         {
             randomClip = null;
 
-            if (pickedIdx == null || !pickedIdx.TryGetValue(stateIndex, out int picked))
+            if (runtime is not Runtime randomRuntime)
             {
                 return false;
             }
 
+            int picked = randomRuntime.PickedIndex;
             if (picked < 0 || picked >= randomClips.Count || randomClips[picked].clip == null)
             {
                 return false;

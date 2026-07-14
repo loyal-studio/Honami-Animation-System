@@ -6,7 +6,7 @@ namespace HonamiAnimationSystem.Editor.Documentation.Pages
     {
         public string Title => HonamiDocLocalization.Get("Any State & Repeater", "Any State та Repeater");
         public string Category => HonamiDocLocalization.Get("04. Node Library", "04. Бібліотека вузлів");
-        public string SearchKeywords => "any state repeater loop cooldown restart global transitions вузол повторювач";
+        public string SearchKeywords => "any state repeater loop cooldown restart global transitions combo melee buffer cancel window вузол повторювач комбо";
         public int Order => 340;
         public int EstimatedReadTime => 4;
 
@@ -35,9 +35,21 @@ namespace HonamiAnimationSystem.Editor.Documentation.Pages
 
             HonamiDocumentationBuilder.AddNodeVisual(root, "Hit Reaction", "REPEATER", HonamiGraphStyles.Accent);
 
+            HonamiDocumentationBuilder.AddHeader(root, HonamiDocLocalization.Get("Combo Mode", "Combo Mode"), HonamiEditorIcons.TimelineWhite);
+            HonamiDocumentationBuilder.AddParagraph(root, HonamiDocLocalization.Get(
+                "With Combo Mode enabled the Repeater becomes a melee combo driver: each fire takes the next outgoing transition in order (first transition = first attack, second = second, and so on). A trigger pressed while the current attack is still before its Cancel Window is buffered — it does not interrupt the swing, it fires the next attack the moment the window opens.",
+                "З увімкненим Combo Mode Repeater стає драйвером мілі-комбо: кожне спрацювання бере наступний вихідний транзішн по порядку (перший транзішн = перша атака, другий = друга і так далі). Тригер, натиснутий поки поточна атака ще не дійшла до Cancel Window, буферизується — він не рве замах, а запускає наступну атаку в момент відкриття вікна."
+            ));
+            HonamiDocumentationBuilder.AddPropertyBox(root,
+                (HonamiDocLocalization.Get("Combo Mode", "Combo Mode"), HonamiDocLocalization.Get("Fires outgoing transitions in order, one per trigger, instead of picking the first matching one.", "Запускає вихідні транзішни по порядку, один на тригер, замість вибору першого відповідного.")),
+                (HonamiDocLocalization.Get("Cancel Window", "Cancel Window"), HonamiDocLocalization.Get("Normalized time of the current attack before which a new fire is buffered instead of interrupting it. 0 disables buffering and interrupts instantly.", "Нормалізований час поточної атаки, до якого нове спрацювання буферизується замість переривання. 0 вимикає буфер і перериває миттєво.")),
+                (HonamiDocLocalization.Get("Combo Reset (s)", "Combo Reset (s)"), HonamiDocLocalization.Get("Seconds without a fire after which the combo returns to the first attack.", "Секунди без спрацювань, після яких комбо повертається до першої атаки.")),
+                (HonamiDocLocalization.Get("Loop Combo", "Loop Combo"), HonamiDocLocalization.Get("If enabled the chain wraps to the first attack after the last one; otherwise it locks until the reset time passes.", "Якщо увімкнено, ланцюжок повертається до першої атаки після останньої; інакше він блокується, доки не мине час ресету."))
+            );
+
             HonamiDocumentationBuilder.AddTip(root, HonamiDocLocalization.Get(
-                "Any State fires a target once and stays there until conditions change; the Repeater is the tool when the same target must restart again and again. Pair it with a trigger parameter for mash-friendly combat.",
-                "Any State запускає ціль один раз і залишається там, доки умови не зміняться; Repeater — інструмент, коли та сама ціль має перезапускатися знову і знову. Поєднайте його з trigger-параметром для комбату, дружнього до закликування кнопок."
+                "Any State fires a target once and stays there until conditions change; the Repeater is the tool when the same target must restart again and again. Pair it with a trigger parameter for mash-friendly combat, and enable Combo Mode when the mashing should walk through an attack chain instead of restarting one clip.",
+                "Any State запускає ціль один раз і залишається там, доки умови не зміняться; Repeater — інструмент, коли та сама ціль має перезапускатися знову і знову. Поєднайте його з trigger-параметром для комбату, дружнього до закликування кнопок, а Combo Mode вмикайте, коли закликування має проходити по ланцюжку атак, а не рестартити один кліп."
             ));
         }
     }

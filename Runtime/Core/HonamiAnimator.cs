@@ -166,12 +166,13 @@ namespace HonamiAnimationSystem.Runtime.Core
         internal AnimationCurve[] _activeVictimCurve;
         internal HashSet<HonamiEventMarker>[][] _firedEventsPerPort;
 
-        internal readonly Dictionary<int, int> _pickedRandomIdx = new();
         internal HashSet<int>[] _pausedStateIndices;
 
         internal readonly List<int> _anyStateIndices = new();
-        internal readonly Dictionary<int, double> _repeaterLastFireTime = new();
-        internal readonly Dictionary<int, int> _repeaterFireCount = new();
+        internal HonamiNodeRuntime[] _nodeRuntimes;
+
+        internal HonamiNodeRuntime GetNodeRuntime(int stateIndex)
+            => _nodeRuntimes != null && stateIndex >= 0 && stateIndex < _nodeRuntimes.Length ? _nodeRuntimes[stateIndex] : null;
         private int[] _lastActiveStateIndex;
         internal List<int>[] _anyStateIndicesByLayer;
 
@@ -813,10 +814,10 @@ namespace HonamiAnimationSystem.Runtime.Core
                 if (playable.IsValid())
                 {
                     float unscaledDuration = HonamiStateEvaluator.GetUnscaledStateDuration(
-                        controller, state, stateIndex, _pickedRandomIdx, GetStateBlendParam(state));
+                        controller, state, stateIndex, GetNodeRuntime(stateIndex), GetStateBlendParam(state));
                     if (unscaledDuration > 0)
                     {
-                        float progress = Mathf.Clamp01(state.isReversed ? (1f - (float)(playable.GetTime() / unscaledDuration)) : (float)(playable.GetTime() / unscaledDuration));
+                        float progress = Mathf.Max(0f, state.isReversed ? (1f - (float)(playable.GetTime() / unscaledDuration)) : (float)(playable.GetTime() / unscaledDuration));
                         if (progress < t.exitTime) return false;
                     }
                 }
@@ -835,6 +836,8 @@ namespace HonamiAnimationSystem.Runtime.Core
             }
 
             PlayStateByGuidWithPriority(t.targetStateGuid, t.duration, layer, false, t.useCurve ? t.curve : null, t.destinationStartTime, t.priority, t.victimMode, t.sacrificeSpeedMultiplier, t.acceleratedWeightDrop, t.useCustomVictimCurve ? t.victimWeightCurve : null);
+
+            HonamiPlaybackEngine.ApplyTransitionFreeze(this, layer, t.freezeMode);
             return true;
         }
 
@@ -856,10 +859,10 @@ namespace HonamiAnimationSystem.Runtime.Core
                 if (playable.IsValid())
                 {
                     float unscaledDuration = HonamiStateEvaluator.GetUnscaledStateDuration(
-                        controller, state, stateIndex, _pickedRandomIdx, GetStateBlendParam(state));
+                        controller, state, stateIndex, GetNodeRuntime(stateIndex), GetStateBlendParam(state));
                     if (unscaledDuration > 0)
                     {
-                        float progress = Mathf.Clamp01(state.isReversed ? (1f - (float)(playable.GetTime() / unscaledDuration)) : (float)(playable.GetTime() / unscaledDuration));
+                        float progress = Mathf.Max(0f, state.isReversed ? (1f - (float)(playable.GetTime() / unscaledDuration)) : (float)(playable.GetTime() / unscaledDuration));
                         if (progress < t.exitTime) return false;
                     }
                 }
@@ -878,6 +881,8 @@ namespace HonamiAnimationSystem.Runtime.Core
             }
 
             PlayStateByGuidWithPriority(t.targetStateGuid, t.duration, layer, false, t.useCurve ? t.curve : null, t.destinationStartTime, t.priority, t.victimMode, t.sacrificeSpeedMultiplier, t.acceleratedWeightDrop, t.useCustomVictimCurve ? t.victimWeightCurve : null);
+
+            HonamiPlaybackEngine.ApplyTransitionFreeze(this, layer, t.freezeMode);
             return true;
         }
 
@@ -967,9 +972,13 @@ namespace HonamiAnimationSystem.Runtime.Core
 
         public void ResetAnimatorState()
         {
-            _pickedRandomIdx.Clear();
-            _repeaterLastFireTime.Clear();
-            _repeaterFireCount.Clear();
+            if (_nodeRuntimes != null)
+            {
+                for (int i = 0; i < _nodeRuntimes.Length; i++)
+                {
+                    _nodeRuntimes[i]?.Reset();
+                }
+            }
 
             if (_layerMixers == null) return;
 
@@ -1004,7 +1013,7 @@ namespace HonamiAnimationSystem.Runtime.Core
             int realIdx = (statePortIdx == TransientPortIndex) ? _layerStates[layer].TransientStateIndex : statePortIdx;
             if (realIdx < 0 || realIdx >= _activeStatesCount) return 0f;
 
-            float dur = HonamiStateEvaluator.GetUnscaledStateDuration(controller,_runtimeStates[realIdx], realIdx, _pickedRandomIdx, GetStateBlendParam(_runtimeStates[realIdx]));
+            float dur = HonamiStateEvaluator.GetUnscaledStateDuration(controller, _runtimeStates[realIdx], realIdx, GetNodeRuntime(realIdx), GetStateBlendParam(_runtimeStates[realIdx]));
             if (dur <= 0) return 0f;
 
             double rawTime = playable.GetTime();

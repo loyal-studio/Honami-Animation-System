@@ -19,13 +19,13 @@ namespace HonamiAnimationSystem.Runtime.Core
             return AnimationMixerPlayable.Create(graph, 0);
         }
 
-        public override float GetDuration(HonamiState state, int stateIndex, Dictionary<int, int> pickedIdx, float blendParam)
+        public override float GetDuration(HonamiState state, int stateIndex, HonamiNodeRuntime runtime, float blendParam)
         {
             float stateSpeed = state.speed != 0f ? Mathf.Abs(state.speed) : 1f;
             return GetClampedDuration() / stateSpeed;
         }
 
-        public override float GetUnscaledDuration(HonamiState state, int stateIndex, Dictionary<int, int> pickedIdx, float blendParam)
+        public override float GetUnscaledDuration(HonamiState state, int stateIndex, HonamiNodeRuntime runtime, float blendParam)
         {
             return GetClampedDuration();
         }

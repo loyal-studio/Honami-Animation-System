@@ -551,6 +551,15 @@ namespace HonamiAnimationSystem.Editor
                     evt.menu.AppendAction($"Change Type/{typeName}", (a) => ChangeNodeType(targetNode, type));
                 }
 
+                if (targetNode.State.node is HonamiRandomAnimationNode randomToSplit)
+                {
+                    int splitClipCount = randomToSplit.randomClips?.Count(c => c != null && c.clip != null && !c.muted) ?? 0;
+                    if (splitClipCount >= 2)
+                    {
+                        evt.menu.AppendAction($"Split Into {splitClipCount} Animation States", (a) => SplitRandomIntoAnimationStates(targetNode));
+                    }
+                }
+
                 evt.menu.AppendSeparator();
                 evt.menu.AppendAction("Selection/Align Horizontal", (a) => AlignNodesHorizontal());
                 evt.menu.AppendAction("Selection/Align Vertical", (a) => AlignNodesVertical());

@@ -70,15 +70,21 @@ namespace HonamiAnimationSystem.Runtime.Core
             anim._stateNameToIndex[nameHash] = index;
 
             var activeNode = anim.controller.GetActiveNode(state);
-            if (activeNode is HonamiBlendTreeNode blendTreeNode && !string.IsNullOrEmpty(blendTreeNode.blendParameter))
+            string blendParameterName = activeNode != null ? activeNode.GetBlendParameterName() : null;
+            if (!string.IsNullOrEmpty(blendParameterName))
             {
-                anim._blendTreeParamHashes[index] = HonamiAnimator.StringToHash(blendTreeNode.blendParameter);
+                anim._blendTreeParamHashes[index] = HonamiAnimator.StringToHash(blendParameterName);
             }
 
             BakeTransitionMetadata(anim, state);
             BakeStateAssignmentMetadata(anim, state);
 
-            activeNode?.OnBuildMetadata(index, state, anim._anyStateIndices, anim._repeaterLastFireTime, anim._repeaterFireCount);
+            if (anim._nodeRuntimes != null && index < anim._nodeRuntimes.Length)
+            {
+                anim._nodeRuntimes[index] = activeNode != null ? activeNode.CreateRuntime() : null;
+            }
+
+            activeNode?.OnBuildMetadata(index, state, anim._anyStateIndices);
         }
 
         public static void BakePortals(HonamiAnimator anim)
@@ -168,6 +174,8 @@ namespace HonamiAnimationSystem.Runtime.Core
             {
                 anim._blendTreeParamHashes[i] = -1;
             }
+
+            anim._nodeRuntimes = new HonamiNodeRuntime[anim._activeStatesCount];
         }
 
         private static void ClearRuntimeCaches(HonamiAnimator anim)

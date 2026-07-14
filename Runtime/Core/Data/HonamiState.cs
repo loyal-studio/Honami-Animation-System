@@ -97,15 +97,9 @@ namespace HonamiAnimationSystem.Runtime.Core
                 return;
             }
 
-            if (node is HonamiAnimationNode animNode && animNode.clip != null)
+            if (node != null)
             {
-                if (animNode.endTime <= 0)
-                {
-                    animNode.endTime = animNode.clip.length;
-                }
-
-                animNode.startTime = Mathf.Clamp(animNode.startTime, 0f, animNode.clip.length);
-                animNode.endTime = Mathf.Clamp(animNode.endTime, animNode.startTime, animNode.clip.length);
+                node.OnValidateNode();
             }
 #endif
         }

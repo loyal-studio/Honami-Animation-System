@@ -21,7 +21,7 @@ namespace HonamiAnimationSystem.Runtime.Core
             HonamiState portalExit,
             int layer,
             int currentIdx,
-            bool isFromRepeater,
+            bool forceRestart,
             HonamiTransition originalTrans,
             List<int> originalTentative,
             int depth = 0)
@@ -30,7 +30,7 @@ namespace HonamiAnimationSystem.Runtime.Core
                 portalExit,
                 layer,
                 currentIdx,
-                isFromRepeater,
+                forceRestart,
                 originalTrans,
                 originalTentative,
                 depth);
@@ -148,7 +148,7 @@ namespace HonamiAnimationSystem.Runtime.Core
                 Playable.Null,
                 _layerMixers[layer],
                 _params,
-                _pickedRandomIdx,
+                GetNodeRuntime(stateIdx),
                 _blendTreeParamHashes,
                 0f);
 

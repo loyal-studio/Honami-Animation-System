@@ -22,7 +22,7 @@ namespace HonamiAnimationSystem.Runtime.Core
                 int currentIdx = anim._layerStates[layer].CurrentStateIndex;
                 bool isTransitioning = anim._layerStates[layer].PreviousStateIndex != -1;
                 bool hasCurrent = currentIdx != -1;
-                bool isCurrentExit = hasCurrent && anim._runtimeStates[currentIdx].node is HonamiExitNode;
+                bool isCurrentExit = hasCurrent && anim._runtimeStates[currentIdx].node is { IsExit: true };
 
                 if (EvaluateAnyStateTransitions(anim, layer, currentIdx, isTransitioning, isCurrentExit)) continue;
 
@@ -32,7 +32,7 @@ namespace HonamiAnimationSystem.Runtime.Core
                     int prevIdx = anim._layerStates[layer].PreviousStateIndex;
                     if (prevIdx != -1 && prevIdx != anim.TransientPortIndex)
                     {
-                        bool isPrevExit = anim._runtimeStates[prevIdx].node is HonamiExitNode;
+                        bool isPrevExit = anim._runtimeStates[prevIdx].node is { IsExit: true };
                         if (!isPrevExit)
                         {
                             if (EvaluateCurrentStateTransitions(anim, layer, prevIdx, true, false))
@@ -58,17 +58,23 @@ namespace HonamiAnimationSystem.Runtime.Core
                 int anyStateIdx = layerAnyStates[i];
                 HonamiState anyState = anim._runtimeStates[anyStateIdx];
 
-                HonamiRepeaterNode repeaterNode = anyState.node as HonamiRepeaterNode;
-                bool isRepeater = repeaterNode != null;
-                if (isRepeater && !IsRepeaterReady(anim, anyStateIdx, repeaterNode)) continue;
+                HonamiNodeBase globalNode = anim.controller.GetActiveNode(anyState);
+                if (globalNode == null) continue;
+
+                HonamiNodeRuntime globalRuntime = anim.GetNodeRuntime(anyStateIdx);
+                if (!globalNode.CanFireGlobal(globalRuntime)) continue;
 
                 IReadOnlyList<HonamiTransition> anyTransitions = anim.controller.GetTransitions(anyState);
                 if (anyTransitions == null || anyTransitions.Count == 0) continue;
 
-                if (!CheckTransitions(anim, anyTransitions, layer, currentIdx, isTransitioning, isRepeater, isCurrentExit, anyStateIdx)) continue;
+                if (!globalNode.SelectGlobalTransition(anim, layer, currentIdx, globalRuntime, anyTransitions, out int onlyTransitionIdx, out bool forceConditionsMet))
+                    continue;
 
-                if (isRepeater)
-                    RegisterRepeaterFire(anim, anyStateIdx);
+                bool forceRestart = globalNode.ForcesRestartOnGlobalFire;
+
+                if (!CheckTransitions(anim, anyTransitions, layer, currentIdx, isTransitioning, forceRestart, isCurrentExit, anyStateIdx, onlyTransitionIdx, forceConditionsMet)) continue;
+
+                globalNode.OnGlobalFired(globalRuntime, anyTransitions.Count);
 
                 return true;
             }
@@ -85,27 +91,14 @@ namespace HonamiAnimationSystem.Runtime.Core
             return false;
         }
 
-        private static bool IsRepeaterReady(HonamiAnimator anim, int anyStateIdx, HonamiRepeaterNode repeaterNode)
-        {
-            double lastTime = anim._repeaterLastFireTime.TryGetValue(anyStateIdx, out double lt) ? lt : -999.0;
-            int count = anim._repeaterFireCount.TryGetValue(anyStateIdx, out int rc) ? rc : 0;
-
-            if (Time.timeAsDouble - lastTime < repeaterNode.repeatCooldown) return false;
-            return repeaterNode.maxRepeats <= 0 || count < repeaterNode.maxRepeats;
-        }
-
-        private static void RegisterRepeaterFire(HonamiAnimator anim, int anyStateIdx)
-        {
-            anim._repeaterLastFireTime[anyStateIdx] = Time.timeAsDouble;
-            anim._repeaterFireCount[anyStateIdx] = anim._repeaterFireCount.TryGetValue(anyStateIdx, out int count) ? count + 1 : 1;
-        }
-
-        private static bool CheckTransitions(HonamiAnimator anim, IReadOnlyList<HonamiTransition> transitions, int layer, int currentIdx, bool isTransitioning, bool isFromRepeater, bool isCurrentExit = false, int pulseStateIdx = -1)
+        private static bool CheckTransitions(HonamiAnimator anim, IReadOnlyList<HonamiTransition> transitions, int layer, int currentIdx, bool isTransitioning, bool forceRestart, bool isCurrentExit = false, int pulseStateIdx = -1, int onlyTransitionIdx = -1, bool forceConditionsMet = false)
         {
             if (transitions == null || transitions.Count == 0) return false;
 
             int count = transitions.Count;
-            for (int i = 0; i < count; i++)
+            int start = onlyTransitionIdx >= 0 ? Mathf.Min(onlyTransitionIdx, count - 1) : 0;
+            if (onlyTransitionIdx >= 0) count = start + 1;
+            for (int i = start; i < count; i++)
             {
                 var tr = transitions[i];
                 if (tr == null) continue;
@@ -113,21 +106,24 @@ namespace HonamiAnimationSystem.Runtime.Core
                 bool conditionsMet = true;
                 anim._tentativeBuffer.Clear();
 
-                if (tr.conditions != null && tr.conditions.Count > 0)
+                if (!forceConditionsMet)
                 {
-                    int cCount = tr.conditions.Count;
-                    for (int ci = 0; ci < cCount; ci++)
+                    if (tr.conditions != null && tr.conditions.Count > 0)
                     {
-                        if (!anim.EvaluateConditionTentative(tr.conditions[ci], anim._tentativeBuffer))
+                        int cCount = tr.conditions.Count;
+                        for (int ci = 0; ci < cCount; ci++)
                         {
-                            conditionsMet = false;
-                            break;
+                            if (!anim.EvaluateConditionTentative(tr.conditions[ci], anim._tentativeBuffer))
+                            {
+                                conditionsMet = false;
+                                break;
+                            }
                         }
                     }
-                }
-                else if (!tr.hasExitTime)
-                {
-                    continue;
+                    else if (!tr.hasExitTime)
+                    {
+                        continue;
+                    }
                 }
 
                 if (!conditionsMet) continue;
@@ -139,13 +135,14 @@ namespace HonamiAnimationSystem.Runtime.Core
                     {
                         float unscaledDuration = HonamiStateEvaluator.GetUnscaledStateDuration(
                             anim.controller, anim._runtimeStates[currentIdx], currentIdx, 
-                            anim._pickedRandomIdx, anim.GetStateBlendParam(anim._runtimeStates[currentIdx]));
+                            anim.GetNodeRuntime(currentIdx), anim.GetStateBlendParam(anim._runtimeStates[currentIdx]));
                         if (unscaledDuration > 0)
                         {
                             double rawTime = playable.GetTime();
                             float normalizedTime = (float)(rawTime / unscaledDuration);
                             var st = anim._runtimeStates[currentIdx];
-                            float progress = Mathf.Clamp01(st.isReversed ? (1f - normalizedTime) : normalizedTime);
+                            // Not clamped to 1: exit time above 1 acts as a cooldown measured in state durations.
+                            float progress = Mathf.Max(0f, st.isReversed ? (1f - normalizedTime) : normalizedTime);
                             if (progress < tr.exitTime) continue;
                         }
                     }
@@ -162,7 +159,7 @@ namespace HonamiAnimationSystem.Runtime.Core
                     {
                         float unscaledDuration = HonamiStateEvaluator.GetUnscaledStateDuration(
                             anim.controller, anim._runtimeStates[currentIdx], currentIdx, 
-                            anim._pickedRandomIdx, anim.GetStateBlendParam(anim._runtimeStates[currentIdx]));
+                            anim.GetNodeRuntime(currentIdx), anim.GetStateBlendParam(anim._runtimeStates[currentIdx]));
                         if (unscaledDuration > 0)
                         {
                             float normalizedTime = (float)(playable.GetTime() / unscaledDuration);
@@ -177,7 +174,7 @@ namespace HonamiAnimationSystem.Runtime.Core
 
                 if (anim._bakedPortalExits.TryGetValue(tr, out var portalExit))
                 {
-                    if (anim.EvaluatePortalRecursive(portalExit, layer, currentIdx, isFromRepeater, tr, anim._tentativeBuffer))
+                    if (anim.EvaluatePortalRecursive(portalExit, layer, currentIdx, forceRestart, tr, anim._tentativeBuffer))
                     {
                         if (pulseStateIdx >= 0)
                             anim.FireGlobalStatePulse(pulseStateIdx, layer, targetIdxResolved);
@@ -190,7 +187,7 @@ namespace HonamiAnimationSystem.Runtime.Core
                 if (targetState?.node == null || targetState.node.IsVirtual) continue;
  
                 bool isSelfTransition = (targetIdxResolved == currentIdx);
-                bool canInterrupt = isFromRepeater || isSelfTransition || isCurrentExit || tr.canInterruptTransition || tr.priority > anim._layerStates[layer].CurrentTransitionPriority;
+                bool canInterrupt = forceRestart || isSelfTransition || isCurrentExit || tr.canInterruptTransition || tr.priority > anim._layerStates[layer].CurrentTransitionPriority;
 
                 if (isTransitioning)
                 {
@@ -200,7 +197,7 @@ namespace HonamiAnimationSystem.Runtime.Core
 
                 if (isSelfTransition)
                 {
-                    if (!tr.canTransitionToSelf && !isFromRepeater) continue;
+                    if (!tr.canTransitionToSelf && !forceRestart) continue;
 
                     if (pulseStateIdx >= 0)
                         anim.FireGlobalStatePulse(pulseStateIdx, layer, targetIdxResolved);
@@ -212,12 +209,14 @@ namespace HonamiAnimationSystem.Runtime.Core
 
                     anim.PlayStateByGuidWithPriority(targetState.guid, finalDuration, layer, true,
                         tr.useCurve ? tr.curve : null,
-                        tr.destinationStartTime, 
-                        tr.type == HonamiTransitionType.Victim ? tr.priority : 0, 
-                        tr.type == HonamiTransitionType.Victim ? tr.victimMode : HonamiVictimMode.None, 
-                        tr.type == HonamiTransitionType.Victim ? tr.sacrificeSpeedMultiplier : 1f, 
+                        tr.destinationStartTime,
+                        tr.type == HonamiTransitionType.Victim ? tr.priority : 0,
+                        tr.type == HonamiTransitionType.Victim ? tr.victimMode : HonamiVictimMode.None,
+                        tr.type == HonamiTransitionType.Victim ? tr.sacrificeSpeedMultiplier : 1f,
                         tr.type == HonamiTransitionType.Victim ? tr.acceleratedWeightDrop : false,
                         (tr.type == HonamiTransitionType.Victim && tr.useCustomVictimCurve) ? tr.victimWeightCurve : null);
+
+                    HonamiPlaybackEngine.ApplyTransitionFreeze(anim, layer, tr.freezeMode);
                     return true;
                 }
 
@@ -229,14 +228,16 @@ namespace HonamiAnimationSystem.Runtime.Core
 
                 if (tr.sacrificeExisting) anim.Stop(layer);
 
-                anim.PlayStateByGuidWithPriority(targetState.guid, finalDuration, layer, isFromRepeater,
+                anim.PlayStateByGuidWithPriority(targetState.guid, finalDuration, layer, forceRestart,
                     tr.useCurve ? tr.curve : null,
-                    tr.destinationStartTime, 
-                    tr.type == HonamiTransitionType.Victim ? tr.priority : 0, 
-                    tr.type == HonamiTransitionType.Victim ? tr.victimMode : HonamiVictimMode.None, 
-                    tr.type == HonamiTransitionType.Victim ? tr.sacrificeSpeedMultiplier : 1f, 
+                    tr.destinationStartTime,
+                    tr.type == HonamiTransitionType.Victim ? tr.priority : 0,
+                    tr.type == HonamiTransitionType.Victim ? tr.victimMode : HonamiVictimMode.None,
+                    tr.type == HonamiTransitionType.Victim ? tr.sacrificeSpeedMultiplier : 1f,
                     tr.type == HonamiTransitionType.Victim ? tr.acceleratedWeightDrop : false,
                     (tr.type == HonamiTransitionType.Victim && tr.useCustomVictimCurve) ? tr.victimWeightCurve : null);
+
+                HonamiPlaybackEngine.ApplyTransitionFreeze(anim, layer, tr.freezeMode);
                 return true;
             }
             return false;
@@ -264,8 +265,8 @@ namespace HonamiAnimationSystem.Runtime.Core
 
                 int portCount = layerMixer.GetInputCount();
                 int prevIdx = anim._layerStates[layer].PreviousStateIndex;
-                bool isPrevExit = prevIdx == -1 || (prevIdx != anim.TransientPortIndex && anim._runtimeStates[prevIdx].node is HonamiExitNode);
-                bool isCurrExit = anim._runtimeStates[currIdx].node is HonamiExitNode;
+                bool isPrevExit = prevIdx == -1 || (prevIdx != anim.TransientPortIndex && anim._runtimeStates[prevIdx].node is { IsExit: true });
+                bool isCurrExit = anim._runtimeStates[currIdx].node is { IsExit: true };
 
                 float startLW = anim._layerStates[layer].TransitionStartLayerWeight;
                 if (prevIdx != -1 && isPrevExit && !isCurrExit && startLW > 0.01f)
@@ -347,6 +348,19 @@ namespace HonamiAnimationSystem.Runtime.Core
 
                 if (t >= 1f)
                 {
+                    if (anim._layerStates[layer].DestinationFrozen)
+                    {
+                        anim._layerStates[layer].DestinationFrozen = false;
+                        var frozenPlayable = layerMixer.GetInput(currIdx);
+                        if (frozenPlayable.IsValid())
+                        {
+                            var frozenState = anim._runtimeStates[currIdx];
+                            frozenPlayable.SetSpeed(frozenState.isReversed ? -frozenState.speed : frozenState.speed);
+                        }
+                    }
+
+                    anim._layerStates[layer].SourceFrozen = false;
+
                     for (int i = 0; i < portCount; i++)
                     {
                         if (i == currIdx && !isCurrExit) continue;
