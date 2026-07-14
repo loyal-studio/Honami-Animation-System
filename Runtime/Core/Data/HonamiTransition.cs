@@ -36,6 +36,24 @@ namespace HonamiAnimationSystem.Runtime.Core
     }
 
     /// <summary>
+    /// Defines the easing applied to the transition blend weight when no custom curve is used.
+    /// </summary>
+    public enum HonamiTransitionEase
+    {
+        Linear,
+        InSine, OutSine, InOutSine,
+        InQuad, OutQuad, InOutQuad,
+        InCubic, OutCubic, InOutCubic,
+        InQuart, OutQuart, InOutQuart,
+        InQuint, OutQuint, InOutQuint,
+        InExpo, OutExpo, InOutExpo,
+        InCirc, OutCirc, InOutCirc,
+        InBack, OutBack, InOutBack,
+        InElastic, OutElastic, InOutElastic,
+        InBounce, OutBounce, InOutBounce
+    }
+
+    /// <summary>
     /// Defines how a transition condition compares a parameter value.
     /// </summary>
     public enum HonamiConditionMode
@@ -99,7 +117,10 @@ namespace HonamiAnimationSystem.Runtime.Core
         public float smartScaleFactor = 1f;
 
         [Header("Blending")]
-        [Tooltip("If true, uses the custom curve below for the transition instead of linear blending.")]
+        [Tooltip("Easing preset applied to the blend weight. Ignored when Use Curve is enabled.")]
+        public HonamiTransitionEase ease = HonamiTransitionEase.Linear;
+
+        [Tooltip("If true, uses the custom curve below for the transition instead of the easing preset.")]
         public bool useCurve = false;
         public AnimationCurve curve = AnimationCurve.EaseInOut(0, 0, 1, 1);
 
@@ -131,6 +152,11 @@ namespace HonamiAnimationSystem.Runtime.Core
 
         [NonSerialized]
         public bool hasTargetGuid;
+
+        public AnimationCurve ResolveBlendCurve()
+        {
+            return useCurve ? curve : HonamiTransitionEasing.GetCurve(ease);
+        }
 
         /// <summary>
         /// Caches frequently-used transition GUID values for runtime evaluation.

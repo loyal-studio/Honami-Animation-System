@@ -246,12 +246,11 @@ namespace HonamiAnimationSystem.Editor.Preview
             int n = _bones.Length;
             if (from.Count != n || to.Count != n) return;
 
-            t = Mathf.Clamp01(t);
             for (int i = 0; i < n; i++)
             {
-                _bones[i].localPosition = Vector3.Lerp(from.Pos[i], to.Pos[i], t);
-                _bones[i].localRotation = Quaternion.Slerp(from.Rot[i], to.Rot[i], t);
-                _bones[i].localScale = Vector3.Lerp(from.Scale[i], to.Scale[i], t);
+                _bones[i].localPosition = Vector3.LerpUnclamped(from.Pos[i], to.Pos[i], t);
+                _bones[i].localRotation = Quaternion.SlerpUnclamped(from.Rot[i], to.Rot[i], t);
+                _bones[i].localScale = Vector3.LerpUnclamped(from.Scale[i], to.Scale[i], t);
             }
             PinRoot();
         }

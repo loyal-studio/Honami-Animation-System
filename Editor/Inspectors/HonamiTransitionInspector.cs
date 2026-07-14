@@ -11,6 +11,22 @@ namespace HonamiAnimationSystem.Editor
 {
     public static class HonamiTransitionInspector
     {
+        internal static readonly string[] EaseOptionNames =
+        {
+            "Linear",
+            "In Sine", "Out Sine", "In-Out Sine",
+            "In Quad", "Out Quad", "In-Out Quad",
+            "In Cubic", "Out Cubic", "In-Out Cubic",
+            "In Quart", "Out Quart", "In-Out Quart",
+            "In Quint", "Out Quint", "In-Out Quint",
+            "In Expo", "Out Expo", "In-Out Expo",
+            "In Circ", "Out Circ", "In-Out Circ",
+            "In Back", "Out Back", "In-Out Back",
+            "In Elastic", "Out Elastic", "In-Out Elastic",
+            "In Bounce", "Out Bounce", "In-Out Bounce",
+            "Custom Curve"
+        };
+
         public static VisualElement Build(
             HonamiTransition transition,
             int transitionIndex,
@@ -240,9 +256,17 @@ namespace HonamiAnimationSystem.Editor
             curveBox.Add(HonamiGraphStyles.SubTitle("Blending & Interruption"));
 
             var useCurveProp = tp.FindPropertyRelative("useCurve");
-            var useCurveField = new PropertyField(useCurveProp, "Use Custom Curve"); useCurveField.BindProperty(useCurveProp);
-            useCurveField.style.marginTop = useCurveField.style.marginBottom = 3;
-            curveBox.Add(useCurveField);
+            var easeProp = tp.FindPropertyRelative("ease");
+
+            var easeOptions = new List<string>(EaseOptionNames);
+            int easeIndex = useCurveProp.boolValue
+                ? easeOptions.Count - 1
+                : Mathf.Clamp(easeProp.enumValueIndex, 0, easeOptions.Count - 2);
+
+            var easeField = new DropdownField("Easing", easeOptions, easeIndex);
+            easeField.tooltip = "Shapes the blend weight over the transition. Presets need no setup; Custom Curve exposes a hand-editable curve.";
+            easeField.style.marginTop = easeField.style.marginBottom = 3;
+            curveBox.Add(easeField);
 
             var curveContainer = new VisualElement();
             curveContainer.style.paddingLeft = 12;
@@ -253,10 +277,16 @@ namespace HonamiAnimationSystem.Editor
             curveContainer.Add(curveField);
             curveBox.Add(curveContainer);
 
-            useCurveField.RegisterCallback<SerializedPropertyChangeEvent>(evt =>
+            easeField.RegisterValueChangedCallback(ev =>
             {
-                evt.StopImmediatePropagation();
-                curveContainer.style.display = useCurveProp.boolValue ? DisplayStyle.Flex : DisplayStyle.None;
+                int ni = easeOptions.IndexOf(ev.newValue);
+                if (ni < 0) return;
+                so.Update();
+                bool isCustom = ni == easeOptions.Count - 1;
+                useCurveProp.boolValue = isCustom;
+                if (!isCustom) easeProp.enumValueIndex = ni;
+                so.ApplyModifiedProperties();
+                curveContainer.style.display = isCustom ? DisplayStyle.Flex : DisplayStyle.None;
             });
 
             if (target != null && target.node is not HonamiExitNode)
@@ -468,7 +498,8 @@ namespace HonamiAnimationSystem.Editor
                             detail.Add(new Label("Entrance Parameters")
                             { style = { unityFontStyleAndWeight = FontStyle.Bold, fontSize = 10 } });
                             detail.Add(HonamiGraphStyles.MiniLabel($"Duration: {srcTrans.duration}s"));
-                            if (srcTrans.useCurve) detail.Add(HonamiGraphStyles.MiniLabel("Curve: Active"));
+                            if (srcTrans.useCurve) detail.Add(HonamiGraphStyles.MiniLabel("Curve: Custom"));
+                            else if (srcTrans.ease != HonamiTransitionEase.Linear) detail.Add(HonamiGraphStyles.MiniLabel($"Easing: {srcTrans.ease}"));
                             if (srcTrans.conditions?.Count > 0)
                                 detail.Add(HonamiGraphStyles.MiniLabel($"Conditions ({srcTrans.conditions.Count})"));
                         }

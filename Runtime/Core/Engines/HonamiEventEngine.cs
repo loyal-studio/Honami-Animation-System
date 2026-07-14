@@ -213,7 +213,7 @@ namespace HonamiAnimationSystem.Runtime.Core
 
                         anim.PlayStateByGuid(nextState.guid, originalTrans.duration, layer,
                             forceRestart,
-                            originalTrans.useCurve ? originalTrans.curve : null,
+                            originalTrans.ResolveBlendCurve(),
                             exitTrans.destinationStartTime);
 
                         HonamiPlaybackEngine.ApplyTransitionFreeze(anim, layer, originalTrans.freezeMode);

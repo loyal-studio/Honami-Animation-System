@@ -439,7 +439,8 @@ namespace HonamiAnimationSystem.Runtime.Core
 
                     if (playable.IsValid())
                     {
-                        bool isTransitioning = anim._layerStates[layer].PreviousStateIndex != -1;
+                        bool isTransitioning = anim._layerStates[layer].PreviousStateIndex != -1
+                            || anim._layerStates[layer].TransitionDuration > 0.0;
                         bool frozen = isTransitioning
                             && ((anim._layerStates[layer].DestinationFrozen && i == anim._layerStates[layer].CurrentStateIndex)
                                 || (anim._layerStates[layer].SourceFrozen && i == anim._layerStates[layer].PreviousStateIndex));

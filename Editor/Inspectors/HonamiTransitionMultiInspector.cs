@@ -134,8 +134,19 @@ namespace HonamiAnimationSystem.Editor
                 curveContainer.style.display = All(entries, t => t.useCurve) ? DisplayStyle.Flex : DisplayStyle.None;
             }
 
-            curveBox.Add(BindField(new Toggle("Use Custom Curve"), entries, "Edit Transitions Curve",
-                t => t.useCurve, (t, v) => t.useCurve = v, RefreshCurveVisibility));
+            var easeOptions = new List<string>(HonamiTransitionInspector.EaseOptionNames);
+            string GetEaseOption(HonamiTransition t) => t.useCurve
+                ? easeOptions[easeOptions.Count - 1]
+                : easeOptions[Mathf.Clamp((int)t.ease, 0, easeOptions.Count - 2)];
+
+            curveBox.Add(BindField(new DropdownField("Easing", easeOptions, easeOptions.IndexOf(GetEaseOption(entries[0].Transition))), entries, "Edit Transitions Easing",
+                GetEaseOption, (t, v) =>
+                {
+                    int ni = easeOptions.IndexOf(v);
+                    if (ni < 0) return;
+                    t.useCurve = ni == easeOptions.Count - 1;
+                    if (!t.useCurve) t.ease = (HonamiTransitionEase)ni;
+                }, RefreshCurveVisibility));
 
             var curveField = new CurveField("Curve") { value = entries[0].Transition.curve };
             curveField.style.marginTop = curveField.style.marginBottom = 3;

@@ -130,9 +130,11 @@ Writing your own is just subclassing `HonamiSubNodeBase` and overriding `UpdateR
 
 Transitions are more than a duration and a condition. Each one has a **type**, a **priority**, interruption rules, and can even write parameters when it fires:
 
-- **Standard** - classic linear or curve-driven cross-fade.
+- **Standard** - classic cross-fade, linear, eased or curve-driven.
 - **Victim** - one side of the blend is the "victim": its speed can be multiplied and its weight can drop on a custom or quadratic curve. Perfect for snappy attack cancels that don't pop.
 - **Smart** - adaptive duration that scales with the time left in the current state (short remainder, short blend).
+
+Every cross-fade can be shaped with an **Easing** preset - the full Penner set familiar from tweening libraries like PrimeTween or DOTween (Sine, Quad, Cubic, Quart, Quint, Expo, Circ, Back, Elastic, Bounce, each as In / Out / In-Out), with Back and Elastic genuinely overshooting past the target pose - or with a hand-drawn **custom curve**. **Freeze Mode** keeps fast transitions readable: *Destination* holds the target on its first frame during the blend and starts playing only when the transition completes (crisp attack wind-ups), *Source* freezes the state being left on its current pose so it fades out static.
 
 Add **priority** (higher can interrupt lower even when *Can Interrupt* is off), **Sacrifice Existing** (instantly kill other blends on the layer), **Has Exit Time**, **Can Transition To Self**, a **Destination Start Time** offset, and per-transition **parameter assignments**. Conditions combine with AND (draw a second transition for OR) and support `If` / `IfNot` / `Greater` / `Less` / `Equals` / `NotEqual`. Triggers are only consumed when a transition actually fires.
 
@@ -209,7 +211,7 @@ Only the areas where the two genuinely diverge - where Mecanim already does the 
 | **Authoring** | ⚠️ Graph only; previewing behavior means entering Play Mode. | ✅ Timeline editors for states, clips and sequences with faithful in-Scene preview. |
 | **Underlying engine** | ⚠️ Closed native Mecanim loop (black box, non-extendable). | ✅ Your own C# evaluation stack over a `PlayableGraph` you can inspect. |
 | **Logic style** | ⚠️ Flat state machines, prone to transition spaghetti. | ✅ Modular graphs with typed, custom node types and Sub-Nodes. |
-| **Transitions** | ⚠️ Fixed duration & exit time. | ✅ Runtime-parametric: priority interrupts, victim weighting, adaptive duration. |
+| **Transitions** | ⚠️ Fixed duration & exit time. | ✅ Runtime-parametric: priority interrupts, victim weighting, adaptive duration, easing presets, freeze modes. |
 | **Reuse** | ❌ Override controllers mostly swap clips. | ✅ Controller & layer inheritance with virtual states and parameter propagation. |
 | **State logic** | ⚠️ `StateMachineBehaviour`. | ✅ Sub-Nodes (ScriptableObject assets) with `OnEnter`/`Update`/`OnExit`. |
 | **Animation events** | ⚠️ Baked into the clip, coupled to code. | ✅ Authored on the state; clips stay clean; Local + Global channels. |

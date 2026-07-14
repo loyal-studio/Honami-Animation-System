@@ -350,6 +350,7 @@ namespace HonamiAnimationSystem.Editor
             exitTransition.duration = transition.duration;
             exitTransition.hasExitTime = transition.hasExitTime;
             exitTransition.exitTime = transition.exitTime;
+            exitTransition.ease = transition.ease;
             exitTransition.useCurve = transition.useCurve;
             exitTransition.curve = transition.curve;
             exitState.transitions.Add(exitTransition);

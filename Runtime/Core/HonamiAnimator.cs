@@ -835,7 +835,7 @@ namespace HonamiAnimationSystem.Runtime.Core
                 }
             }
 
-            PlayStateByGuidWithPriority(t.targetStateGuid, t.duration, layer, false, t.useCurve ? t.curve : null, t.destinationStartTime, t.priority, t.victimMode, t.sacrificeSpeedMultiplier, t.acceleratedWeightDrop, t.useCustomVictimCurve ? t.victimWeightCurve : null);
+            PlayStateByGuidWithPriority(t.targetStateGuid, t.duration, layer, false, t.ResolveBlendCurve(), t.destinationStartTime, t.priority, t.victimMode, t.sacrificeSpeedMultiplier, t.acceleratedWeightDrop, t.useCustomVictimCurve ? t.victimWeightCurve : null);
 
             HonamiPlaybackEngine.ApplyTransitionFreeze(this, layer, t.freezeMode);
             return true;
@@ -880,7 +880,7 @@ namespace HonamiAnimationSystem.Runtime.Core
                 }
             }
 
-            PlayStateByGuidWithPriority(t.targetStateGuid, t.duration, layer, false, t.useCurve ? t.curve : null, t.destinationStartTime, t.priority, t.victimMode, t.sacrificeSpeedMultiplier, t.acceleratedWeightDrop, t.useCustomVictimCurve ? t.victimWeightCurve : null);
+            PlayStateByGuidWithPriority(t.targetStateGuid, t.duration, layer, false, t.ResolveBlendCurve(), t.destinationStartTime, t.priority, t.victimMode, t.sacrificeSpeedMultiplier, t.acceleratedWeightDrop, t.useCustomVictimCurve ? t.victimWeightCurve : null);
 
             HonamiPlaybackEngine.ApplyTransitionFreeze(this, layer, t.freezeMode);
             return true;

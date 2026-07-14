@@ -208,7 +208,7 @@ namespace HonamiAnimationSystem.Runtime.Core
                     if (tr.sacrificeExisting) anim.Stop(layer);
 
                     anim.PlayStateByGuidWithPriority(targetState.guid, finalDuration, layer, true,
-                        tr.useCurve ? tr.curve : null,
+                        tr.ResolveBlendCurve(),
                         tr.destinationStartTime,
                         tr.type == HonamiTransitionType.Victim ? tr.priority : 0,
                         tr.type == HonamiTransitionType.Victim ? tr.victimMode : HonamiVictimMode.None,
@@ -229,7 +229,7 @@ namespace HonamiAnimationSystem.Runtime.Core
                 if (tr.sacrificeExisting) anim.Stop(layer);
 
                 anim.PlayStateByGuidWithPriority(targetState.guid, finalDuration, layer, forceRestart,
-                    tr.useCurve ? tr.curve : null,
+                    tr.ResolveBlendCurve(),
                     tr.destinationStartTime,
                     tr.type == HonamiTransitionType.Victim ? tr.priority : 0,
                     tr.type == HonamiTransitionType.Victim ? tr.victimMode : HonamiVictimMode.None,
@@ -331,7 +331,8 @@ namespace HonamiAnimationSystem.Runtime.Core
                         }
                         else
                         {
-                            finalWeight = Mathf.Lerp(startW, targetW, weightT);
+                            // Unclamped so overshooting eases (Back/Elastic) and custom curves can extrapolate past the target pose.
+                            finalWeight = Mathf.LerpUnclamped(startW, targetW, weightT);
                         }
 
                         layerMixer.SetInputWeight(i, finalWeight);

@@ -392,9 +392,8 @@ namespace HonamiAnimationSystem.Editor.Preview
             else
             {
                 float p = (tau - leadIn) / dur;
-                weight = _transition != null && _transition.useCurve && _transition.curve != null
-                    ? Mathf.Clamp01(_transition.curve.Evaluate(p))
-                    : p;
+                var blendCurve = _transition?.ResolveBlendCurve();
+                weight = blendCurve != null ? blendCurve.Evaluate(p) : p;
             }
 
             SampleState(EffectiveSource, srcNorm, _sourceBlend);
