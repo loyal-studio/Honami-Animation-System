@@ -130,7 +130,9 @@ namespace HonamiAnimationSystem.Runtime.Riggings
                 AddRig(ref _graphBoundRigs, ref _graphBoundRigsCount, rig);
             }
 
-            _boundToGraph = _graphBoundRigsCount > 0;
+            // the animator drives every rig from here on, even when none of them produced a playable —
+            // letting LateUpdate run them too would tick stateful rigs twice per frame
+            _boundToGraph = true;
             return current;
         }
 

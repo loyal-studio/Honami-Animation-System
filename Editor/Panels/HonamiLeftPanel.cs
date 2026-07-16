@@ -1,5 +1,4 @@
 using System.Collections.Generic;
-using System.Linq;
 using UnityEditor;
 using UnityEditor.UIElements;
 using UnityEngine;
@@ -15,10 +14,32 @@ namespace HonamiAnimationSystem.Editor
         private readonly HonamiGraphWindow _window;
         private VisualElement _layersContent;
         private VisualElement _paramsContent;
-        private readonly List<(int layerIndex, VisualElement row, VisualElement props, Label nameLabel)> _layerRows = new();
+        private readonly List<(int layerIndex, VisualElement row, VisualElement props, Label nameLabel, Label arrow, bool isInherited)> _layerRows = new();
         private int _currentTab = 0;
         private VisualElement _tabBar;
         private readonly List<Button> _tabButtons = new();
+
+        private ScrollView _mainScroll;
+        private int _dragSourceLayer = -1;
+        private int _dropGapIndex = -1;
+        private bool _dragActive;
+        private bool _dragVisual;
+        private Vector2 _dragStartPos;
+        private Vector2 _lastDragPos;
+        private VisualElement _dragGhost;
+        private VisualElement _dropLine;
+        private VisualElement _dragSourceRow;
+        private IVisualElementScheduledItem _autoScrollItem;
+        private bool _suppressNextLayerClick;
+
+        private static readonly Color InheritedLayerTint = new(0.5f, 0.65f, 0.9f, 0.55f);
+        private static readonly Color InheritedLayerText = new(0.78f, 0.88f, 1f);
+        private static readonly Color LockedLayerText = new(0.6f, 0.6f, 0.6f);
+        private static readonly Color FloatParamColor = new(0.35f, 0.85f, 0.55f);
+        private static readonly Color IntParamColor = new(0.40f, 0.60f, 1.00f);
+        private static readonly Color BoolParamColor = new(0.90f, 0.75f, 0.20f);
+        private static readonly Color TriggerParamColor = new(0.90f, 0.45f, 0.45f);
+        private static readonly Color RandomParamColor = new(0.45f, 0.80f, 0.90f);
 
         private static readonly Dictionary<int, (Runtime.Core.HonamiAnimator animator, bool value)> ForcedBools = new();
         private static bool _updateHooked = false;
@@ -69,6 +90,7 @@ namespace HonamiAnimationSystem.Editor
             var scroll = new ScrollView();
             scroll.style.flexGrow = 1;
             root.Add(scroll);
+            _mainScroll = scroll;
 
             var pad = new VisualElement();
             pad.style.paddingLeft = pad.style.paddingRight =
@@ -81,6 +103,8 @@ namespace HonamiAnimationSystem.Editor
 
             pad.Add(_layersContent);
             pad.Add(_paramsContent);
+
+            root.RegisterCallback<PointerDownEvent>(_ => _suppressNextLayerClick = false, TrickleDown.TrickleDown);
 
             return root;
         }
@@ -132,12 +156,31 @@ namespace HonamiAnimationSystem.Editor
         {
             for (int i = 0; i < _layerRows.Count; i++)
             {
-                var (layerIndex, row, props, _) = _layerRows[i];
+                var (layerIndex, row, props, _, arrow, isInherited) = _layerRows[i];
                 bool sel = _window.CurrentLayerIndex == layerIndex;
                 row.style.backgroundColor = sel
                     ? HonamiGraphStyles.AccentDim
                     : HonamiGraphStyles.ListBoxBg;
                 props.style.display = sel ? DisplayStyle.Flex : DisplayStyle.None;
+
+                if (arrow != null)
+                    arrow.text = sel ? HonamiEditorSymbols.Collapse : HonamiEditorSymbols.Expand;
+
+                if (sel)
+                {
+                    row.style.borderLeftWidth = 3;
+                    row.style.borderLeftColor = HonamiGraphStyles.Accent;
+                }
+                else if (isInherited)
+                {
+                    row.style.borderLeftWidth = 2;
+                    row.style.borderLeftColor = InheritedLayerTint;
+                }
+                else
+                {
+                    row.style.borderLeftWidth = 1;
+                    row.style.borderLeftColor = HonamiGraphStyles.ListBoxBorder;
+                }
             }
         }
 
@@ -294,31 +337,95 @@ namespace HonamiAnimationSystem.Editor
             var nameProp = layerProp.FindPropertyRelative("name");
             var weightProp = layerProp.FindPropertyRelative("weight");
             var parentProp = layerProp.FindPropertyRelative("parentLayerIndex");
+            var maskRefProp = layerProp.FindPropertyRelative("avatarMask");
+            var mirrorRefProp = layerProp.FindPropertyRelative("mirror");
+            int parentIndex = parentProp != null ? parentProp.intValue : -1;
+            bool showsInheritance = isInherited || parentIndex >= 0;
+            bool canDrag = !isLockedBase &&
+                           _window.RuntimeController != null &&
+                           !_window.RuntimeController.IsOverride;
 
             var outer = new VisualElement();
             HonamiGraphStyles.ApplyListBox(outer);
             outer.style.marginBottom = 3;
             outer.style.marginLeft = depth * 16;
-            if (isInherited)
-            {
-                outer.style.borderLeftWidth = 2;
-                outer.style.borderLeftColor = new Color(0.5f, 0.65f, 0.9f, 0.55f);
-            }
 
             var hdr = HonamiGraphStyles.Row();
             hdr.style.marginBottom = 0;
 
-            var nameLabelText = nameProp.stringValue;
-            if (isLockedBase) nameLabelText += " (Base)";
-            var nameLabel = new Label(nameLabelText);
+            if (canDrag)
+            {
+                var handle = new Label(HonamiEditorSymbols.DragHandle);
+                handle.style.width = 14;
+                handle.style.fontSize = 11;
+                handle.style.color = HonamiGraphStyles.GreyText;
+                handle.style.unityTextAlign = TextAnchor.MiddleCenter;
+                handle.style.flexShrink = 0;
+                handle.tooltip = "Drag to reorder layers.";
+                hdr.Add(handle);
+            }
 
-            if (isLockedBase) nameLabel.style.color = new Color(0.6f, 0.6f, 0.6f);
-            else if (isInherited) nameLabel.style.color = new Color(0.78f, 0.88f, 1f);
+            var arrow = new Label(HonamiEditorSymbols.Expand);
+            arrow.style.width = 12;
+            arrow.style.fontSize = 9;
+            arrow.style.color = HonamiGraphStyles.GreyText;
+            arrow.style.unityTextAlign = TextAnchor.MiddleCenter;
+            arrow.style.flexShrink = 0;
+            hdr.Add(arrow);
+
+            var idxLabel = new Label(globalIdx.ToString());
+            idxLabel.style.minWidth = 14;
+            idxLabel.style.fontSize = 9;
+            idxLabel.style.color = HonamiGraphStyles.GreyText;
+            idxLabel.style.unityTextAlign = TextAnchor.MiddleCenter;
+            idxLabel.style.flexShrink = 0;
+            idxLabel.tooltip = "Layer order. Higher layers are evaluated on top of lower ones.";
+            hdr.Add(idxLabel);
+
+            var nameLabel = new Label(nameProp.stringValue);
+
+            if (isLockedBase) nameLabel.style.color = LockedLayerText;
+            else if (showsInheritance) nameLabel.style.color = InheritedLayerText;
 
             nameLabel.style.flexGrow = 1;
+            nameLabel.style.flexShrink = 1;
+            nameLabel.style.overflow = Overflow.Hidden;
+            nameLabel.style.textOverflow = TextOverflow.Ellipsis;
+            nameLabel.style.whiteSpace = WhiteSpace.NoWrap;
             nameLabel.style.unityFontStyleAndWeight = FontStyle.Bold;
             nameLabel.style.paddingLeft = 4;
             nameLabel.style.paddingTop = nameLabel.style.paddingBottom = 4;
+            if (!isLockedBase) nameLabel.tooltip = "Double-click to rename";
+            hdr.Add(nameLabel);
+
+            Label weightLabel = null;
+            if (globalIdx == 0)
+            {
+                hdr.Add(LayerChip("BASE", HonamiGraphStyles.Accent, "Base layer. Always evaluated first at full weight."));
+            }
+            else
+            {
+                weightLabel = new Label(FormatWeight(weightProp.floatValue));
+                weightLabel.style.fontSize = 9;
+                weightLabel.style.color = HonamiGraphStyles.GreyText;
+                weightLabel.style.flexShrink = 0;
+                weightLabel.style.marginLeft = 3;
+                weightLabel.tooltip = "Layer weight";
+            }
+
+            if (showsInheritance)
+                hdr.Add(LayerChip("CHILD", InheritedLayerText, $"Inherits states and transitions from '{GetLayerName(parentIndex)}'."));
+
+            if (maskRefProp != null && maskRefProp.objectReferenceValue != null)
+                hdr.Add(LayerChip("MASK", HonamiGraphStyles.Orange, $"Avatar mask: {maskRefProp.objectReferenceValue.name}"));
+
+            if (mirrorRefProp != null && mirrorRefProp.boolValue)
+                hdr.Add(LayerChip("MIR", HonamiGraphStyles.Green, "Layer output is mirrored."));
+
+            if (isLockedBase)
+                hdr.Add(LayerChip("LOCKED", LockedLayerText, "Owned by the base controller. Edit it there."));
+
+            if (weightLabel != null) hdr.Add(weightLabel);
 
             int capturedGlobal = globalIdx;
             int capturedArray = arrayIdx;
@@ -326,6 +433,11 @@ namespace HonamiAnimationSystem.Editor
             hdr.RegisterCallback<ClickEvent>(evt =>
             {
                 if (evt.target is Button) return;
+                if (_suppressNextLayerClick)
+                {
+                    _suppressNextLayerClick = false;
+                    return;
+                }
                 if (_window.CurrentLayerIndex != capturedGlobal) _window.SetLayer(capturedGlobal);
                 else UpdateLayerHighlight();
             });
@@ -338,6 +450,8 @@ namespace HonamiAnimationSystem.Editor
             {
                 hdr.style.backgroundColor = StyleKeyword.Null;
             });
+
+            AttachRowDrag(hdr, outer, nameLabel, sc, layersProp, capturedArray, capturedGlobal, canDrag, isLockedBase);
 
             var menuBtn = HonamiGraphStyles.SmallButton("...");
             if (isLockedBase)
@@ -370,6 +484,10 @@ namespace HonamiAnimationSystem.Editor
                 }
                 else
                 {
+                    menu.AddItem(new GUIContent("Rename"), false, () =>
+                    {
+                        StartLayerRename(nameLabel, sc, layersProp, capturedArray);
+                    });
                     menu.AddItem(new GUIContent("Duplicate"), false, () => { _window.DuplicateLayer(capturedGlobal); RebuildLayers(); });
                     menu.AddItem(new GUIContent("Create Child Layer"), false, () => { _window.CreateInheritedLayer(capturedGlobal); RebuildLayers(); });
                     if (isInherited && parentProp != null)
@@ -392,6 +510,30 @@ namespace HonamiAnimationSystem.Editor
                     else
                         menu.AddDisabledItem(new GUIContent("Paste As New Layer"));
 
+                    menu.AddSeparator("");
+                    int layerCount = layersProp.arraySize;
+
+                    if (capturedGlobal > 0)
+                        menu.AddItem(new GUIContent("Move Up"), false, () => _window.MoveLayer(capturedGlobal, capturedGlobal - 1));
+                    else
+                        menu.AddDisabledItem(new GUIContent("Move Up"));
+
+                    if (capturedGlobal < layerCount - 1)
+                        menu.AddItem(new GUIContent("Move Down"), false, () => _window.MoveLayer(capturedGlobal, capturedGlobal + 1));
+                    else
+                        menu.AddDisabledItem(new GUIContent("Move Down"));
+
+                    if (capturedGlobal > 0)
+                        menu.AddItem(new GUIContent("Set As Base Layer"), false, () =>
+                        {
+                            if (EditorUtility.DisplayDialog("Set As Base Layer",
+                                    $"Make '{cName}' the base layer? It moves to the top of the list and its weight becomes 1.",
+                                    "Set As Base", "Cancel"))
+                                _window.MoveLayer(capturedGlobal, 0);
+                        });
+                    else
+                        menu.AddDisabledItem(new GUIContent("Set As Base Layer"));
+
                     if (capturedGlobal > 0)
                     {
                         menu.AddSeparator("");
@@ -403,9 +545,23 @@ namespace HonamiAnimationSystem.Editor
                 menu.ShowAsContext();
             };
 
-            hdr.Add(nameLabel);
             hdr.Add(menuBtn);
             outer.Add(hdr);
+
+            VisualElement weightFill = null;
+            if (globalIdx > 0)
+            {
+                var weightTrack = new VisualElement();
+                weightTrack.style.height = 2;
+                weightTrack.style.marginTop = 2;
+                weightTrack.style.backgroundColor = new Color(1f, 1f, 1f, 0.06f);
+                weightFill = new VisualElement();
+                weightFill.style.height = 2;
+                weightFill.style.backgroundColor = HonamiGraphStyles.Accent;
+                weightFill.style.width = Length.Percent(Mathf.Clamp01(weightProp.floatValue) * 100f);
+                weightTrack.Add(weightFill);
+                outer.Add(weightTrack);
+            }
 
             var props = new VisualElement();
             props.style.marginTop = 4;
@@ -416,7 +572,7 @@ namespace HonamiAnimationSystem.Editor
             nameField.RegisterCallback<SerializedPropertyChangeEvent>(evt =>
             {
                 evt.StopImmediatePropagation();
-                nameLabel.text = nameProp.stringValue + (isLockedBase ? " (Base)" : "");
+                nameLabel.text = nameProp.stringValue;
             });
             if (isLockedBase) nameField.SetEnabled(false);
             props.Add(nameField);
@@ -425,6 +581,12 @@ namespace HonamiAnimationSystem.Editor
             {
                 var weightField = new PropertyField(weightProp, "Weight");
                 weightField.BindProperty(weightProp);
+                weightField.RegisterCallback<SerializedPropertyChangeEvent>(_ =>
+                {
+                    float w = weightProp.floatValue;
+                    if (weightLabel != null) weightLabel.text = FormatWeight(w);
+                    if (weightFill != null) weightFill.style.width = Length.Percent(Mathf.Clamp01(w) * 100f);
+                });
                 if (isLockedBase) weightField.SetEnabled(false);
                 props.Add(weightField);
             }
@@ -441,20 +603,349 @@ namespace HonamiAnimationSystem.Editor
             if (isLockedBase) mirrorField.SetEnabled(false);
             props.Add(mirrorField);
 
-            if (isInherited && parentProp != null)
-            {
-                string parentName = "Parent Layer";
-                int parentIndex = parentProp.intValue;
-                if (_window.Controller != null && parentIndex >= 0 && parentIndex < _window.Controller.layers.Count)
-                    parentName = _window.Controller.layers[parentIndex].name;
-
-                props.Add(HonamiGraphStyles.MiniLabel($"Inherits from {parentName}", new Color(0.65f, 0.78f, 1f)));
-            }
+            if (showsInheritance)
+                props.Add(HonamiGraphStyles.MiniLabel($"Inherits from {GetLayerName(parentIndex)}", new Color(0.65f, 0.78f, 1f)));
 
             outer.Add(props);
             _layersContent.Add(outer);
-            _layerRows.Add((globalIdx, outer, props, nameLabel));
+            _layerRows.Add((globalIdx, outer, props, nameLabel, arrow, showsInheritance));
         }
+
+        private void StartLayerRename(Label nameLabel, SerializedObject sc, SerializedProperty layersProp, int arrayIdx)
+        {
+            if (nameLabel == null || nameLabel.parent == null) return;
+
+            var nameProp = layersProp.GetArrayElementAtIndex(arrayIdx).FindPropertyRelative("name");
+            if (nameProp == null) return;
+
+            var field = new TextField { value = nameProp.stringValue };
+            field.style.flexGrow = 1;
+            field.style.flexShrink = 1;
+            field.style.marginLeft = 2;
+
+            var parent = nameLabel.parent;
+            int idx = parent.IndexOf(nameLabel);
+            nameLabel.style.display = DisplayStyle.None;
+            parent.Insert(idx + 1, field);
+
+            bool done = false;
+            void Commit(bool apply)
+            {
+                if (done) return;
+                done = true;
+                if (apply && !string.IsNullOrWhiteSpace(field.value))
+                {
+                    sc.Update();
+                    nameProp.stringValue = field.value.Trim();
+                    sc.ApplyModifiedProperties();
+                }
+                _layersContent.schedule.Execute(RebuildLayers);
+            }
+
+            field.RegisterCallback<KeyDownEvent>(evt =>
+            {
+                if (evt.keyCode == KeyCode.Return || evt.keyCode == KeyCode.KeypadEnter)
+                {
+                    evt.StopPropagation();
+                    Commit(true);
+                }
+                else if (evt.keyCode == KeyCode.Escape)
+                {
+                    evt.StopPropagation();
+                    Commit(false);
+                }
+            });
+            field.RegisterCallback<FocusOutEvent>(_ => Commit(true));
+            field.schedule.Execute(() =>
+            {
+                field.Focus();
+                field.textSelection.SelectAll();
+            });
+        }
+
+        private static bool IsInButton(IEventHandler target)
+        {
+            var ve = target as VisualElement;
+            while (ve != null)
+            {
+                if (ve is Button) return true;
+                ve = ve.parent;
+            }
+            return false;
+        }
+
+        private void AttachRowDrag(
+            VisualElement hdr,
+            VisualElement row,
+            Label nameLabel,
+            SerializedObject sc,
+            SerializedProperty layersProp,
+            int arrayIdx,
+            int globalIdx,
+            bool canDrag,
+            bool isLockedBase)
+        {
+            hdr.RegisterCallback<PointerDownEvent>(evt =>
+            {
+                if (evt.button != 0 || IsInButton(evt.target)) return;
+
+                if (evt.clickCount == 2)
+                {
+                    if (!isLockedBase)
+                    {
+                        evt.StopPropagation();
+                        StartLayerRename(nameLabel, sc, layersProp, arrayIdx);
+                    }
+                    return;
+                }
+
+                if (!canDrag) return;
+                hdr.CapturePointer(evt.pointerId);
+                _dragActive = true;
+                _dragVisual = false;
+                _dragSourceLayer = globalIdx;
+                _dragStartPos = evt.position;
+                _lastDragPos = _dragStartPos;
+                _dropGapIndex = -1;
+            });
+
+            hdr.RegisterCallback<PointerMoveEvent>(evt =>
+            {
+                if (!_dragActive || _dragSourceLayer != globalIdx || !hdr.HasPointerCapture(evt.pointerId)) return;
+                _lastDragPos = evt.position;
+
+                if (!_dragVisual)
+                {
+                    if ((_lastDragPos - _dragStartPos).sqrMagnitude < 16f) return;
+                    BeginDragVisual(row, nameLabel.text);
+                }
+
+                UpdateDragVisual(_lastDragPos);
+            });
+
+            hdr.RegisterCallback<PointerUpEvent>(evt =>
+            {
+                if (!_dragActive || _dragSourceLayer != globalIdx) return;
+                if (hdr.HasPointerCapture(evt.pointerId)) hdr.ReleasePointer(evt.pointerId);
+
+                bool dropped = _dragVisual;
+                int gap = _dropGapIndex;
+                int from = _dragSourceLayer;
+                EndDragVisual();
+                _dragActive = false;
+                _dragSourceLayer = -1;
+                _dropGapIndex = -1;
+
+                if (dropped)
+                {
+                    _suppressNextLayerClick = true;
+                    CommitDrop(from, gap);
+                }
+            });
+
+            hdr.RegisterCallback<PointerCaptureOutEvent>(_ =>
+            {
+                if (!_dragActive || _dragSourceLayer != globalIdx) return;
+                EndDragVisual();
+                _dragActive = false;
+                _dragSourceLayer = -1;
+                _dropGapIndex = -1;
+            });
+        }
+
+        private void BeginDragVisual(VisualElement sourceRow, string layerName)
+        {
+            _dragVisual = true;
+            _dragSourceRow = sourceRow;
+            sourceRow.style.opacity = 0.35f;
+
+            _dropLine = new VisualElement();
+            _dropLine.pickingMode = PickingMode.Ignore;
+            _dropLine.style.position = Position.Absolute;
+            _dropLine.style.left = 4;
+            _dropLine.style.right = 4;
+            _dropLine.style.height = 3;
+            _dropLine.style.backgroundColor = HonamiGraphStyles.Accent;
+            _dropLine.style.borderTopLeftRadius = _dropLine.style.borderTopRightRadius =
+            _dropLine.style.borderBottomLeftRadius = _dropLine.style.borderBottomRightRadius = 2;
+            _dropLine.style.display = DisplayStyle.None;
+            _layersContent.Add(_dropLine);
+
+            _dragGhost = new Label(layerName);
+            _dragGhost.pickingMode = PickingMode.Ignore;
+            _dragGhost.style.position = Position.Absolute;
+            _dragGhost.style.backgroundColor = new Color(0.15f, 0.16f, 0.18f, 0.95f);
+            _dragGhost.style.color = Color.white;
+            _dragGhost.style.unityFontStyleAndWeight = FontStyle.Bold;
+            _dragGhost.style.fontSize = 11;
+            _dragGhost.style.paddingLeft = _dragGhost.style.paddingRight = 8;
+            _dragGhost.style.paddingTop = _dragGhost.style.paddingBottom = 4;
+            _dragGhost.style.borderTopLeftRadius = _dragGhost.style.borderTopRightRadius =
+            _dragGhost.style.borderBottomLeftRadius = _dragGhost.style.borderBottomRightRadius = 4;
+            _dragGhost.style.borderTopWidth = _dragGhost.style.borderBottomWidth =
+            _dragGhost.style.borderLeftWidth = _dragGhost.style.borderRightWidth = 1;
+            _dragGhost.style.borderTopColor = _dragGhost.style.borderBottomColor =
+            _dragGhost.style.borderLeftColor = _dragGhost.style.borderRightColor = HonamiGraphStyles.Accent;
+            Root.Add(_dragGhost);
+
+            _autoScrollItem = Root.schedule.Execute(AutoScrollTick).Every(16);
+        }
+
+        private void UpdateDragVisual(Vector2 panelPos)
+        {
+            if (!_dragVisual) return;
+
+            if (_dragGhost != null)
+            {
+                var local = Root.WorldToLocal(panelPos);
+                _dragGhost.style.left = local.x + 10;
+                _dragGhost.style.top = local.y - 9;
+            }
+
+            int sourceDisplay = -1;
+            for (int i = 0; i < _layerRows.Count; i++)
+            {
+                if (_layerRows[i].layerIndex == _dragSourceLayer)
+                {
+                    sourceDisplay = i;
+                    break;
+                }
+            }
+
+            int gap = -1;
+            float lineY = 0f;
+            for (int i = 0; i < _layerRows.Count; i++)
+            {
+                var rowBound = _layerRows[i].row.worldBound;
+                if (panelPos.y < rowBound.center.y)
+                {
+                    gap = i;
+                    lineY = _layerRows[i].row.layout.yMin - 2.5f;
+                    break;
+                }
+            }
+            if (gap < 0 && _layerRows.Count > 0)
+            {
+                gap = _layerRows.Count;
+                lineY = _layerRows[_layerRows.Count - 1].row.layout.yMax + 0.5f;
+            }
+
+            if (gap == sourceDisplay || gap == sourceDisplay + 1) gap = -1;
+
+            _dropGapIndex = gap;
+            if (_dropLine != null)
+            {
+                if (gap >= 0)
+                {
+                    _dropLine.style.display = DisplayStyle.Flex;
+                    _dropLine.style.top = lineY;
+                }
+                else
+                {
+                    _dropLine.style.display = DisplayStyle.None;
+                }
+            }
+        }
+
+        private void EndDragVisual()
+        {
+            _dragVisual = false;
+
+            if (_dragSourceRow != null)
+            {
+                _dragSourceRow.style.opacity = 1f;
+                _dragSourceRow = null;
+            }
+
+            _dragGhost?.RemoveFromHierarchy();
+            _dragGhost = null;
+            _dropLine?.RemoveFromHierarchy();
+            _dropLine = null;
+            _autoScrollItem?.Pause();
+            _autoScrollItem = null;
+        }
+
+        private void AutoScrollTick()
+        {
+            if (!_dragVisual || _mainScroll == null) return;
+
+            var bound = _mainScroll.worldBound;
+            float speed = 0f;
+            const float edge = 28f;
+
+            if (_lastDragPos.y < bound.yMin + edge)
+                speed = -Mathf.Lerp(2f, 12f, Mathf.Clamp01((bound.yMin + edge - _lastDragPos.y) / edge));
+            else if (_lastDragPos.y > bound.yMax - edge)
+                speed = Mathf.Lerp(2f, 12f, Mathf.Clamp01((_lastDragPos.y - (bound.yMax - edge)) / edge));
+
+            if (speed != 0f)
+            {
+                var offset = _mainScroll.scrollOffset;
+                _mainScroll.scrollOffset = new Vector2(offset.x, Mathf.Max(0f, offset.y + speed));
+                UpdateDragVisual(_lastDragPos);
+            }
+        }
+
+        private void CommitDrop(int fromGlobal, int gap)
+        {
+            if (gap < 0 || _window.Controller == null) return;
+
+            int count = _window.Controller.layers.Count;
+            int to;
+            if (gap <= 0)
+            {
+                to = 0;
+            }
+            else
+            {
+                int above = gap - 1 < _layerRows.Count ? _layerRows[gap - 1].layerIndex : fromGlobal;
+                to = fromGlobal > above ? above + 1 : above;
+            }
+
+            to = Mathf.Clamp(to, 0, count - 1);
+            if (to == fromGlobal) return;
+            _window.MoveLayer(fromGlobal, to);
+        }
+
+        private string GetLayerName(int globalIdx)
+        {
+            var layers = _window.RuntimeController != null ? _window.RuntimeController.ActiveLayers : null;
+            if (layers != null && globalIdx >= 0 && globalIdx < layers.Count && layers[globalIdx] != null)
+                return layers[globalIdx].name;
+            return $"Layer {globalIdx}";
+        }
+
+        private static string FormatWeight(float weight)
+        {
+            return Mathf.RoundToInt(Mathf.Clamp01(weight) * 100f) + "%";
+        }
+
+        private static Label LayerChip(string text, Color color, string tooltip = null)
+        {
+            var chip = new Label(text);
+            chip.style.fontSize = 8;
+            chip.style.unityFontStyleAndWeight = FontStyle.Bold;
+            chip.style.color = color;
+            chip.style.backgroundColor = new Color(color.r, color.g, color.b, 0.14f);
+            chip.style.borderTopLeftRadius = chip.style.borderTopRightRadius =
+            chip.style.borderBottomLeftRadius = chip.style.borderBottomRightRadius = 3;
+            chip.style.paddingLeft = chip.style.paddingRight = 4;
+            chip.style.paddingTop = chip.style.paddingBottom = 1;
+            chip.style.marginLeft = 3;
+            chip.style.flexShrink = 0;
+            chip.style.unityTextAlign = TextAnchor.MiddleCenter;
+            if (tooltip != null) chip.tooltip = tooltip;
+            return chip;
+        }
+
+        private static Color ParamTypeColor(HonamiParameterType type) => type switch
+        {
+            HonamiParameterType.Float => FloatParamColor,
+            HonamiParameterType.Int => IntParamColor,
+            HonamiParameterType.Bool => BoolParamColor,
+            HonamiParameterType.Trigger => TriggerParamColor,
+            _ => RandomParamColor,
+        };
 
         private void RebuildParams()
         {
@@ -487,7 +978,6 @@ namespace HonamiAnimationSystem.Editor
                     menu.AddItem(new GUIContent("Bool"), false, () => { AddAdditionalParameter(overrideSc, pProp, HonamiParameterType.Bool); RebuildParams(); });
                     menu.AddItem(new GUIContent("Trigger"), false, () => { AddAdditionalParameter(overrideSc, pProp, HonamiParameterType.Trigger); RebuildParams(); });
                     menu.AddItem(new GUIContent("Random"), false, () => { AddAdditionalParameter(overrideSc, pProp, HonamiParameterType.Random); RebuildParams(); });
-                    menu.AddItem(new GUIContent("Random"), false, () => { AddAdditionalParameter(overrideSc, pProp, HonamiParameterType.Random); RebuildParams(); });
                     menu.ShowAsContext();
                     return;
                 }
@@ -497,7 +987,6 @@ namespace HonamiAnimationSystem.Editor
                 baseMenu.AddItem(new GUIContent("Int"), false, () => { _window.AddParameter(HonamiParameterType.Int); RebuildParams(); });
                 baseMenu.AddItem(new GUIContent("Bool"), false, () => { _window.AddParameter(HonamiParameterType.Bool); RebuildParams(); });
                 baseMenu.AddItem(new GUIContent("Trigger"), false, () => { _window.AddParameter(HonamiParameterType.Trigger); RebuildParams(); });
-                baseMenu.AddItem(new GUIContent("Random"), false, () => { _window.AddParameter(HonamiParameterType.Random); RebuildParams(); });
                 baseMenu.AddItem(new GUIContent("Random"), false, () => { _window.AddParameter(HonamiParameterType.Random); RebuildParams(); });
                 baseMenu.ShowAsContext();
             };
@@ -547,12 +1036,13 @@ namespace HonamiAnimationSystem.Editor
             row.style.flexDirection = FlexDirection.Row;
             row.style.alignItems = Align.Center;
 
-            var typeLbl = new Label(pType.ToString().Substring(0, 1) + (isLockedBase ? " (B)" : ""));
-            typeLbl.style.color = isLockedBase ? new Color(0.5f, 0.5f, 0.5f) : HonamiGraphStyles.GreyText;
-            typeLbl.style.unityFontStyleAndWeight = FontStyle.Bold;
-            typeLbl.style.width = isLockedBase ? 30 : 16;
-            typeLbl.style.unityTextAlign = TextAnchor.MiddleCenter;
-            row.Add(typeLbl);
+            var chipColor = isLockedBase ? LockedLayerText : ParamTypeColor(pType);
+            var typeChip = LayerChip(pType.ToString().Substring(0, 1), chipColor,
+                isLockedBase ? $"{pType} (base controller)" : pType.ToString());
+            typeChip.style.marginLeft = 0;
+            typeChip.style.marginRight = 4;
+            typeChip.style.minWidth = 16;
+            row.Add(typeChip);
 
             if (!isLockedBase)
             {
@@ -755,7 +1245,3 @@ namespace HonamiAnimationSystem.Editor
         }
     }
 }
-
-
-
-

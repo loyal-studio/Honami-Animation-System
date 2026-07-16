@@ -151,12 +151,14 @@ namespace HonamiAnimationSystem.Runtime.Core
                    layers[layerIndex].parentLayerIndex < layerIndex;
         }
 
+        public const string InheritedLayerGuidMarker = "@HonamiInheritedLayer:";
+
         /// <summary>
         /// Builds the stable GUID used by a virtual or overridden inherited state.
         /// </summary>
         public static string GetInheritedStateGuid(string sourceStateGuid, int layerIndex)
         {
-            return string.IsNullOrEmpty(sourceStateGuid) ? null : $"{sourceStateGuid}@HonamiInheritedLayer:{layerIndex}";
+            return string.IsNullOrEmpty(sourceStateGuid) ? null : $"{sourceStateGuid}{InheritedLayerGuidMarker}{layerIndex}";
         }
 
         /// <summary>

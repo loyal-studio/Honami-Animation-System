@@ -84,6 +84,7 @@ namespace HonamiAnimationSystem.Editor
         private Dictionary<string, HonamiState> _stateGuidMap = new();
 
         private Label _overrideWatermark;
+        private Label _layerWatermark;
 
         public HonamiGraphView()
         {
@@ -116,6 +117,34 @@ namespace HonamiAnimationSystem.Editor
             _overrideWatermark.style.display = DisplayStyle.None;
             _overrideWatermark.pickingMode = PickingMode.Ignore;
             Add(_overrideWatermark);
+
+            _layerWatermark = new Label(string.Empty);
+            _layerWatermark.style.position = Position.Absolute;
+            _layerWatermark.style.top = 12;
+            _layerWatermark.style.left = 12;
+            _layerWatermark.style.fontSize = 12;
+            _layerWatermark.style.color = new Color(0.75f, 0.78f, 0.85f, 0.85f);
+            _layerWatermark.style.backgroundColor = new Color(0.12f, 0.12f, 0.13f, 0.6f);
+            _layerWatermark.style.paddingTop = 4;
+            _layerWatermark.style.paddingBottom = 4;
+            _layerWatermark.style.paddingLeft = 10;
+            _layerWatermark.style.paddingRight = 10;
+            _layerWatermark.style.borderTopLeftRadius = 6;
+            _layerWatermark.style.borderTopRightRadius = 6;
+            _layerWatermark.style.borderBottomLeftRadius = 6;
+            _layerWatermark.style.borderBottomRightRadius = 6;
+            _layerWatermark.style.borderTopWidth = 1;
+            _layerWatermark.style.borderBottomWidth = 1;
+            _layerWatermark.style.borderLeftWidth = 1;
+            _layerWatermark.style.borderRightWidth = 1;
+            _layerWatermark.style.borderTopColor = new Color(1f, 1f, 1f, 0.08f);
+            _layerWatermark.style.borderBottomColor = new Color(1f, 1f, 1f, 0.08f);
+            _layerWatermark.style.borderLeftColor = new Color(1f, 1f, 1f, 0.08f);
+            _layerWatermark.style.borderRightColor = new Color(1f, 1f, 1f, 0.08f);
+            _layerWatermark.style.unityFontStyleAndWeight = FontStyle.Bold;
+            _layerWatermark.style.display = DisplayStyle.None;
+            _layerWatermark.pickingMode = PickingMode.Ignore;
+            Add(_layerWatermark);
 
             this.AddManipulator(new ContentZoomer
             {
@@ -306,6 +335,8 @@ namespace HonamiAnimationSystem.Editor
                     ? DisplayStyle.Flex : DisplayStyle.None;
             }
 
+            UpdateLayerWatermark();
+
             ClearSelection();
 
             graphViewChanged -= OnGraphViewChanged;
@@ -429,6 +460,29 @@ namespace HonamiAnimationSystem.Editor
                 if (noteData == null || noteData.layerIndex != currentLayerIndex) continue;
                 CreateStickyNoteView(noteData);
             }
+        }
+
+        private void UpdateLayerWatermark()
+        {
+            if (_layerWatermark == null) return;
+
+            var layers = _runtimeController != null ? _runtimeController.ActiveLayers : null;
+            if (layers == null || currentLayerIndex < 0 || currentLayerIndex >= layers.Count || layers[currentLayerIndex] == null)
+            {
+                _layerWatermark.style.display = DisplayStyle.None;
+                return;
+            }
+
+            var layer = layers[currentLayerIndex];
+            string text = currentLayerIndex == 0
+                ? $"{layer.name}  |  Base Layer"
+                : $"{layer.name}  |  Layer {currentLayerIndex}";
+
+            if (layer.parentLayerIndex >= 0 && layer.parentLayerIndex < layers.Count && layers[layer.parentLayerIndex] != null)
+                text += $"  |  Child of {layers[layer.parentLayerIndex].name}";
+
+            _layerWatermark.text = text;
+            _layerWatermark.style.display = DisplayStyle.Flex;
         }
 
         public override List<Port> GetCompatiblePorts(Port startPort, NodeAdapter nodeAdapter)
