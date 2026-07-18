@@ -162,12 +162,14 @@ namespace HonamiAnimationSystem.Editor.Riggings
                     added.FindPropertyRelative("bone").objectReferenceValue = null;
                     added.FindPropertyRelative("weightMultiplier").floatValue = 1f;
                     added.FindPropertyRelative("joint").enumValueIndex = (int)HonamiPhysicsJoint.Free;
+                    added.FindPropertyRelative("shapeRenderer").objectReferenceValue = null;
                     added.FindPropertyRelative("hingeAxis").vector3Value = Vector3.forward;
                     added.FindPropertyRelative("angleLimit").floatValue = 0f;
                     added.FindPropertyRelative("limitCenter").vector3Value = Vector3.zero;
                     added.FindPropertyRelative("upAxis").vector3Value = Vector3.zero;
                     added.FindPropertyRelative("tipDirection").vector3Value = Vector3.zero;
                     added.FindPropertyRelative("tipLength").floatValue = 0f;
+                    added.FindPropertyRelative("motionResponse").floatValue = 1f;
                     added.FindPropertyRelative("gravityScale").floatValue = 1f;
                     added.FindPropertyRelative("dampingScale").floatValue = 1f;
                     added.FindPropertyRelative("stiffnessScale").floatValue = 1f;
@@ -181,11 +183,23 @@ namespace HonamiAnimationSystem.Editor.Riggings
 
         private void DrawBoneSimulation(SerializedProperty element)
         {
+            SerializedProperty shapeRenderer = element.FindPropertyRelative("shapeRenderer");
             SerializedProperty joint = element.FindPropertyRelative("joint");
 
             EditorGUILayout.Space(2);
             using (new EditorGUI.IndentLevelScope())
             {
+                EditorGUILayout.LabelField("Link", EditorStyles.miniLabel);
+                EditorGUILayout.PropertyField(shapeRenderer);
+
+                if (shapeRenderer.objectReferenceValue != null)
+                {
+                    EditorGUILayout.HelpBox("THIS bone hangs on the renderer's mesh surface instead of swinging on its bone length — a mesh collider purely for the physics (green gizmo). It slides across the surface with momentum and settles on the low side under gravity: assign the keyring's renderer on the charm bone and a single entry is a complete keychain. A MeshRenderer surface follows its own transform; a SkinnedMeshRenderer is anchored to the bone it is skinned to, so the surface must not be skinned to this bone itself. Triangles are baked into this component automatically, so Read/Write can stay off; keep the mesh a simple proxy. Joint and Angle Limit are replaced by the mesh — model the shape itself to limit the travel.", MessageType.None);
+
+                    DrawBoneMassAndTip(element);
+                    return;
+                }
+
                 EditorGUILayout.LabelField("Joint", EditorStyles.miniLabel);
                 EditorGUILayout.PropertyField(joint);
 
@@ -207,17 +221,23 @@ namespace HonamiAnimationSystem.Editor.Riggings
                 if (jointValue == HonamiPhysicsJoint.Hinge)
                     EditorGUILayout.HelpBox("A hinge axis along the bone spins it in place like a ring on its peg: the spin follows the parent's twist, and Up Axis marks the ring's heavy side for gravity (zero = balanced ring).", MessageType.None);
 
-                EditorGUILayout.Space(2);
-                EditorGUILayout.LabelField("Mass", EditorStyles.miniLabel);
-                EditorGUILayout.PropertyField(element.FindPropertyRelative("gravityScale"));
-                EditorGUILayout.PropertyField(element.FindPropertyRelative("dampingScale"));
-                EditorGUILayout.PropertyField(element.FindPropertyRelative("stiffnessScale"));
-
-                EditorGUILayout.Space(2);
-                EditorGUILayout.LabelField("Tip (last bone of a chain only)", EditorStyles.miniLabel);
-                EditorGUILayout.PropertyField(element.FindPropertyRelative("tipDirection"));
-                EditorGUILayout.PropertyField(element.FindPropertyRelative("tipLength"));
+                DrawBoneMassAndTip(element);
             }
+        }
+
+        private void DrawBoneMassAndTip(SerializedProperty element)
+        {
+            EditorGUILayout.Space(2);
+            EditorGUILayout.LabelField("Mass", EditorStyles.miniLabel);
+            EditorGUILayout.PropertyField(element.FindPropertyRelative("motionResponse"));
+            EditorGUILayout.PropertyField(element.FindPropertyRelative("gravityScale"));
+            EditorGUILayout.PropertyField(element.FindPropertyRelative("dampingScale"));
+            EditorGUILayout.PropertyField(element.FindPropertyRelative("stiffnessScale"));
+
+            EditorGUILayout.Space(2);
+            EditorGUILayout.LabelField("Tip (last bone of a chain only)", EditorStyles.miniLabel);
+            EditorGUILayout.PropertyField(element.FindPropertyRelative("tipDirection"));
+            EditorGUILayout.PropertyField(element.FindPropertyRelative("tipLength"));
         }
 
         private void DrawSimulation()
@@ -229,7 +249,7 @@ namespace HonamiAnimationSystem.Editor.Riggings
                 EditorGUILayout.PropertyField(_simulationDamping, new GUIContent("Damping"));
                 EditorGUILayout.PropertyField(_simulationStiffness, new GUIContent("Stiffness"));
                 EditorGUILayout.PropertyField(_simulationInertia, new GUIContent("Inertia"));
-                EditorGUILayout.HelpBox("Damping is the air drag on the free swing, Stiffness is the pull back to the animated pose — the two are independent, so tuning one never forces you to retune the other. Each bone scales Gravity, Damping and Stiffness for its own mass, and carries its own joint and angle limit.", MessageType.None);
+                EditorGUILayout.HelpBox("Damping is the air drag on the free swing, Stiffness is the pull back to the animated pose — the two are independent, so tuning one never forces you to retune the other. Inertia sets how much of the handling the whole chain shrugs off; each bone then scales that with its own Motion Response, alongside its Gravity, Damping and Stiffness scales, its joint and its angle limit.", MessageType.None);
             }
 
             if (_simulationStiffness.floatValue <= 0f)
