@@ -39,6 +39,12 @@ namespace HonamiAnimationSystem.Runtime.Core
         Manual
     }
 
+    public enum HonamiGlobalWeightMode
+    {
+        Init,
+        Bind
+    }
+
     /// <summary>
     /// Runtime component that replaces Unity Animator Controller playback with Honami's graph, parameter, event, avatar, and rigging pipeline.
     /// </summary>
@@ -124,6 +130,19 @@ namespace HonamiAnimationSystem.Runtime.Core
         public bool MirrorAvatar => _mirrorAvatar;
         public float MirrorBlendSpeed => _mirrorBlendSpeed;
 
+        [SerializeField] private HonamiGlobalWeightMode globalWeightMode = HonamiGlobalWeightMode.Init;
+        public HonamiGlobalWeightMode GlobalWeightMode
+        {
+            get => globalWeightMode;
+            set
+            {
+                if (globalWeightMode == value) return;
+                globalWeightMode = value;
+                if (_playableOutput.IsOutputValid())
+                    _playableOutput.SetWeight(globalWeightMode == HonamiGlobalWeightMode.Bind ? _globalWeight : 1f);
+            }
+        }
+
         private float _globalWeight = 1f;
         public float GlobalWeight
         {
@@ -131,10 +150,8 @@ namespace HonamiAnimationSystem.Runtime.Core
             set
             {
                 _globalWeight = Mathf.Clamp01(value);
-                if (_playableOutput.IsOutputValid())
-                {
+                if (globalWeightMode == HonamiGlobalWeightMode.Bind && _playableOutput.IsOutputValid())
                     _playableOutput.SetWeight(_globalWeight);
-                }
             }
         }
 
@@ -296,8 +313,9 @@ namespace HonamiAnimationSystem.Runtime.Core
                 if (captureFromDefaultStateEnd) CaptureInitialPoseFromDefaultState();
                 _playableGraph.Evaluate(0f);
                 RestoreInitialPoseIfIdle();
+                ApplyGlobalWeightBlend();
             }
-            
+
             _keepPoseOnDisable = false;
             _playableGraph.Play();
         }
@@ -315,6 +333,7 @@ namespace HonamiAnimationSystem.Runtime.Core
             if (captureFromDefaultStateEnd) CaptureInitialPoseFromDefaultState();
             _playableGraph.Evaluate(0f);
             RestoreInitialPoseIfIdle();
+            ApplyGlobalWeightBlend();
             _playableGraph.Play();
         }
 
@@ -426,6 +445,7 @@ namespace HonamiAnimationSystem.Runtime.Core
             _playableGraph.Evaluate((float)_cachedDeltaTime);
             RestoreInitialPoseIfIdle();
             ProcessLegacyRigs();
+            ApplyGlobalWeightBlend();
 
             EvaluateEvents();
         }
@@ -530,9 +550,10 @@ namespace HonamiAnimationSystem.Runtime.Core
 
                 _playableGraph.Evaluate(0f);
                 RestoreInitialPoseIfIdle();
+                ApplyGlobalWeightBlend();
                 _playableGraph.Play();
             }
-            else 
+            else
             {
                 if (_isTransitioningController)
                 {
@@ -567,6 +588,7 @@ namespace HonamiAnimationSystem.Runtime.Core
                     if (captureFromDefaultStateEnd) CaptureInitialPoseFromDefaultState();
                     _playableGraph.Evaluate(0f);
                     RestoreInitialPoseIfIdle();
+                    ApplyGlobalWeightBlend();
                 }
             }
         }

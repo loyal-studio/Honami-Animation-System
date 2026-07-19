@@ -8,6 +8,8 @@ namespace HonamiAnimationSystem.Runtime.Core
         [SerializeField] private HonamiAnimator animator;
         [SerializeField] private HonamiControllerProfileGraph graph;
 
+        public HonamiAnimator Animator => animator;
+
         private void Awake()
         {
             if (animator == null) TryGetComponent(out animator);

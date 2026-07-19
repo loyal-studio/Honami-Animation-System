@@ -141,6 +141,16 @@ namespace HonamiAnimationSystem.Editor.Inspectors
             EditorGUILayout.PropertyField(serializedObject.FindProperty("releaseFinishedStatesWithoutDefault"), new GUIContent("Release Finished Without Default", "For non-loop states on layers without a default state, release the state after it finishes instead of holding its final frame."));
             EditorGUILayout.PropertyField(serializedObject.FindProperty("includeRootTransformInInitialPose"), new GUIContent("Include Root Transform", "Include this GameObject's transform in the captured pose. Leave disabled for character roots."));
 
+            EditorGUILayout.Space(4);
+            var globalWeightModeProp = serializedObject.FindProperty("globalWeightMode");
+            EditorGUILayout.PropertyField(globalWeightModeProp, new GUIContent("Global Weight Mode", "How GlobalWeight attenuates the animator. Init: blend the pose toward the captured initial pose (clean neutral). Bind: scale the animation output weight against the Animator bind pose."));
+
+            bool capturesPose = serializedObject.FindProperty("captureInitialPoseOnAwake").boolValue || serializedObject.FindProperty("captureFromDefaultStateEnd").boolValue;
+            if (globalWeightModeProp.enumValueIndex == (int)HonamiGlobalWeightMode.Init && !capturesPose)
+            {
+                EditorGUILayout.HelpBox("Global Weight Mode is Init but no initial pose is captured. GlobalWeight < 1 will have no effect. Enable Capture On Awake, or switch to Bind.", MessageType.Warning);
+            }
+
             if (Application.isPlaying)
             {
                 EditorGUILayout.Space(4);

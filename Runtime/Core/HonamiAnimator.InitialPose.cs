@@ -118,6 +118,23 @@ namespace HonamiAnimationSystem.Runtime.Core
             RestoreInitialPose();
         }
 
+        private void ApplyGlobalWeightBlend()
+        {
+            if (globalWeightMode != HonamiGlobalWeightMode.Init) return;
+            if (_globalWeight >= 0.9999f || !_hasInitialPose || _initialPose == null) return;
+
+            float toRest = 1f - _globalWeight;
+            for (int i = 0; i < _initialPose.Length; i++)
+            {
+                HonamiTransformPose pose = _initialPose[i];
+                if (pose.Transform == null) continue;
+
+                pose.Transform.localPosition = Vector3.Lerp(pose.Transform.localPosition, pose.LocalPosition, toRest);
+                pose.Transform.localRotation = Quaternion.Slerp(pose.Transform.localRotation, pose.LocalRotation, toRest);
+                pose.Transform.localScale = Vector3.Lerp(pose.Transform.localScale, pose.LocalScale, toRest);
+            }
+        }
+
         internal void ReleaseFinishedStateIfNeeded(int layer, int portIdx, int stateIdx)
         {
             if (!releaseFinishedStatesWithoutDefault || !restoreInitialPoseWhenIdle) return;

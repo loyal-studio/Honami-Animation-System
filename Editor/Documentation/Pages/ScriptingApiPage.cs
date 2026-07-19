@@ -6,7 +6,7 @@ namespace HonamiAnimationSystem.Editor.Documentation.Pages
     {
         public string Title => HonamiDocLocalization.Get("Scripting API", "API для скриптів");
         public string Category => HonamiDocLocalization.Get("08. Developer API", "08. API для розробників");
-        public string SearchKeywords => "scripting api code access methods animator tick playstate parameters tags pause stop layer controller events callbacks mirror initial pose timescale fps cap апі скрипти події параметри";
+        public string SearchKeywords => "scripting api code access methods animator tick playstate parameters tags pause stop layer controller events callbacks mirror initial pose global weight mode init bind timescale fps cap апі скрипти події параметри глобальна вага режим";
         public int Order => 700;
         public int EstimatedReadTime => 15;
 
@@ -139,8 +139,8 @@ if (_honami.HasTag(""Locked"", layer: 0))
 _honami.SetLayerWeight(1, _isAiming ? 1f : 0f);
 float aimWeight = _honami.GetLayerWeight(1);
 
-// GlobalWeight fades the whole animator output (0..1),
-// e.g. blending to ragdoll.
+// GlobalWeight attenuates the whole animator (0..1). How it attenuates
+// depends on Global Weight Mode - see the Global weight section below.
 _honami.GlobalWeight = 0.5f;");
 
             HonamiDocumentationBuilder.AddHeader(root, HonamiDocLocalization.Get("C# events", "C#-події"), HonamiEditorIcons.TimelineWhite);
@@ -220,6 +220,30 @@ _honami.SetController(pistolPoseController,
                 ("RestoreInitialPose()", HonamiDocLocalization.Get("Applies the captured pose immediately.", "Негайно застосовує збережену позу."), ""),
                 ("HasInitialPose", HonamiDocLocalization.Get("True once a pose has been captured.", "True, щойно позу було збережено."), "")
             );
+
+            HonamiDocumentationBuilder.AddHeader(root, HonamiDocLocalization.Get("Global weight", "Global Weight"), HonamiEditorIcons.Controller);
+            HonamiDocumentationBuilder.AddParagraph(root, HonamiDocLocalization.Get(
+                "GlobalWeight (0..1) attenuates how much this animator drives the hierarchy - 1 is full animation, 0 is none. Global Weight Mode, set in the inspector or via the GlobalWeightMode property, decides how that attenuation is produced.",
+                "GlobalWeight (0..1) регулює, наскільки сильно цей аніматор рухає ієрархію — 1 це повна анімація, 0 це жодної. Global Weight Mode, що задається в інспекторі або через property GlobalWeightMode, визначає, як саме ця атенюація рахується."
+            ));
+            HonamiDocumentationBuilder.AddTable(root,
+                (HonamiDocLocalization.Get("Mode", "Режим"), 160),
+                (HonamiDocLocalization.Get("Description", "Опис"), 0),
+                ("", 0),
+                ("Init", HonamiDocLocalization.Get("Default. Blends the evaluated pose toward the captured initial pose, so weight 0 is a clean neutral. The animation output stays at full weight, so rotations never drift. Requires a captured initial pose (Capture On Awake) - otherwise GlobalWeight below 1 has no effect.", "Типовий. Блендить оцінену позу до захопленої initial pose, тож вага 0 дає чистий нейтрал. Output анімації лишається на повній вазі, тож обертання не пливуть. Потребує захопленої initial pose (Capture On Awake) — інакше GlobalWeight нижче 1 не має ефекту."), ""),
+                ("Bind", HonamiDocLocalization.Get("Scales the animation output weight itself. Weight 0 falls back to the Animator bind pose. No initial pose needed, but fading an output below 1 can drift rotations (a visible tilt) because Unity mixes against the bind pose.", "Масштабує саму вагу output анімації. Вага 0 відкочується до bind-пози Animator. Initial pose не потрібна, але фейд output нижче 1 може «пливти» по обертанню (видимий нахил), бо Unity мішає проти bind-пози."), "")
+            );
+            HonamiDocumentationBuilder.AddCodeBlock(root,
+@"// Dial the whole animator's influence down to 50%.
+_honami.GlobalWeight = 0.5f;
+
+// Choose how weight attenuates (usually set once in the inspector).
+_honami.GlobalWeightMode = HonamiGlobalWeightMode.Init; // clean neutral at 0
+_honami.GlobalWeightMode = HonamiGlobalWeightMode.Bind; // legacy output-weight fade");
+            HonamiDocumentationBuilder.AddTip(root, HonamiDocLocalization.Get(
+                "Use Init for camera or additive rigs where weight 0 must be a precise rest pose - it is deterministic and leaves the animation output at full weight. Reach for Bind only when you deliberately want the classic output fade toward the bind pose.",
+                "Використовуйте Init для камери чи адитивних ригів, де вага 0 має бути точною rest-позою — він детермінований і лишає output анімації на повній вазі. Bind беріть лише коли свідомо потрібен класичний output-fade до bind-пози."
+            ));
 
             HonamiDocumentationBuilder.AddHeader(root, HonamiDocLocalization.Get("Mirroring", "Віддзеркалення"), HonamiEditorIcons.Controller);
             HonamiDocumentationBuilder.AddCodeBlock(root,

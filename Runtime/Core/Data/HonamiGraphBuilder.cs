@@ -263,7 +263,7 @@ namespace HonamiAnimationSystem.Runtime.Core
                 anim._playableGraph = PlayableGraph.Create(anim.gameObject.name + "_HonamiGraph");
                 anim._playableGraph.SetTimeUpdateMode(DirectorUpdateMode.Manual);
                 anim._playableOutput = AnimationPlayableOutput.Create(anim._playableGraph, "AnimationOutput", anim._animator);
-                anim._playableOutput.SetWeight(anim.GlobalWeight);
+                anim._playableOutput.SetWeight(anim.GlobalWeightMode == HonamiGlobalWeightMode.Bind ? anim.GlobalWeight : 1f);
             }
 
             anim._layerMixer = AnimationLayerMixerPlayable.Create(anim._playableGraph, layerCount);
