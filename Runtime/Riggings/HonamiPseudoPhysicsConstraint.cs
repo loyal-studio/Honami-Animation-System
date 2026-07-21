@@ -6,6 +6,7 @@ using Unity.Collections;
 using Unity.Mathematics;
 using System;
 using System.Collections.Generic;
+using HonamiAnimationSystem.Runtime.Common;
 
 namespace HonamiAnimationSystem.Runtime.Riggings
 {
@@ -345,13 +346,13 @@ namespace HonamiAnimationSystem.Runtime.Riggings
             for (int i = 0; i < bones.Length; i++)
             {
                 var b = bones[i];
-                hash = hash * 31 + (b == null || b.bone == null ? 0 : b.bone.GetInstanceID());
+                hash = hash * 31 + (b == null ? 0 : HonamiObjectHash.Of(b.bone));
                 if (b == null) continue;
                 hash = hash * 31 + b.tipDirection.GetHashCode();
                 hash = hash * 31 + b.tipLength.GetHashCode();
-                hash = hash * 31 + (b.shapeRenderer == null ? 0 : b.shapeRenderer.GetInstanceID());
-                hash = hash * 31 + (b.bakedShapeSource == null ? 0 : b.bakedShapeSource.GetInstanceID());
-                hash = hash * 31 + (b.bakedShapeAnchorBone == null ? 0 : b.bakedShapeAnchorBone.GetInstanceID());
+                hash = hash * 31 + HonamiObjectHash.Of(b.shapeRenderer);
+                hash = hash * 31 + HonamiObjectHash.Of(b.bakedShapeSource);
+                hash = hash * 31 + HonamiObjectHash.Of(b.bakedShapeAnchorBone);
             }
             return hash;
         }
