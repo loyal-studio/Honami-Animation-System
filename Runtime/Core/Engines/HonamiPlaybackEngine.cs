@@ -22,6 +22,13 @@ namespace HonamiAnimationSystem.Runtime.Core
         private static readonly Dictionary<int, SyncedRandomPick> _syncedRandomPicks = new();
         private static int _lastSyncedRandomCleanupFrame = -1;
 
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+        private static void ResetStatics()
+        {
+            _syncedRandomPicks.Clear();
+            _lastSyncedRandomCleanupFrame = -1;
+        }
+
         public static void PlayStateInternal(
             HonamiAnimator anim,
             int targetIndex,
