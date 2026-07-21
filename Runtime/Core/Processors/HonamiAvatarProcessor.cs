@@ -178,6 +178,10 @@ namespace HonamiAnimationSystem.Runtime.Core
         private List<string>                       _bonePaths;
         private bool                               _initialized;
 
+        private readonly List<Transform>           _drivenTransforms = new();
+        public IReadOnlyList<Transform> DrivenTransforms => _drivenTransforms;
+        public int DrivenVersion { get; private set; }
+
         private NativeArray<TransformStreamHandle> _mirrorBoneA;
         private NativeArray<TransformStreamHandle> _mirrorTargetA;
         private NativeArray<TransformStreamHandle> _mirrorBoneB;
@@ -193,6 +197,8 @@ namespace HonamiAnimationSystem.Runtime.Core
             Dispose();
             _initialized = false;
             _animator    = animator;
+            _drivenTransforms.Clear();
+            DrivenVersion++;
             if (animator == null || avatar == null || !graph.IsValid() || controller == null) return;
 
             int count = 0;
@@ -220,9 +226,15 @@ namespace HonamiAnimationSystem.Runtime.Core
                 if (tTarget == null && (replacer == null || !replacer.disableUnreplacedBones))
                     tTarget = tSource;
 
-                _bones[idx]   = (tSource != null && tSource.IsChildOf(animator.transform)) ? animator.BindStreamTransform(tSource) : default;
-                _targets[idx] = (tTarget != null && tTarget != tSource && tTarget.IsChildOf(animator.transform)) ? animator.BindStreamTransform(tTarget) : default;
-                
+                bool sourceBound = tSource != null && tSource.IsChildOf(animator.transform);
+                bool targetBound = tTarget != null && tTarget != tSource && tTarget.IsChildOf(animator.transform);
+
+                _bones[idx]   = sourceBound ? animator.BindStreamTransform(tSource) : default;
+                _targets[idx] = targetBound ? animator.BindStreamTransform(tTarget) : default;
+
+                if (sourceBound) _drivenTransforms.Add(tSource);
+                if (targetBound) _drivenTransforms.Add(tTarget);
+
                 _bonePaths.Add(entry.bonePath);
                 idx++;
             }
@@ -447,6 +459,8 @@ namespace HonamiAnimationSystem.Runtime.Core
 
             Transform root = _animator.transform;
             int idx = 0;
+            _drivenTransforms.Clear();
+            DrivenVersion++;
 
             for (int i = 0; i < avatar.bones.Count; i++)
             {
@@ -459,16 +473,22 @@ namespace HonamiAnimationSystem.Runtime.Core
                 if (tTarget == null && (replacer == null || !replacer.disableUnreplacedBones))
                     tTarget = tSource;
 
+                bool sourceBound = tSource != null && tSource.IsChildOf(_animator.transform);
+                bool targetBound = tTarget != null && tTarget != tSource && tTarget.IsChildOf(_animator.transform);
+
                 if (_bones.IsCreated && idx < _bones.Length)
                 {
-                    _bones[idx] = (tSource != null && tSource.IsChildOf(_animator.transform)) ? _animator.BindStreamTransform(tSource) : default;
+                    _bones[idx] = sourceBound ? _animator.BindStreamTransform(tSource) : default;
                 }
 
                 if (_targets.IsCreated && idx < _targets.Length)
                 {
-                    _targets[idx] = (tTarget != null && tTarget != tSource && tTarget.IsChildOf(_animator.transform)) ? _animator.BindStreamTransform(tTarget) : default;
+                    _targets[idx] = targetBound ? _animator.BindStreamTransform(tTarget) : default;
                 }
-                
+
+                if (sourceBound) _drivenTransforms.Add(tSource);
+                if (targetBound) _drivenTransforms.Add(tTarget);
+
                 idx++;
             }
             
@@ -682,6 +702,8 @@ namespace HonamiAnimationSystem.Runtime.Core
             _cascadePlayables = null;
             _boneCount        = 0;
             _initialized      = false;
+            _drivenTransforms.Clear();
+            DrivenVersion++;
 
             if (_mirrorsInitialized)
             {
