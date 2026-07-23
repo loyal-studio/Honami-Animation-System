@@ -34,6 +34,7 @@ namespace HonamiAnimationSystem.Editor.Core
             string[] movedAssets, string[] movedFromAssetPaths)
         {
             var importedControllers = new List<HonamiController>();
+            var toMigrate = new HashSet<HonamiOverrideController>();
             var toResync = new HashSet<HonamiOverrideController>();
 
             foreach (var path in importedAssets)
@@ -41,7 +42,9 @@ namespace HonamiAnimationSystem.Editor.Core
                 var ov = AssetDatabase.LoadAssetAtPath<HonamiOverrideController>(path);
                 if (ov != null)
                 {
-                    if (ov.parentController != null) toResync.Add(ov);
+                    // The override's own save must NOT trigger a resync — that would overwrite the effective
+                    // data while the user is editing it. Only migrate legacy schema once.
+                    if (ov.parentController != null && ov.NeedsMigration) toMigrate.Add(ov);
                     continue;
                 }
 
@@ -67,19 +70,21 @@ namespace HonamiAnimationSystem.Editor.Core
                 }
             }
 
-            if (toResync.Count == 0)
+            if (toMigrate.Count == 0 && toResync.Count == 0)
             {
                 return;
             }
 
             EditorApplication.delayCall += () =>
             {
+                foreach (var ov in toMigrate)
+                {
+                    if (ov != null && ov.parentController != null) HonamiOverrideAuthoring.MigrateLegacy(ov);
+                }
+
                 foreach (var ov in toResync)
                 {
-                    if (ov != null && ov.parentController != null)
-                    {
-                        HonamiOverrideAuthoring.ResyncFromParent(ov);
-                    }
+                    if (ov != null && ov.parentController != null) HonamiOverrideAuthoring.ResyncFromParent(ov);
                 }
             };
         }

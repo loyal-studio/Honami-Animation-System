@@ -102,18 +102,18 @@ namespace HonamiAnimationSystem.Editor.Core
             }
 
             var copy = Object.Instantiate(parentState);
-            copy.hideFlags = HideFlags.HideAndDontSave;
+            copy.hideFlags = HideFlags.DontSave;
             copy.name = parentState.name;
 
             if (parentState.node != null)
             {
                 var nodeCopy = Object.Instantiate(parentState.node);
-                nodeCopy.hideFlags = HideFlags.HideAndDontSave;
+                nodeCopy.hideFlags = HideFlags.DontSave;
                 nodeCopy.name = parentState.node.name;
                 copy.node = nodeCopy;
             }
 
-            copy.subNodes = DeepCopySubNodes(parentState.subNodes, HideFlags.HideAndDontSave);
+            copy.subNodes = DeepCopySubNodes(parentState.subNodes, HideFlags.DontSave);
             return copy;
         }
 
@@ -324,9 +324,13 @@ namespace HonamiAnimationSystem.Editor.Core
                     continue;
                 }
 
-                if (!FieldEquals(pSO, eSO, field) && !entry.modifiedStatePaths.Contains(field))
+                if (!FieldEquals(pSO, eSO, field))
                 {
-                    entry.modifiedStatePaths.Add(field);
+                    if (!entry.modifiedStatePaths.Contains(field)) entry.modifiedStatePaths.Add(field);
+                }
+                else
+                {
+                    entry.modifiedStatePaths.Remove(field);
                 }
             }
 
@@ -357,9 +361,13 @@ namespace HonamiAnimationSystem.Editor.Core
                     continue;
                 }
 
-                if (!FieldEquals(pnSO, enSO, field) && !entry.modifiedNodePaths.Contains(field))
+                if (!FieldEquals(pnSO, enSO, field))
                 {
-                    entry.modifiedNodePaths.Add(field);
+                    if (!entry.modifiedNodePaths.Contains(field)) entry.modifiedNodePaths.Add(field);
+                }
+                else
+                {
+                    entry.modifiedNodePaths.Remove(field);
                 }
             }
         }
@@ -497,9 +505,13 @@ namespace HonamiAnimationSystem.Editor.Core
                 if (et == null || string.IsNullOrEmpty(et.id)) continue;
                 if (!parentById.TryGetValue(et.id, out var pt)) continue;
 
-                if (!TransitionEquals(et, pt) && !entry.modifiedTransitionIds.Contains(et.id))
+                if (!TransitionEquals(et, pt))
                 {
-                    entry.modifiedTransitionIds.Add(et.id);
+                    if (!entry.modifiedTransitionIds.Contains(et.id)) entry.modifiedTransitionIds.Add(et.id);
+                }
+                else
+                {
+                    entry.modifiedTransitionIds.Remove(et.id);
                 }
             }
         }
@@ -698,11 +710,18 @@ namespace HonamiAnimationSystem.Editor.Core
             foreach (var field in TopLevelFields(eSO))
             {
                 if (IgnoredNodeFields.Contains(field) || field == "overrideId") continue;
-                if (!FieldEquals(pSO, eSO, field) && !record.modifiedPaths.Contains(field))
+
+                if (!FieldEquals(pSO, eSO, field))
                 {
-                    record.modifiedPaths.Add(field);
+                    if (!record.modifiedPaths.Contains(field)) record.modifiedPaths.Add(field);
+                }
+                else
+                {
+                    record.modifiedPaths.Remove(field);
                 }
             }
+
+            if (record.modifiedPaths.Count == 0) entry.subNodeFieldOverrides.Remove(record);
 
             EditorUtility.SetDirty(ov);
         }

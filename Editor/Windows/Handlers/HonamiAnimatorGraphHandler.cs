@@ -356,8 +356,10 @@ namespace HonamiAnimationSystem.Editor.Handlers
         public void OnUndoRedo()
         {
             _window.SaveSelection();
-            _window.SerializedController?.Update();
-            _window.SerializedState?.Update();
+            if (_window.SerializedController != null && _window.SerializedController.targetObject != null)
+                _window.SerializedController.Update();
+            if (_window.SerializedState != null && _window.SerializedState.targetObject != null)
+                _window.SerializedState.Update();
             _graphView?.PopulateView(_window.RuntimeController, _window.CurrentLayerIndex);
             _leftPanel?.Rebuild();
             _window.RestoreSelection();

@@ -345,27 +345,46 @@ namespace HonamiAnimationSystem.Editor
 
                 refreshMarkers = () =>
                 {
-                    DecorateOverrideScope(propsBox, false, ov, () => overrideEntry, onRebuildRequired);
-                    DecorateOverrideScope(constrFoldout, false, ov, () => overrideEntry, onRebuildRequired);
-                    DecorateOverrideScope(paramFoldout, false, ov, () => overrideEntry, onRebuildRequired);
-                    DecorateOverrideScope(subNodesFoldout, false, ov, () => overrideEntry, onRebuildRequired);
+                    DecorateOverrideScope(propsBox, ov, () => overrideEntry, onRebuildRequired);
+                    DecorateOverrideScope(constrFoldout, ov, () => overrideEntry, onRebuildRequired);
+                    DecorateOverrideScope(paramFoldout, ov, () => overrideEntry, onRebuildRequired);
+                    DecorateOverrideScope(subNodesFoldout, ov, () => overrideEntry, onRebuildRequired);
                     if (overrideNodeUI != null)
                     {
-                        DecorateOverrideScope(overrideNodeUI, true, ov, () => overrideEntry, onRebuildRequired);
+                        DecorateOverrideScope(overrideNodeUI, ov, () => overrideEntry, onRebuildRequired);
                     }
                 };
 
-                root.TrackSerializedObjectValue(so, _ => HandleChange());
-                if (overrideNodeSO != null)
+                string Snapshot()
                 {
-                    root.TrackSerializedObjectValue(overrideNodeSO, _ => HandleChange());
+                    string s = state != null ? EditorJsonUtility.ToJson(state) : string.Empty;
+                    string n = state != null && state.node != null ? EditorJsonUtility.ToJson(state.node) : string.Empty;
+                    return s + "|" + n;
                 }
+
+                string lastSnapshot = Snapshot();
+                root.schedule.Execute(() =>
+                {
+                    if (overrideTransient == null && overrideEntry == null) return;
+                    string snap = Snapshot();
+                    if (snap == lastSnapshot) return;
+                    lastSnapshot = snap;
+                    HandleChange();
+                    lastSnapshot = Snapshot();
+                }).Every(120);
 
                 root.Insert(0, BuildOverrideHeader(ov, () => overrideEntry, graphView, layerIndex, onRebuildRequired));
                 refreshMarkers();
 
                 root.RegisterCallback<DetachFromPanelEvent>(_ =>
                 {
+                    if (overrideTransient != null && HonamiOverrideAuthoring.DiffersFromParent(overrideTransient, parentSnapshot))
+                    {
+                        overrideEntry = HonamiOverrideAuthoring.PromoteTransient(ov, parentGuid, overrideTransient);
+                        HonamiOverrideAuthoring.RefreshStateModified(ov, overrideEntry);
+                        overrideTransient = null;
+                    }
+
                     HonamiOverrideAuthoring.DestroyTransient(overrideTransient);
                     overrideTransient = null;
                 });
@@ -374,7 +393,7 @@ namespace HonamiAnimationSystem.Editor
             return root;
         }
 
-        private static void DecorateOverrideScope(VisualElement scope, bool isNode,
+        private static void DecorateOverrideScope(VisualElement scope,
             HonamiOverrideController ov, System.Func<HonamiOverrideEntry> entryGetter, System.Action onRebuildRequired)
         {
             if (scope == null) return;
@@ -386,7 +405,9 @@ namespace HonamiAnimationSystem.Editor
                 string field = HonamiOverrideAuthoring.TopLevelField(path);
 
                 var entry = entryGetter();
-                bool modified = entry != null && (isNode ? entry.IsNodeFieldModified(field) : entry.IsStateFieldModified(field));
+                bool stateMod = entry != null && entry.IsStateFieldModified(field);
+                bool nodeMod = entry != null && entry.IsNodeFieldModified(field);
+                bool modified = stateMod || nodeMod;
 
                 pf.style.borderLeftWidth = modified ? 2 : 0;
                 pf.style.borderLeftColor = new Color(0.29f, 0.55f, 0.9f);
@@ -401,18 +422,19 @@ namespace HonamiAnimationSystem.Editor
                     pf.AddManipulator(new ContextualMenuManipulator(evt =>
                     {
                         var e = entryGetter();
-                        bool mod = e != null && (isNode ? e.IsNodeFieldModified(field) : e.IsStateFieldModified(field));
-                        if (!mod) return;
+                        bool sMod = e != null && e.IsStateFieldModified(field);
+                        bool nMod = e != null && e.IsNodeFieldModified(field);
+                        if (!sMod && !nMod) return;
 
                         evt.menu.AppendAction("Revert Field", _ =>
                         {
-                            if (isNode) HonamiOverrideAuthoring.RevertNodeField(ov, entryGetter(), field);
+                            if (nMod) HonamiOverrideAuthoring.RevertNodeField(ov, entryGetter(), field);
                             else HonamiOverrideAuthoring.RevertStateField(ov, entryGetter(), field);
                             onRebuildRequired?.Invoke();
                         });
                         evt.menu.AppendAction("Apply to Parent", _ =>
                         {
-                            if (isNode) HonamiOverrideAuthoring.ApplyNodeFieldToParent(ov, entryGetter(), field);
+                            if (nMod) HonamiOverrideAuthoring.ApplyNodeFieldToParent(ov, entryGetter(), field);
                             else HonamiOverrideAuthoring.ApplyStateFieldToParent(ov, entryGetter(), field);
                             onRebuildRequired?.Invoke();
                         });
