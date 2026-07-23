@@ -9,6 +9,33 @@ namespace HonamiAnimationSystem.Runtime.Core
     /// </summary>
     public abstract class HonamiSubNodeBase : ScriptableObject
     {
+        [SerializeField, HideInInspector]
+        private string overrideId;
+
+        /// <summary>
+        /// Stable identity used to match a sub-node against its parent when layering prefab-style overrides.
+        /// Preserved across deep copies (Instantiate copies the serialized field).
+        /// </summary>
+        public string OverrideId => overrideId;
+
+#if UNITY_EDITOR
+        public string EnsureOverrideId()
+        {
+            if (string.IsNullOrEmpty(overrideId))
+            {
+                overrideId = System.Guid.NewGuid().ToString();
+                UnityEditor.EditorUtility.SetDirty(this);
+            }
+
+            return overrideId;
+        }
+
+        public void SetOverrideId(string id)
+        {
+            overrideId = id;
+        }
+#endif
+
         public virtual string DisplayName
         {
             get

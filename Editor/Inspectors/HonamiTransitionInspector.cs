@@ -5,6 +5,7 @@ using UnityEditor.UIElements;
 using UnityEngine;
 using UnityEngine.UIElements;
 using HonamiAnimationSystem.Runtime.Core;
+using HonamiAnimationSystem.Editor.Core;
 using HonamiAnimationSystem.Editor.Preview;
 
 namespace HonamiAnimationSystem.Editor
@@ -35,6 +36,28 @@ namespace HonamiAnimationSystem.Editor
             HonamiController controller,
             HonamiGraphView graphView)
         {
+            var overrideController = graphView?.RuntimeController as HonamiOverrideController;
+            HonamiOverrideEntry overrideEntry = null;
+            HonamiState overrideParent = null;
+            HonamiState overrideTransient = null;
+            bool isOverrideInherited = false;
+
+            if (overrideController != null && owner != null)
+            {
+                HonamiOverrideAuthoring.ResolveState(overrideController, owner, out overrideEntry, out overrideParent);
+                if (overrideEntry != null && overrideEntry.effectiveState == owner)
+                {
+                    isOverrideInherited = true;
+                }
+                else if (overrideParent != null && !overrideController.IsOwnedState(owner))
+                {
+                    overrideTransient = HonamiOverrideAuthoring.CreateTransientForTransitions(overrideController, overrideParent);
+                    owner = overrideTransient;
+                    so = new SerializedObject(owner);
+                    isOverrideInherited = true;
+                }
+            }
+
             var transProp = so.FindProperty("transitions");
             if (transProp == null || transitionIndex < 0 || transitionIndex >= transProp.arraySize)
             {
@@ -66,6 +89,59 @@ namespace HonamiAnimationSystem.Editor
             var root = new VisualElement();
             root.style.paddingLeft = root.style.paddingRight = 10;
             root.style.paddingTop = root.style.paddingBottom = 12;
+
+            if (isOverrideInherited && overrideParent != null)
+            {
+                var ovc = overrideController;
+                string parentGuid = overrideParent.guid;
+                var parentSnapshot = overrideParent;
+
+                root.TrackSerializedObjectValue(so, _ =>
+                {
+                    if (overrideTransient != null)
+                    {
+                        if (!HonamiOverrideAuthoring.TransitionsDifferFromParent(ovc, overrideTransient, parentSnapshot)) return;
+                        overrideEntry = HonamiOverrideAuthoring.PromoteTransient(ovc, parentGuid, overrideTransient);
+                        overrideTransient = null;
+                    }
+
+                    if (overrideEntry != null)
+                    {
+                        var currentParent = HonamiOverrideAuthoring.GetParentState(ovc, parentGuid);
+                        if (currentParent != null) HonamiOverrideAuthoring.RefreshTransitionModified(ovc, overrideEntry, currentParent);
+                    }
+                });
+
+                root.RegisterCallback<DetachFromPanelEvent>(_ =>
+                {
+                    HonamiOverrideAuthoring.DestroyTransient(overrideTransient);
+                    overrideTransient = null;
+                });
+            }
+
+            if (overrideController != null && overrideEntry != null && !string.IsNullOrEmpty(transition?.id) &&
+                overrideEntry.IsTransitionModified(transition.id))
+            {
+                string revertId = transition.id;
+                var ovHeader = HonamiGraphStyles.Box();
+                ovHeader.style.marginBottom = 4;
+                var ovRow = HonamiGraphStyles.Row();
+                ovRow.Add(new Label("OVERRIDDEN TRANSITION")
+                {
+                    style = { unityFontStyleAndWeight = FontStyle.Bold, fontSize = 10, color = new Color(0.9f, 0.49f, 0.13f) }
+                });
+                ovRow.Add(HonamiGraphStyles.Spacer());
+                var revertBtn = HonamiGraphStyles.SmallButton("Revert");
+                revertBtn.style.width = 70;
+                revertBtn.clicked += () =>
+                {
+                    HonamiOverrideAuthoring.RevertTransition(overrideController, overrideEntry, revertId);
+                    graphView?.PopulateView(graphView.RuntimeController, graphView.currentLayerIndex);
+                };
+                ovRow.Add(revertBtn);
+                ovHeader.Add(ovRow);
+                root.Add(ovHeader);
+            }
 
             // ── Breadcrumbs ───────────────────────────────────────────────────
             var breadcrumbs = new VisualElement { style = { flexDirection = FlexDirection.Row, marginBottom = -8 } };

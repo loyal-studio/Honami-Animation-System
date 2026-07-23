@@ -5,6 +5,7 @@ using UnityEditor.UIElements;
 using UnityEngine;
 using UnityEngine.UIElements;
 using HonamiAnimationSystem.Runtime.Core;
+using HonamiAnimationSystem.Editor.Core;
 
 namespace HonamiAnimationSystem.Editor
 {
@@ -22,6 +23,31 @@ namespace HonamiAnimationSystem.Editor
             VisualElement root = new VisualElement();
             root.style.paddingLeft = root.style.paddingRight = 10;
             root.style.paddingTop = root.style.paddingBottom = 12;
+
+            var overrideController = graphView?.RuntimeController as HonamiOverrideController;
+            HonamiOverrideEntry overrideEntry = null;
+            HonamiState overrideParentState = null;
+            HonamiState overrideTransient = null;
+            bool isOverrideInherited = false;
+
+            if (overrideController != null)
+            {
+                HonamiOverrideAuthoring.ResolveState(overrideController, state, out overrideEntry, out overrideParentState);
+
+                if (overrideEntry != null && overrideEntry.effectiveState != null)
+                {
+                    state = overrideEntry.effectiveState;
+                    so = new SerializedObject(state);
+                    isOverrideInherited = true;
+                }
+                else if (overrideParentState != null && !overrideController.IsOwnedState(state))
+                {
+                    overrideTransient = HonamiOverrideAuthoring.CreateTransientCopy(overrideParentState);
+                    state = overrideTransient;
+                    so = new SerializedObject(state);
+                    isOverrideInherited = true;
+                }
+            }
 
             VisualElement breadcrumbs = new VisualElement { style = { flexDirection = FlexDirection.Row, marginBottom = -8 } };
             breadcrumbs.Add(HonamiGraphStyles.MiniLabel(controller.name, new Color(0.5f, 0.7f, 1f)));
@@ -246,14 +272,16 @@ namespace HonamiAnimationSystem.Editor
                 propsBox.Add(new VisualElement { style = { height = 4 } });
             }
 
+            SerializedObject overrideNodeSO = null;
+            VisualElement overrideNodeUI = null;
             if (state.node != null)
             {
                 HonamiNodeEditorBase nodeEditor = HonamiNodeEditorRegistry.GetEditor(state.node);
                 if (nodeEditor != null)
                 {
-                    SerializedObject nodeSO = new SerializedObject(state.node);
-                    VisualElement nodeUI = nodeEditor.BuildInspectorUI(state, nodeSO, controller);
-                    if (nodeUI != null) root.Add(nodeUI);
+                    overrideNodeSO = new SerializedObject(state.node);
+                    overrideNodeUI = nodeEditor.BuildInspectorUI(state, overrideNodeSO, controller);
+                    if (overrideNodeUI != null) root.Add(overrideNodeUI);
                 }
             }
             else
@@ -286,7 +314,147 @@ namespace HonamiAnimationSystem.Editor
             guidField.style.marginTop = 3;
             root.Add(guidField);
 
+            if (isOverrideInherited && overrideParentState != null)
+            {
+                var ov = overrideController;
+                string parentGuid = overrideParentState.guid;
+                var parentSnapshot = overrideParentState;
+                System.Action refreshMarkers = null;
+
+                void HandleChange()
+                {
+                    if (overrideTransient != null)
+                    {
+                        if (!HonamiOverrideAuthoring.DiffersFromParent(overrideTransient, parentSnapshot))
+                        {
+                            return;
+                        }
+
+                        overrideEntry = HonamiOverrideAuthoring.PromoteTransient(ov, parentGuid, overrideTransient);
+                        overrideTransient = null;
+                    }
+
+                    if (overrideEntry != null)
+                    {
+                        HonamiOverrideAuthoring.RefreshStateModified(ov, overrideEntry);
+                    }
+
+                    refreshMarkers?.Invoke();
+                    selectedNode?.RefreshView(state.isDefaultState);
+                }
+
+                refreshMarkers = () =>
+                {
+                    DecorateOverrideScope(propsBox, false, ov, () => overrideEntry, onRebuildRequired);
+                    DecorateOverrideScope(constrFoldout, false, ov, () => overrideEntry, onRebuildRequired);
+                    DecorateOverrideScope(paramFoldout, false, ov, () => overrideEntry, onRebuildRequired);
+                    DecorateOverrideScope(subNodesFoldout, false, ov, () => overrideEntry, onRebuildRequired);
+                    if (overrideNodeUI != null)
+                    {
+                        DecorateOverrideScope(overrideNodeUI, true, ov, () => overrideEntry, onRebuildRequired);
+                    }
+                };
+
+                root.TrackSerializedObjectValue(so, _ => HandleChange());
+                if (overrideNodeSO != null)
+                {
+                    root.TrackSerializedObjectValue(overrideNodeSO, _ => HandleChange());
+                }
+
+                root.Insert(0, BuildOverrideHeader(ov, () => overrideEntry, graphView, layerIndex, onRebuildRequired));
+                refreshMarkers();
+
+                root.RegisterCallback<DetachFromPanelEvent>(_ =>
+                {
+                    HonamiOverrideAuthoring.DestroyTransient(overrideTransient);
+                    overrideTransient = null;
+                });
+            }
+
             return root;
+        }
+
+        private static void DecorateOverrideScope(VisualElement scope, bool isNode,
+            HonamiOverrideController ov, System.Func<HonamiOverrideEntry> entryGetter, System.Action onRebuildRequired)
+        {
+            if (scope == null) return;
+
+            scope.Query<PropertyField>().ForEach(pf =>
+            {
+                string path = pf.bindingPath;
+                if (string.IsNullOrEmpty(path)) return;
+                string field = HonamiOverrideAuthoring.TopLevelField(path);
+
+                var entry = entryGetter();
+                bool modified = entry != null && (isNode ? entry.IsNodeFieldModified(field) : entry.IsStateFieldModified(field));
+
+                pf.style.borderLeftWidth = modified ? 2 : 0;
+                pf.style.borderLeftColor = new Color(0.29f, 0.55f, 0.9f);
+                pf.style.paddingLeft = modified ? 5 : 0;
+
+                Label label = pf.Q<Label>();
+                if (label != null) label.style.unityFontStyleAndWeight = modified ? FontStyle.Bold : FontStyle.Normal;
+
+                if (!(pf.userData is string tag) || tag != "ov-menu")
+                {
+                    pf.userData = "ov-menu";
+                    pf.AddManipulator(new ContextualMenuManipulator(evt =>
+                    {
+                        var e = entryGetter();
+                        bool mod = e != null && (isNode ? e.IsNodeFieldModified(field) : e.IsStateFieldModified(field));
+                        if (!mod) return;
+
+                        evt.menu.AppendAction("Revert Field", _ =>
+                        {
+                            if (isNode) HonamiOverrideAuthoring.RevertNodeField(ov, entryGetter(), field);
+                            else HonamiOverrideAuthoring.RevertStateField(ov, entryGetter(), field);
+                            onRebuildRequired?.Invoke();
+                        });
+                        evt.menu.AppendAction("Apply to Parent", _ =>
+                        {
+                            if (isNode) HonamiOverrideAuthoring.ApplyNodeFieldToParent(ov, entryGetter(), field);
+                            else HonamiOverrideAuthoring.ApplyStateFieldToParent(ov, entryGetter(), field);
+                            onRebuildRequired?.Invoke();
+                        });
+                    }));
+                }
+            });
+        }
+
+        private static VisualElement BuildOverrideHeader(HonamiOverrideController ov,
+            System.Func<HonamiOverrideEntry> entryGetter, HonamiGraphView graphView, int layerIndex, System.Action onRebuildRequired)
+        {
+            var entry = entryGetter();
+            int count = entry == null
+                ? 0
+                : (entry.modifiedStatePaths.Count + entry.modifiedNodePaths.Count + (entry.nodeTypeOverridden ? 1 : 0));
+
+            var box = HonamiGraphStyles.Box();
+            box.style.marginBottom = 4;
+            var row = HonamiGraphStyles.Row();
+
+            var badge = new Label(count > 0 ? $"OVERRIDE · {count} field(s)" : "INHERITED");
+            badge.style.unityFontStyleAndWeight = FontStyle.Bold;
+            badge.style.fontSize = 10;
+            badge.style.color = count > 0 ? new Color(0.9f, 0.49f, 0.13f) : new Color(0.6f, 0.6f, 0.6f);
+            row.Add(badge);
+            row.Add(HonamiGraphStyles.Spacer());
+
+            if (count > 0)
+            {
+                var revertAll = HonamiGraphStyles.SmallButton("Revert All");
+                revertAll.style.width = 80;
+                revertAll.clicked += () =>
+                {
+                    HonamiOverrideAuthoring.RevertAll(ov, entryGetter());
+                    graphView?.PopulateView(graphView.RuntimeController, layerIndex);
+                    onRebuildRequired?.Invoke();
+                };
+                row.Add(revertAll);
+            }
+
+            box.Add(row);
+            return box;
         }
 
         private static bool _handlingNameChange = false;
@@ -563,6 +731,31 @@ namespace HonamiAnimationSystem.Editor
                     Button delBtn = HonamiGraphStyles.SmallButton(HonamiEditorSymbols.Remove);
                     delBtn.clicked += () =>
                     {
+                        if (graphView?.RuntimeController is HonamiOverrideController ovSub)
+                        {
+                            if (sn != null && HonamiOverrideAuthoring.FindSubNodeOwner(ovSub, sn, out var subEntry))
+                            {
+                                HonamiOverrideAuthoring.RemoveSubNodeFromOverride(ovSub, subEntry, sn.OverrideId);
+                                graphView.PopulateView(ovSub, graphView.currentLayerIndex);
+                                onRebuildRequired?.Invoke();
+                                return;
+                            }
+
+                            var stateObj = so.targetObject as HonamiState;
+                            if (stateObj != null && !ovSub.IsOwnedState(stateObj))
+                            {
+                                var eff = HonamiOverrideAuthoring.EnsureEffectiveState(ovSub, stateObj);
+                                HonamiOverrideAuthoring.ResolveState(ovSub, eff, out var e2, out _);
+                                if (e2 != null && eff.subNodes != null && index < eff.subNodes.Count && eff.subNodes[index] != null)
+                                {
+                                    HonamiOverrideAuthoring.RemoveSubNodeFromOverride(ovSub, e2, eff.subNodes[index].OverrideId);
+                                }
+                                graphView.PopulateView(ovSub, graphView.currentLayerIndex);
+                                onRebuildRequired?.Invoke();
+                                return;
+                            }
+                        }
+
                         so.Update();
                         if (sn != null) Undo.DestroyObjectImmediate(sn);
                         subNodesProp.DeleteArrayElementAtIndex(index);

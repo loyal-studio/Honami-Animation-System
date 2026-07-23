@@ -5,7 +5,136 @@ using UnityEngine;
 namespace HonamiAnimationSystem.Runtime.Core
 {
     /// <summary>
-    /// Maps a parent state GUID to an override node.
+    /// Per-sub-node field override, matched to the parent sub-node by its stable OverrideId.
+    /// </summary>
+    [Serializable]
+    public sealed class HonamiSubNodeFieldOverride
+    {
+        public string subNodeId;
+        public List<string> modifiedPaths = new List<string>();
+    }
+
+    /// <summary>
+    /// Prefab-style override record for a single inherited state. Unmodified fields keep inheriting from the
+    /// parent; only the serialized fields listed in the modified path sets are owned locally. State scalar/struct
+    /// fields and node fields are tracked at top-level granularity; transitions and sub-nodes are tracked
+    /// per-element.
+    /// </summary>
+    [Serializable]
+    public sealed class HonamiOverrideEntry
+    {
+        public string parentStateGuid;
+
+        [Tooltip("Baked copy of the inherited state that carries the locally overridden field values. Its node is the baked node copy.")]
+        public HonamiState effectiveState;
+
+        [Tooltip("Top-level serialized field names on the state that are overridden locally (e.g. weight, avatarMask). Excludes transitions and subNodes.")]
+        public List<string> modifiedStatePaths = new List<string>();
+
+        [Tooltip("Top-level serialized field names on the node that are overridden locally.")]
+        public List<string> modifiedNodePaths = new List<string>();
+
+        [Tooltip("True when the node type itself was replaced relative to the parent.")]
+        public bool nodeTypeOverridden;
+
+        [Tooltip("Parent transition ids whose fields are overridden locally (matched by transition id).")]
+        public List<string> modifiedTransitionIds = new List<string>();
+
+        [Tooltip("Parent transition ids deleted locally.")]
+        public List<string> removedParentTransitionIds = new List<string>();
+
+        [Tooltip("Transition ids added locally (not present on the parent).")]
+        public List<string> addedTransitionIds = new List<string>();
+
+        [Tooltip("Parent sub-node ids deleted locally (matched by OverrideId).")]
+        public List<string> removedParentSubNodeIds = new List<string>();
+
+        [Tooltip("Sub-node ids added locally (not present on the parent).")]
+        public List<string> addedSubNodeIds = new List<string>();
+
+        [Tooltip("Per-sub-node field overrides, keyed by the sub-node's OverrideId.")]
+        public List<HonamiSubNodeFieldOverride> subNodeFieldOverrides = new List<HonamiSubNodeFieldOverride>();
+
+        public bool HasAnyOverride =>
+            nodeTypeOverridden ||
+            (modifiedStatePaths != null && modifiedStatePaths.Count > 0) ||
+            (modifiedNodePaths != null && modifiedNodePaths.Count > 0) ||
+            (modifiedTransitionIds != null && modifiedTransitionIds.Count > 0) ||
+            (removedParentTransitionIds != null && removedParentTransitionIds.Count > 0) ||
+            (addedTransitionIds != null && addedTransitionIds.Count > 0) ||
+            (removedParentSubNodeIds != null && removedParentSubNodeIds.Count > 0) ||
+            (addedSubNodeIds != null && addedSubNodeIds.Count > 0) ||
+            HasSubNodeFieldOverride();
+
+        private bool HasSubNodeFieldOverride()
+        {
+            if (subNodeFieldOverrides == null)
+            {
+                return false;
+            }
+
+            for (int i = 0; i < subNodeFieldOverrides.Count; i++)
+            {
+                if (subNodeFieldOverrides[i] != null && subNodeFieldOverrides[i].modifiedPaths.Count > 0)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        public bool IsStateFieldModified(string field)
+            => modifiedStatePaths != null && field != null && modifiedStatePaths.Contains(field);
+
+        public bool IsNodeFieldModified(string field)
+            => modifiedNodePaths != null && field != null && modifiedNodePaths.Contains(field);
+
+        public bool IsTransitionModified(string transitionId)
+            => transitionId != null &&
+               ((modifiedTransitionIds != null && modifiedTransitionIds.Contains(transitionId)) ||
+                (removedParentTransitionIds != null && removedParentTransitionIds.Contains(transitionId)));
+
+        public HonamiSubNodeFieldOverride GetSubNodeFieldOverride(string subNodeId, bool createIfMissing)
+        {
+            if (string.IsNullOrEmpty(subNodeId))
+            {
+                return null;
+            }
+
+            subNodeFieldOverrides ??= new List<HonamiSubNodeFieldOverride>();
+            for (int i = 0; i < subNodeFieldOverrides.Count; i++)
+            {
+                if (subNodeFieldOverrides[i] != null && subNodeFieldOverrides[i].subNodeId == subNodeId)
+                {
+                    return subNodeFieldOverrides[i];
+                }
+            }
+
+            if (!createIfMissing)
+            {
+                return null;
+            }
+
+            var created = new HonamiSubNodeFieldOverride { subNodeId = subNodeId };
+            subNodeFieldOverrides.Add(created);
+            return created;
+        }
+    }
+
+    /// <summary>
+    /// Per-override editor layout position, so moving an inherited node in an override graph does not leak into the parent.
+    /// </summary>
+    [Serializable]
+    public struct HonamiOverrideNodePosition
+    {
+        public string stateGuid;
+        public Vector2 position;
+    }
+
+    /// <summary>
+    /// Legacy (schema v0) whole-node override record. Kept only so pre-existing assets can be migrated; never
+    /// written by current code.
     /// </summary>
     [Serializable]
     public struct HonamiNodeOverride
@@ -15,7 +144,7 @@ namespace HonamiAnimationSystem.Runtime.Core
     }
 
     /// <summary>
-    /// Maps a parent state GUID to an override transition list.
+    /// Legacy (schema v0) whole-list transition override record. Kept only for migration.
     /// </summary>
     [Serializable]
     public struct HonamiStateTransitionsOverride
@@ -25,15 +154,34 @@ namespace HonamiAnimationSystem.Runtime.Core
     }
 
     /// <summary>
-    /// Runtime controller that layers node, state, parameter, and transition overrides on top of another controller.
+    /// Runtime controller that layers prefab-style per-field overrides on top of a parent controller.
     /// </summary>
     public sealed class HonamiOverrideController : HonamiRuntimeController
     {
+        public const int CurrentOverrideSchemaVersion = 1;
+
         [Tooltip("The base controller to inherit layers, parameters, and states from.")]
         public HonamiRuntimeController parentController;
 
-        [Tooltip("List of nodes overridden from the parent controller.")]
+        [Tooltip("Per-state prefab-style overrides applied on top of the parent controller.")]
+        public List<HonamiOverrideEntry> overrides = new List<HonamiOverrideEntry>();
+
+        [SerializeField, HideInInspector]
+        private int overrideSchemaVersion;
+
+        [HideInInspector]
         public List<HonamiNodeOverride> nodeOverrides = new List<HonamiNodeOverride>();
+
+        [HideInInspector]
+        public List<HonamiStateTransitionsOverride> transitionOverrides = new List<HonamiStateTransitionsOverride>();
+
+        public int OverrideSchemaVersion
+        {
+            get => overrideSchemaVersion;
+            set => overrideSchemaVersion = value;
+        }
+
+        public bool NeedsMigration => overrideSchemaVersion < CurrentOverrideSchemaVersion;
 
         [Tooltip("Additional layers exclusively for this override controller.")]
         public List<HonamiLayer> additionalLayers = new List<HonamiLayer>();
@@ -51,12 +199,11 @@ namespace HonamiAnimationSystem.Runtime.Core
         public List<HonamiStickyNoteData> additionalStickyNotes = new List<HonamiStickyNoteData>();
 
         [HideInInspector]
-        public List<HonamiStateTransitionsOverride> transitionOverrides = new List<HonamiStateTransitionsOverride>();
+        public List<HonamiOverrideNodePosition> nodePositions = new List<HonamiOverrideNodePosition>();
 
         private CompositeListView<HonamiLayer> _layersView;
         private CompositeListView<HonamiParameter> _parametersView;
         private CompositeListView<HonamiState> _statesView;
-        private Dictionary<string, HonamiNodeBase> _guidToNodeCache;
 
         public override IReadOnlyList<HonamiLayer> ActiveLayers
             => _layersView ??= new CompositeListView<HonamiLayer>(
@@ -70,35 +217,12 @@ namespace HonamiAnimationSystem.Runtime.Core
 
         public override IReadOnlyList<HonamiState> ActiveStates
             => _statesView ??= new CompositeListView<HonamiState>(
-                GetParentStates,
+                GetEffectiveInheritedStates,
                 () => additionalStates);
 
         public override HonamiNodeBase GetActiveNode(HonamiState state)
         {
-            if (state == null)
-            {
-                return null;
-            }
-
-            if (state.guid == null)
-            {
-                return state.node;
-            }
-
-            EnsureGuidCache();
-            return _guidToNodeCache.TryGetValue(state.guid, out var node) ? node : state.node;
-        }
-
-        public override HonamiNodeBase GetActiveNodeByGuid(string guid)
-        {
-            EnsureGuidCache();
-
-            if (guid != null && _guidToNodeCache.TryGetValue(guid, out var node))
-            {
-                return node;
-            }
-
-            return null;
+            return state != null ? state.node : null;
         }
 
         public override IReadOnlyList<HonamiTransition> GetTransitions(HonamiState state)
@@ -108,29 +232,132 @@ namespace HonamiAnimationSystem.Runtime.Core
                 return null;
             }
 
-            if (transitionOverrides != null)
+            if (IsOwnedState(state))
             {
-                foreach (var transitionOverride in transitionOverrides)
+                return state.transitions;
+            }
+
+            return parentController != null && parentController != this
+                ? parentController.GetTransitions(state)
+                : state.transitions;
+        }
+
+        public override HonamiNodeBase GetActiveNodeByGuid(string guid)
+        {
+            if (string.IsNullOrEmpty(guid))
+            {
+                return null;
+            }
+
+            var activeStates = ActiveStates;
+            for (int i = 0; i < activeStates.Count; i++)
+            {
+                var state = activeStates[i];
+                if (state != null && state.guid == guid)
                 {
-                    if (transitionOverride.stateGuid == state.guid)
+                    return state.node;
+                }
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        /// Finds the override entry that targets the given inherited parent state, if any.
+        /// </summary>
+        public HonamiOverrideEntry FindEntry(string parentStateGuid)
+        {
+            if (string.IsNullOrEmpty(parentStateGuid) || overrides == null)
+            {
+                return null;
+            }
+
+            for (int i = 0; i < overrides.Count; i++)
+            {
+                if (overrides[i] != null && overrides[i].parentStateGuid == parentStateGuid)
+                {
+                    return overrides[i];
+                }
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        /// True when the state is locally owned by this override (an added state or a baked effective copy).
+        /// </summary>
+        public bool IsOwnedState(HonamiState state)
+        {
+            if (state == null)
+            {
+                return false;
+            }
+
+            if (additionalStates != null && additionalStates.Contains(state))
+            {
+                return true;
+            }
+
+            if (overrides != null)
+            {
+                for (int i = 0; i < overrides.Count; i++)
+                {
+                    if (overrides[i] != null && overrides[i].effectiveState == state)
                     {
-                        return transitionOverride.transitions;
+                        return true;
                     }
                 }
             }
 
-            return state.transitions;
+            return false;
+        }
+
+        public bool TryGetNodePosition(string stateGuid, out Vector2 position)
+        {
+            if (!string.IsNullOrEmpty(stateGuid) && nodePositions != null)
+            {
+                for (int i = 0; i < nodePositions.Count; i++)
+                {
+                    if (nodePositions[i].stateGuid == stateGuid)
+                    {
+                        position = nodePositions[i].position;
+                        return true;
+                    }
+                }
+            }
+
+            position = default;
+            return false;
+        }
+
+        public void SetNodePosition(string stateGuid, Vector2 position)
+        {
+            if (string.IsNullOrEmpty(stateGuid))
+            {
+                return;
+            }
+
+            nodePositions ??= new List<HonamiOverrideNodePosition>();
+            for (int i = 0; i < nodePositions.Count; i++)
+            {
+                if (nodePositions[i].stateGuid == stateGuid)
+                {
+                    nodePositions[i] = new HonamiOverrideNodePosition { stateGuid = stateGuid, position = position };
+                    return;
+                }
+            }
+
+            nodePositions.Add(new HonamiOverrideNodePosition { stateGuid = stateGuid, position = position });
         }
 
         /// <summary>
-        /// Clears all runtime views and override lookup caches.
+        /// Clears all runtime views so the next query rebuilds the effective state set.
         /// </summary>
         public void ClearCaches()
         {
             _layersView?.Invalidate();
             _parametersView?.Invalidate();
             _statesView?.Invalidate();
-            _guidToNodeCache = null;
         }
 
         private void OnEnable()
@@ -148,70 +375,33 @@ namespace HonamiAnimationSystem.Runtime.Core
             return parentController != null && parentController != this ? parentController.ActiveParameters : null;
         }
 
-        private IReadOnlyList<HonamiState> GetParentStates()
-        {
-            return parentController != null && parentController != this ? parentController.ActiveStates : null;
-        }
-
-        private void EnsureGuidCache()
-        {
-            if (_guidToNodeCache != null)
-            {
-                return;
-            }
-
-            _guidToNodeCache = new Dictionary<string, HonamiNodeBase>();
-            AddParentNodesToCache();
-            AddAdditionalStatesToCache();
-            ApplyNodeOverridesToCache();
-        }
-
-        private void AddParentNodesToCache()
+        private IReadOnlyList<HonamiState> GetEffectiveInheritedStates()
         {
             if (parentController == null || parentController == this)
             {
-                return;
+                return null;
             }
 
-            foreach (var state in parentController.ActiveStates)
+            var parentStates = parentController.ActiveStates;
+            if (parentStates == null)
             {
-                if (state != null && state.guid != null)
+                return null;
+            }
+
+            var result = new List<HonamiState>(parentStates.Count);
+            for (int i = 0; i < parentStates.Count; i++)
+            {
+                var parentState = parentStates[i];
+                if (parentState == null)
                 {
-                    _guidToNodeCache[state.guid] = parentController.GetActiveNodeByGuid(state.guid);
+                    continue;
                 }
-            }
-        }
 
-        private void AddAdditionalStatesToCache()
-        {
-            if (additionalStates == null)
-            {
-                return;
+                var entry = FindEntry(parentState.guid);
+                result.Add(entry != null && entry.effectiveState != null ? entry.effectiveState : parentState);
             }
 
-            foreach (var state in additionalStates)
-            {
-                if (state != null && state.guid != null)
-                {
-                    _guidToNodeCache[state.guid] = state.node;
-                }
-            }
-        }
-
-        private void ApplyNodeOverridesToCache()
-        {
-            if (nodeOverrides == null)
-            {
-                return;
-            }
-
-            foreach (var nodeOverride in nodeOverrides)
-            {
-                if (nodeOverride.stateGuid != null && nodeOverride.overrideNode != null)
-                {
-                    _guidToNodeCache[nodeOverride.stateGuid] = nodeOverride.overrideNode;
-                }
-            }
+            return result;
         }
 
 #if UNITY_EDITOR

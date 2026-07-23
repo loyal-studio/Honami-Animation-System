@@ -1,8 +1,7 @@
 using UnityEngine;
 using UnityEditor;
-using System.Collections.Generic;
-using System.Linq;
 using HonamiAnimationSystem.Runtime.Core;
+using HonamiAnimationSystem.Editor.Core;
 
 namespace HonamiAnimationSystem.Editor.Inspectors
 {
@@ -10,16 +9,19 @@ namespace HonamiAnimationSystem.Editor.Inspectors
     public sealed class HonamiOverrideControllerEditor : UnityEditor.Editor
     {
         private SerializedProperty _parentControllerProp;
-        private SerializedProperty _nodeOverridesProp;
         private SerializedProperty _additionalLayersProp;
         private SerializedProperty _additionalParametersProp;
 
         private void OnEnable()
         {
             _parentControllerProp = serializedObject.FindProperty("parentController");
-            _nodeOverridesProp = serializedObject.FindProperty("nodeOverrides");
             _additionalLayersProp = serializedObject.FindProperty("additionalLayers");
             _additionalParametersProp = serializedObject.FindProperty("additionalParameters");
+
+            if (target is HonamiOverrideController overrideController && overrideController.parentController != null)
+            {
+                HonamiOverrideAuthoring.ResyncFromParent(overrideController);
+            }
         }
 
         public override void OnInspectorGUI()
@@ -57,182 +59,56 @@ namespace HonamiAnimationSystem.Editor.Inspectors
             EditorGUILayout.PropertyField(_additionalParametersProp, true);
 
             EditorGUILayout.Space();
-            EditorGUILayout.LabelField("State Overrides", EditorStyles.boldLabel);
-
-            if (parent.states == null || parent.states.Count == 0)
+            using (new EditorGUILayout.HorizontalScope())
             {
-                EditorGUILayout.HelpBox("Parent controller has no states.", MessageType.Info);
-                serializedObject.ApplyModifiedProperties();
-                return;
+                EditorGUILayout.LabelField("Field Overrides", EditorStyles.boldLabel);
+                if (GUILayout.Button("Resync from Parent", GUILayout.Width(140)))
+                {
+                    HonamiOverrideAuthoring.ResyncFromParent(overrideController);
+                }
             }
 
+            EditorGUILayout.HelpBox(
+                "Edit inherited states in the Animator Graph. Each field you change is overridden individually (prefab-style); untouched fields keep inheriting from the parent.",
+                MessageType.None);
 
-            SyncOverridesToParent(overrideController, parent);
-
-            for (int i = 0; i < parent.states.Count; i++)
-            {
-                var state = parent.states[i];
-                if (state == null) continue;
-
-                var overrideIndex = overrideController.nodeOverrides.FindIndex(o => o.stateGuid == state.guid);
-                if (overrideIndex == -1) continue;
-
-                var overrideProp = _nodeOverridesProp.GetArrayElementAtIndex(overrideIndex);
-                var overrideNodeProp = overrideProp.FindPropertyRelative("overrideNode");
-
-                bool isOverridden = overrideNodeProp.objectReferenceValue != null;
-
-                if (isOverridden)
-                {
-                    GUI.backgroundColor = new Color(0.8f, 1f, 0.8f);
-                }
-
-                EditorGUILayout.BeginHorizontal(EditorStyles.helpBox);
-                GUI.backgroundColor = Color.white;
-
-                GUIStyle labelStyle = new GUIStyle(EditorStyles.label);
-                if (isOverridden)
-                {
-                    labelStyle.fontStyle = FontStyle.Bold;
-                }
-
-                string nodeTypeStr = state.node != null ? state.node.GetType().Name.Replace("Honami", "").Replace("Node", "") : "None";
-                EditorGUILayout.LabelField($"{state.stateName} ({nodeTypeStr})", labelStyle, GUILayout.Width(EditorGUIUtility.labelWidth));
-
-                EditorGUI.BeginChangeCheck();
-                EditorGUILayout.PropertyField(overrideNodeProp, GUIContent.none);
-                if (EditorGUI.EndChangeCheck())
-                {
-
-                }
-
-                if (isOverridden)
-                {
-                    if (GUILayout.Button("X", GUILayout.Width(25)))
-                    {
-                        var oldNode = overrideNodeProp.objectReferenceValue;
-                        if (oldNode != null && AssetDatabase.GetAssetPath(oldNode) == AssetDatabase.GetAssetPath(overrideController))
-                        {
-                            AssetDatabase.RemoveObjectFromAsset(oldNode);
-                            DestroyImmediate(oldNode, true);
-                        }
-                        overrideNodeProp.objectReferenceValue = null;
-                        EditorUtility.SetDirty(overrideController);
-                        HonamiGraphView.DeferredSave();
-
-                    }
-                }
-                else
-                {
-                    if (GUILayout.Button("Create", GUILayout.Width(60)))
-                    {
-                        ShowCreateMenu(overrideController, overrideIndex, state.node);
-                    }
-                }
-
-                EditorGUILayout.EndHorizontal();
-            }
+            DrawOverrideList(overrideController);
 
             serializedObject.ApplyModifiedProperties();
         }
 
-        private void SyncOverridesToParent(HonamiOverrideController overrideController, HonamiController parent)
+        private void DrawOverrideList(HonamiOverrideController overrideController)
         {
-            bool modified = false;
-
-
-            for (int i = overrideController.nodeOverrides.Count - 1; i >= 0; i--)
+            if (overrideController.overrides == null || overrideController.overrides.Count == 0)
             {
-                var guid = overrideController.nodeOverrides[i].stateGuid;
-                if (!parent.states.Any(s => s != null && s.guid == guid))
-                {
+                EditorGUILayout.LabelField("No states overridden.", EditorStyles.miniLabel);
+                return;
+            }
 
-                    var obsoleteNode = overrideController.nodeOverrides[i].overrideNode;
-                    if (obsoleteNode != null && AssetDatabase.GetAssetPath(obsoleteNode) == AssetDatabase.GetAssetPath(overrideController))
+            for (int i = overrideController.overrides.Count - 1; i >= 0; i--)
+            {
+                var entry = overrideController.overrides[i];
+                if (entry == null) continue;
+
+                var parentState = HonamiOverrideAuthoring.GetParentState(overrideController, entry.parentStateGuid);
+                string stateName = parentState != null ? parentState.stateName : "(missing state)";
+                int count = entry.modifiedStatePaths.Count + entry.modifiedNodePaths.Count + (entry.nodeTypeOverridden ? 1 : 0)
+                    + entry.modifiedTransitionIds.Count + entry.removedParentTransitionIds.Count + entry.addedTransitionIds.Count
+                    + entry.removedParentSubNodeIds.Count + entry.addedSubNodeIds.Count + entry.subNodeFieldOverrides.Count;
+
+                using (new EditorGUILayout.HorizontalScope(EditorStyles.helpBox))
+                {
+                    EditorGUILayout.LabelField($"{stateName}", EditorStyles.boldLabel, GUILayout.Width(EditorGUIUtility.labelWidth));
+                    EditorGUILayout.LabelField($"{count} field(s)", GUILayout.Width(80));
+
+                    if (GUILayout.Button("Revert", GUILayout.Width(70)))
                     {
-                        AssetDatabase.RemoveObjectFromAsset(obsoleteNode);
-                        DestroyImmediate(obsoleteNode, true);
+                        HonamiOverrideAuthoring.RevertAll(overrideController, entry);
+                        serializedObject.Update();
+                        GUIUtility.ExitGUI();
                     }
-                    overrideController.nodeOverrides.RemoveAt(i);
-                    modified = true;
                 }
             }
-
-
-            foreach (var state in parent.states)
-            {
-                if (state == null) continue;
-                if (!overrideController.nodeOverrides.Any(o => o.stateGuid == state.guid))
-                {
-                    overrideController.nodeOverrides.Add(new HonamiNodeOverride { stateGuid = state.guid, overrideNode = null });
-                    modified = true;
-                }
-            }
-
-            if (modified)
-            {
-                EditorUtility.SetDirty(overrideController);
-                serializedObject.Update();
-            }
-        }
-
-        private void ShowCreateMenu(HonamiOverrideController controller, int overrideIndex, HonamiNodeBase originalNode)
-        {
-            var menu = new GenericMenu();
-
-
-            var nodeTypes = TypeCache.GetTypesDerivedFrom<HonamiNodeBase>()
-                .Where(t => !t.IsAbstract && !t.IsGenericType)
-                .OrderBy(t => t.Name).ToList();
-
-            foreach (var type in nodeTypes)
-            {
-                string typeName = type.Name.Replace("Honami", "").Replace("Node", "");
-                menu.AddItem(new GUIContent(typeName), false, () =>
-                {
-                    CreateNodeOverride(controller, overrideIndex, type);
-                });
-            }
-
-            menu.ShowAsContext();
-        }
-
-        private void CreateNodeOverride(HonamiOverrideController controller, int overrideIndex, System.Type nodeType)
-        {
-            var newNode = ScriptableObject.CreateInstance(nodeType) as HonamiNodeBase;
-            if (newNode == null) return;
-
-            newNode.name = $"{nodeType.Name}_{System.Guid.NewGuid().ToString().Substring(0, 5)}";
-
-
-            var parentStateGuid = controller.nodeOverrides[overrideIndex].stateGuid;
-            var parent = controller.parentController as HonamiController;
-            if (parent != null)
-            {
-                var parentState = parent.states.Find(x => x != null && x.guid == parentStateGuid);
-                if (parentState != null)
-                    newNode.name = $"Override_{parentState.stateName}";
-            }
-
-            AssetDatabase.AddObjectToAsset(newNode, controller);
-
-
-            var oldNode = controller.nodeOverrides[overrideIndex].overrideNode;
-            if (oldNode != null && AssetDatabase.GetAssetPath(oldNode) == AssetDatabase.GetAssetPath(controller))
-            {
-                AssetDatabase.RemoveObjectFromAsset(oldNode);
-                DestroyImmediate(oldNode, true);
-            }
-
-
-            var item = controller.nodeOverrides[overrideIndex];
-            item.overrideNode = newNode;
-            controller.nodeOverrides[overrideIndex] = item;
-
-            EditorUtility.SetDirty(controller);
-            HonamiGraphView.DeferredSave();
-
-            serializedObject.Update();
         }
     }
 }

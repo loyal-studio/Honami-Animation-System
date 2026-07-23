@@ -121,6 +121,10 @@ namespace HonamiAnimationSystem.Editor.Handlers
             }
 
             _window.SaveSelection();
+            if (_window.RuntimeController is Runtime.Core.HonamiOverrideController overrideToResync && overrideToResync.parentController != null)
+            {
+                HonamiAnimationSystem.Editor.Core.HonamiOverrideAuthoring.ResyncFromParent(overrideToResync);
+            }
             if (_window.RuntimeController != null) _graphView.PopulateView(_window.RuntimeController, _window.CurrentLayerIndex);
 
             _leftPanel?.Rebuild();
@@ -141,16 +145,56 @@ namespace HonamiAnimationSystem.Editor.Handlers
                 pad.Add(HonamiGraphStyles.Title(_window.SelectedSubNode.GetType().Name.Replace("Honami", "")));
                 pad.Add(HonamiGraphStyles.MiniLabel("Sub-Node Configuration", HonamiGraphStyles.SubTitleClr));
 
+                var subOverride = _window.RuntimeController as Runtime.Core.HonamiOverrideController;
+                Runtime.Core.HonamiOverrideEntry subEntry = null;
+                bool subIsOverride = subOverride != null &&
+                    HonamiAnimationSystem.Editor.Core.HonamiOverrideAuthoring.FindSubNodeOwner(subOverride, _window.SelectedSubNode, out subEntry);
+                var capturedSubNode = _window.SelectedSubNode;
+                string capturedSubId = capturedSubNode != null ? capturedSubNode.OverrideId : null;
+
+                if (subIsOverride)
+                {
+                    var ovRow = HonamiGraphStyles.Row();
+                    ovRow.Add(new Label("OVERRIDE") { style = { unityFontStyleAndWeight = FontStyle.Bold, fontSize = 10, color = new Color(0.9f, 0.49f, 0.13f) } });
+                    ovRow.Add(HonamiGraphStyles.Spacer());
+                    var revertSub = HonamiGraphStyles.SmallButton("Revert");
+                    revertSub.style.width = 70;
+                    revertSub.clicked += () =>
+                    {
+                        HonamiAnimationSystem.Editor.Core.HonamiOverrideAuthoring.RevertSubNode(subOverride, subEntry, capturedSubId);
+                        _graphView.PopulateView(_window.RuntimeController, _window.CurrentLayerIndex);
+                        _window.SelectedSubNode = null;
+                        _window.BuildRightPanel();
+                    };
+                    ovRow.Add(revertSub);
+                    pad.Add(ovRow);
+                }
+
                 var box = HonamiGraphStyles.Box();
                 var inspector = new InspectorElement(_window.SerializedSubNode);
                 inspector.style.paddingTop = 4;
                 box.Add(inspector);
                 pad.Add(box);
 
+                if (subIsOverride)
+                {
+                    pad.TrackSerializedObjectValue(_window.SerializedSubNode, _ =>
+                        HonamiAnimationSystem.Editor.Core.HonamiOverrideAuthoring.RefreshSubNodeModified(subOverride, subEntry, capturedSubNode));
+                }
+
                 Button removeBtn = new Button(() =>
                 {
                     if (EditorUtility.DisplayDialog("Remove Sub-Node", $"Are you sure you want to remove '{_window.SelectedSubNode.name}'?", "Remove", "Cancel"))
                     {
+                        if (subIsOverride)
+                        {
+                            HonamiAnimationSystem.Editor.Core.HonamiOverrideAuthoring.RemoveSubNodeFromOverride(subOverride, subEntry, capturedSubId);
+                            _graphView.PopulateView(_window.RuntimeController, _window.CurrentLayerIndex);
+                            _window.SelectedSubNode = null;
+                            _window.BuildRightPanel();
+                            return;
+                        }
+
                         Undo.RecordObject(_window.SelectedNode.State, "Remove Sub-Node");
                         var list = _window.SelectedNode.State.subNodes;
                         if (list.Contains(_window.SelectedSubNode))
@@ -373,6 +417,18 @@ namespace HonamiAnimationSystem.Editor.Handlers
                 _window.SelectedNodeGuid = node?.StateGuid;
                 _window.SelectedTransition = null;
                 _window.SelectedTransitionGuid = null;
+
+                if (_window.RuntimeController is Runtime.Core.HonamiOverrideController subOverride &&
+                    node?.State != null && !subOverride.IsOwnedState(node.State) && subNode != null)
+                {
+                    int idx = node.State.subNodes != null ? node.State.subNodes.IndexOf(subNode) : -1;
+                    var eff = HonamiAnimationSystem.Editor.Core.HonamiOverrideAuthoring.EnsureEffectiveState(subOverride, node.State);
+                    if (idx >= 0 && eff.subNodes != null && idx < eff.subNodes.Count && eff.subNodes[idx] != null)
+                    {
+                        subNode = eff.subNodes[idx];
+                    }
+                }
+
                 _window.SelectedSubNode = subNode;
                 _window.SerializedSubNode = subNode != null ? new SerializedObject(subNode) : null;
                 _window.SerializedState = node?.State != null ? new SerializedObject(node.State) : null;

@@ -146,6 +146,8 @@ namespace HonamiAnimationSystem.Editor
                 }
             }
 
+            issueCount += ProcessOverrideMigrations(dryRun);
+
             if (!dryRun && issueCount > 0)
             {
                 AssetDatabase.SaveAssets();
@@ -161,6 +163,29 @@ namespace HonamiAnimationSystem.Editor
             {
                 Log($"\n[Summary] Checked {count} controllers. All valid, no issues found.");
             }
+        }
+
+        private int ProcessOverrideMigrations(bool dryRun)
+        {
+            int issues = 0;
+            foreach (string guid in AssetDatabase.FindAssets("t:HonamiOverrideController"))
+            {
+                var ov = AssetDatabase.LoadAssetAtPath<HonamiOverrideController>(AssetDatabase.GUIDToAssetPath(guid));
+                if (ov == null || ov.parentController == null || !ov.NeedsMigration) continue;
+
+                issues++;
+                if (dryRun)
+                {
+                    Log($"\n[{ov.name}] [Issue] Legacy override schema — needs migration to the per-field format.");
+                }
+                else
+                {
+                    HonamiOverrideAuthoring.MigrateLegacy(ov);
+                    Log($"\n[{ov.name}] [Fix] Migrated legacy overrides to the per-field format.");
+                }
+            }
+
+            return issues;
         }
 
         private bool ValidateController(HonamiController ctrl, bool dryRun)
@@ -526,10 +551,27 @@ namespace HonamiAnimationSystem.Editor
 
                 AddStateListReferences(overrideController.additionalStates, referenced);
 
-                if (overrideController.nodeOverrides == null) continue;
-                foreach (var nodeOverride in overrideController.nodeOverrides)
+                if (overrideController.nodeOverrides != null)
                 {
-                    if (nodeOverride.overrideNode != null) referenced.Add(nodeOverride.overrideNode);
+                    foreach (var nodeOverride in overrideController.nodeOverrides)
+                    {
+                        if (nodeOverride.overrideNode != null) referenced.Add(nodeOverride.overrideNode);
+                    }
+                }
+
+                if (overrideController.overrides == null) continue;
+                foreach (var entry in overrideController.overrides)
+                {
+                    if (entry?.effectiveState == null) continue;
+                    referenced.Add(entry.effectiveState);
+                    if (entry.effectiveState.node != null) referenced.Add(entry.effectiveState.node);
+                    if (entry.effectiveState.subNodes != null)
+                    {
+                        foreach (var subNode in entry.effectiveState.subNodes)
+                        {
+                            if (subNode != null) referenced.Add(subNode);
+                        }
+                    }
                 }
             }
         }

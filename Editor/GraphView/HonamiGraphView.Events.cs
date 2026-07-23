@@ -158,8 +158,11 @@ namespace HonamiAnimationSystem.Editor
 
                 HonamiAnimationSystem.Editor.Core.HonamiEditorController.EnsureUniqueStateName(_runtimeController, newState);
 
-                AssetDatabase.AddObjectToAsset(animNode, _controller);
-                AssetDatabase.AddObjectToAsset(newState, _controller);
+                Object dragTargetCtrl = _runtimeController != null && _runtimeController.IsOverride
+                    ? (Object)_runtimeController
+                    : _controller;
+                AssetDatabase.AddObjectToAsset(animNode, dragTargetCtrl);
+                AssetDatabase.AddObjectToAsset(newState, dragTargetCtrl);
                 Undo.RegisterCreatedObjectUndo(animNode, "Drag Animation Clips to Graph");
                 Undo.RegisterCreatedObjectUndo(newState, "Drag Animation Clips to Graph");
 
@@ -341,37 +344,13 @@ namespace HonamiAnimationSystem.Editor
                     sourceState ??= _controller.states.FirstOrDefault(s => s != null && s.guid == startNode.StateGuid);
                     if (sourceState == null) continue;
 
-                    var targetCtrl = _runtimeController != null && _runtimeController.IsOverride ? _runtimeController : _controller;
-                    Undo.RecordObject(targetCtrl, "Add Transition");
-
                     var transition = new HonamiTransition { targetStateGuid = endNode.StateGuid };
-                    if (_runtimeController != null && _runtimeController.IsOverride)
+                    if (_runtimeController is HonamiOverrideController ov)
                     {
-                        var ov = (HonamiOverrideController)_runtimeController;
-                        bool isAdditional = ov.additionalStates.Contains(sourceState);
-                        if (isAdditional)
-                        {
-                            sourceState.transitions ??= new List<HonamiTransition>();
-                            sourceState.transitions.Add(transition);
-                            EditorUtility.SetDirty(sourceState);
-                        }
-                        else
-                        {
-                            int idx = ov.transitionOverrides.FindIndex(t => t.stateGuid == sourceState.guid);
-                            if (idx >= 0)
-                            {
-                                var o = ov.transitionOverrides[idx];
-                                o.transitions.Add(transition);
-                                ov.transitionOverrides[idx] = o;
-                            }
-                            else
-                            {
-                                var cloned = sourceState.transitions?.Select(t => JsonUtility.FromJson<HonamiTransition>(JsonUtility.ToJson(t))).ToList() ?? new List<HonamiTransition>();
-                                cloned.Add(transition);
-                                ov.transitionOverrides.Add(new HonamiStateTransitionsOverride { stateGuid = sourceState.guid, transitions = cloned });
-                            }
-                            EditorUtility.SetDirty(ov);
-                        }
+                        var list = GetWritableTransitionsForOverride(sourceState, out var effectiveSource);
+                        list.Add(transition);
+                        RegisterOverrideTransitionAdded(effectiveSource, transition.id);
+                        EditorUtility.SetDirty(ov);
                     }
                     else
                     {
@@ -400,7 +379,15 @@ namespace HonamiAnimationSystem.Editor
                             var state = _stateGuidMap.TryGetValue(node.StateGuid, out var s) ? s : null;
                             if (state != null && !state.isVirtualInheritedState)
                             {
-                                HonamiEditorController.MoveStateNode(state, node.GetPosition().position);
+                                if (_runtimeController is HonamiOverrideController posOverride && !posOverride.IsOwnedState(state))
+                                {
+                                    posOverride.SetNodePosition(node.StateGuid, node.GetPosition().position);
+                                    EditorUtility.SetDirty(posOverride);
+                                }
+                                else
+                                {
+                                    HonamiEditorController.MoveStateNode(state, node.GetPosition().position);
+                                }
                                 anythingDirty = true;
                             }
                             break;
@@ -440,6 +427,26 @@ namespace HonamiAnimationSystem.Editor
                 {
                     HonamiGraphWindow.ShowNotification("Override Required", "Create an override before removing inherited transitions.", HonamiNotificationType.Info);
                     return;
+                }
+
+                if (_runtimeController is HonamiOverrideController ov && trans.id != null)
+                {
+                    if (ov.IsOwnedState(sourceState))
+                    {
+                        HonamiOverrideAuthoring.ResolveState(ov, sourceState, out var ownedEntry, out _);
+                        if (ownedEntry != null)
+                        {
+                            HonamiOverrideAuthoring.RemoveInheritedTransition(ov, ownedEntry, trans.id);
+                            return;
+                        }
+                    }
+                    else
+                    {
+                        var effectiveSource = HonamiOverrideAuthoring.EnsureEffectiveState(ov, sourceState);
+                        HonamiOverrideAuthoring.ResolveState(ov, effectiveSource, out var entry, out _);
+                        HonamiOverrideAuthoring.RemoveInheritedTransition(ov, entry, trans.id);
+                        return;
+                    }
                 }
 
                 HonamiEditorController.RemoveTransition(sourceState, trans);

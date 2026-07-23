@@ -1,6 +1,6 @@
 {
   "name": "com.loyalstudio.honami-animation-system",
-  "version": "0.1.0-beta.7",
+  "version": "0.1.1-beta.1",
   "displayName": "Honami Animation System",
   "description": "A complete, high-performance replacement for Unity's built-in Animator, providing an advanced custom animation and rigging framework with procedural constraints, pseudo-physics, and full Timeline integration.",
   "unity": "6000.0",

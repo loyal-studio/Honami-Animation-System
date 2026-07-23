@@ -6,11 +6,34 @@ using UnityEditor.Experimental.GraphView;
 using UnityEngine;
 using UnityEngine.UIElements;
 using HonamiAnimationSystem.Runtime.Core;
+using HonamiAnimationSystem.Editor.Core;
 
 namespace HonamiAnimationSystem.Editor
 {
     public partial class HonamiGraphView
     {
+        private List<HonamiTransition> GetWritableTransitionsForOverride(HonamiState displayedSource, out HonamiState effectiveSource)
+        {
+            effectiveSource = displayedSource;
+
+            if (_runtimeController is not HonamiOverrideController ov || ov.IsOwnedState(displayedSource))
+            {
+                displayedSource.transitions ??= new List<HonamiTransition>();
+                return displayedSource.transitions;
+            }
+
+            effectiveSource = HonamiOverrideAuthoring.EnsureEffectiveState(ov, displayedSource);
+            effectiveSource.transitions ??= new List<HonamiTransition>();
+            return effectiveSource.transitions;
+        }
+
+        private void RegisterOverrideTransitionAdded(HonamiState effectiveSource, string transitionId)
+        {
+            if (_runtimeController is not HonamiOverrideController ov) return;
+            HonamiOverrideAuthoring.ResolveState(ov, effectiveSource, out var entry, out _);
+            if (entry != null) HonamiOverrideAuthoring.RegisterAddedTransition(ov, entry, transitionId);
+        }
+
         public void CreateNewStateNodeOfType(Vector2 position, Type nodeType)
         {
             if (_controller == null) return;
@@ -70,16 +93,98 @@ namespace HonamiAnimationSystem.Editor
         {
             if (node?.State == null || _controller == null) return;
 
+            HonamiState state = node.State;
+
+            if (_runtimeController is HonamiOverrideController ov)
+            {
+                ChangeNodeTypeInOverride(ov, state, newType);
+                return;
+            }
+
             Undo.SetCurrentGroupName("Change Node Type");
             int groupIdx = Undo.GetCurrentGroup();
 
-            HonamiState state = node.State;
             string stateGuid = state.guid;
             HonamiNodeBase oldNode = state.node;
 
             HonamiNodeBase newNode = (HonamiNodeBase)ScriptableObject.CreateInstance(newType);
             newNode.name = $"{state.stateName}_{newType.Name}";
+            CopyPrimaryClip(oldNode, newNode);
 
+            AssetDatabase.AddObjectToAsset(newNode, _controller);
+            Undo.RegisterCreatedObjectUndo(newNode, "Change Node Type");
+
+            Undo.RecordObject(state, "Change Node Type");
+            state.node = newNode;
+
+            if (oldNode != null)
+            {
+                Undo.DestroyObjectImmediate(oldNode);
+            }
+
+            EditorUtility.SetDirty(state);
+            EditorUtility.SetDirty(_controller);
+
+            Undo.CollapseUndoOperations(groupIdx);
+            DeferredSave();
+
+            PopulateView(_runtimeController, currentLayerIndex);
+
+            var newNodeView = _cachedNodes.FirstOrDefault(n => n.StateGuid == stateGuid);
+            if (newNodeView != null)
+            {
+                AddToSelection(newNodeView);
+            }
+
+            HonamiNotificationPanel.ShowGlobal("Node Type Changed", $"Changed to {newType.Name.Replace("Honami", "").Replace("Node", "")}", HonamiNotificationType.Success);
+        }
+
+        private void ChangeNodeTypeInOverride(HonamiOverrideController ov, HonamiState state, Type newType)
+        {
+            if (!ov.IsOwnedState(state))
+            {
+                state = HonamiOverrideAuthoring.EnsureEffectiveState(ov, state);
+            }
+
+            string stateGuid = state.guid;
+            HonamiNodeBase oldNode = state.node;
+
+            var newNode = (HonamiNodeBase)ScriptableObject.CreateInstance(newType);
+            newNode.name = $"{state.stateName}_{newType.Name}";
+            CopyPrimaryClip(oldNode, newNode);
+
+            HonamiOverrideAuthoring.ResolveState(ov, state, out var entry, out _);
+            if (entry != null)
+            {
+                HonamiOverrideAuthoring.MarkNodeTypeOverride(ov, entry, newNode);
+            }
+            else
+            {
+                if (oldNode != null && AssetDatabase.GetAssetPath(oldNode) == AssetDatabase.GetAssetPath(ov))
+                {
+                    UnityEngine.Object.DestroyImmediate(oldNode, true);
+                }
+
+                AssetDatabase.AddObjectToAsset(newNode, ov);
+                state.node = newNode;
+                EditorUtility.SetDirty(state);
+                EditorUtility.SetDirty(ov);
+                DeferredSave();
+            }
+
+            PopulateView(_runtimeController, currentLayerIndex);
+
+            var newNodeView = _cachedNodes.FirstOrDefault(n => n.StateGuid == stateGuid);
+            if (newNodeView != null)
+            {
+                AddToSelection(newNodeView);
+            }
+
+            HonamiNotificationPanel.ShowGlobal("Node Type Changed", $"Changed to {newType.Name.Replace("Honami", "").Replace("Node", "")}", HonamiNotificationType.Success);
+        }
+
+        private static void CopyPrimaryClip(HonamiNodeBase oldNode, HonamiNodeBase newNode)
+        {
             AnimationClip clip = null;
             if (oldNode != null)
             {
@@ -100,52 +205,26 @@ namespace HonamiAnimationSystem.Editor
                 }
             }
 
-            if (clip != null)
+            if (clip == null)
             {
-                switch (newNode)
-                {
-                    case HonamiAnimationNode dan:
-                        dan.clip = clip;
-                        break;
-                    case HonamiRandomAnimationNode drn:
-                        drn.randomClips.Add(new HonamiRandomAnimationClip { clip = clip });
-                        break;
-                    case HonamiBlendTreeNode dbn:
-                        dbn.blendMotions.Add(new HonamiBlendTreeMotion { clip = clip });
-                        break;
-                    case HonamiSequencerNode dsn:
-                        dsn.sequencedClips.Add(new HonamiSequencedAnimationClip { clip = clip });
-                        break;
-                }
+                return;
             }
 
-            var targetCtrl = _runtimeController != null && _runtimeController.IsOverride ? (UnityEngine.Object)_runtimeController : (UnityEngine.Object)_controller;
-            AssetDatabase.AddObjectToAsset(newNode, targetCtrl);
-            Undo.RegisterCreatedObjectUndo(newNode, "Change Node Type");
-
-            Undo.RecordObject(state, "Change Node Type");
-            state.node = newNode;
-
-            if (oldNode != null)
+            switch (newNode)
             {
-                Undo.DestroyObjectImmediate(oldNode);
+                case HonamiAnimationNode dan:
+                    dan.clip = clip;
+                    break;
+                case HonamiRandomAnimationNode drn:
+                    drn.randomClips.Add(new HonamiRandomAnimationClip { clip = clip });
+                    break;
+                case HonamiBlendTreeNode dbn:
+                    dbn.blendMotions.Add(new HonamiBlendTreeMotion { clip = clip });
+                    break;
+                case HonamiSequencerNode dsn:
+                    dsn.sequencedClips.Add(new HonamiSequencedAnimationClip { clip = clip });
+                    break;
             }
-
-            EditorUtility.SetDirty(state);
-            EditorUtility.SetDirty(targetCtrl);
-
-            Undo.CollapseUndoOperations(groupIdx);
-            DeferredSave();
-
-            PopulateView(_runtimeController, currentLayerIndex);
-
-            var newNodeView = _cachedNodes.FirstOrDefault(n => n.StateGuid == stateGuid);
-            if (newNodeView != null)
-            {
-                AddToSelection(newNodeView);
-            }
-
-            HonamiNotificationPanel.ShowGlobal("Node Type Changed", $"Changed to {newType.Name.Replace("Honami", "").Replace("Node", "")}", HonamiNotificationType.Success);
         }
 
         public void SplitRandomIntoAnimationStates(HonamiNode node)
@@ -373,7 +452,15 @@ namespace HonamiAnimationSystem.Editor
         private HonamiNode CreateNodeView(HonamiState state, bool isDefault = false)
         {
             var node = new HonamiNode(state, isDefault, _runtimeController);
-            node.SetPosition(new Rect(state.editorPosition, Vector2.zero));
+
+            Vector2 position = state.editorPosition;
+            if (_runtimeController is HonamiOverrideController ov && !ov.IsOwnedState(state) &&
+                ov.TryGetNodePosition(state.guid, out var storedPosition))
+            {
+                position = storedPosition;
+            }
+
+            node.SetPosition(new Rect(position, Vector2.zero));
             AddElement(node);
             _cachedNodes.Add(node);
             return node;
@@ -534,69 +621,14 @@ namespace HonamiAnimationSystem.Editor
             return note;
         }
 
-        private void ClearNodeOverride(HonamiNode node)
+        private void RevertNodeOverrides(HonamiNode node)
         {
-            if (_runtimeController is not HonamiOverrideController overrideController) return;
+            if (_runtimeController is not HonamiOverrideController overrideController || node?.State == null) return;
 
-            for (int i = 0; i < overrideController.nodeOverrides.Count; i++)
-            {
-                if (overrideController.nodeOverrides[i].stateGuid == node.StateGuid)
-                {
-                    var oldNode = overrideController.nodeOverrides[i].overrideNode;
-                    if (oldNode != null && AssetDatabase.GetAssetPath(oldNode) == AssetDatabase.GetAssetPath(overrideController))
-                    {
-                        AssetDatabase.RemoveObjectFromAsset(oldNode);
-                        Undo.DestroyObjectImmediate(oldNode);
-                    }
+            HonamiOverrideAuthoring.ResolveState(overrideController, node.State, out var entry, out _);
+            if (entry == null) return;
 
-                    var ovr = overrideController.nodeOverrides[i];
-                    ovr.overrideNode = null;
-                    overrideController.nodeOverrides[i] = ovr;
-                    EditorUtility.SetDirty(overrideController);
-                    DeferredSave();
-                    PopulateView(_runtimeController, currentLayerIndex);
-                    break;
-                }
-            }
-        }
-
-        private void CreateNodeOverride(HonamiNode node, Type nodeType)
-        {
-            if (_runtimeController is not HonamiOverrideController overrideController) return;
-
-            var newNode = ScriptableObject.CreateInstance(nodeType) as HonamiNodeBase;
-            if (newNode == null) return;
-
-            newNode.name = nodeType.Name;
-            AssetDatabase.AddObjectToAsset(newNode, overrideController);
-            Undo.RegisterCreatedObjectUndo(newNode, "Create Override Node");
-
-            bool found = false;
-            for (int i = 0; i < overrideController.nodeOverrides.Count; i++)
-            {
-                if (overrideController.nodeOverrides[i].stateGuid == node.StateGuid)
-                {
-                    var ovr = overrideController.nodeOverrides[i];
-                    var oldNode = ovr.overrideNode;
-                    if (oldNode != null && AssetDatabase.GetAssetPath(oldNode) == AssetDatabase.GetAssetPath(overrideController))
-                    {
-                        AssetDatabase.RemoveObjectFromAsset(oldNode);
-                        Undo.DestroyObjectImmediate(oldNode);
-                    }
-                    ovr.overrideNode = newNode;
-                    overrideController.nodeOverrides[i] = ovr;
-                    found = true;
-                    break;
-                }
-            }
-
-            if (!found)
-            {
-                overrideController.nodeOverrides.Add(new HonamiNodeOverride { stateGuid = node.StateGuid, overrideNode = newNode });
-            }
-
-            EditorUtility.SetDirty(overrideController);
-            DeferredSave();
+            HonamiOverrideAuthoring.RevertAll(overrideController, entry);
             PopulateView(_runtimeController, currentLayerIndex);
         }
 
@@ -666,36 +698,13 @@ namespace HonamiAnimationSystem.Editor
                 if (!alreadyExists)
                 {
                     var transition = new HonamiTransition { targetStateGuid = targetNode.StateGuid };
-                    bool isOverride = _runtimeController != null && _runtimeController.IsOverride;
-                    var targetCtrl = isOverride ? (UnityEngine.Object)_runtimeController : (UnityEngine.Object)_controller;
 
-                    if (isOverride)
+                    if (_runtimeController is HonamiOverrideController ov)
                     {
-                        var ov = (HonamiOverrideController)_runtimeController;
-                        bool isAdditional = ov.additionalStates.Contains(_transitionSourceNode.State);
-                        if (isAdditional)
-                        {
-                            _transitionSourceNode.State.transitions ??= new List<HonamiTransition>();
-                            _transitionSourceNode.State.transitions.Add(transition);
-                            EditorUtility.SetDirty(_transitionSourceNode.State);
-                        }
-                        else
-                        {
-                            int idx = ov.transitionOverrides.FindIndex(t => t.stateGuid == _transitionSourceNode.State.guid);
-                            if (idx >= 0)
-                            {
-                                var o = ov.transitionOverrides[idx];
-                                o.transitions.Add(transition);
-                                ov.transitionOverrides[idx] = o;
-                            }
-                            else
-                            {
-                                var cloned = _transitionSourceNode.State.transitions?.Select(t => JsonUtility.FromJson<HonamiTransition>(JsonUtility.ToJson(t))).ToList() ?? new List<HonamiTransition>();
-                                cloned.Add(transition);
-                                ov.transitionOverrides.Add(new HonamiStateTransitionsOverride { stateGuid = _transitionSourceNode.State.guid, transitions = cloned });
-                            }
-                            EditorUtility.SetDirty(ov);
-                        }
+                        var list = GetWritableTransitionsForOverride(_transitionSourceNode.State, out var effectiveSource);
+                        list.Add(transition);
+                        RegisterOverrideTransitionAdded(effectiveSource, transition.id);
+                        EditorUtility.SetDirty(ov);
                     }
                     else
                     {

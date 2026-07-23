@@ -4,6 +4,7 @@ using UnityEngine.UIElements;
 using UnityEditor;
 using System.Linq;
 using HonamiAnimationSystem.Runtime.Core;
+using HonamiAnimationSystem.Editor.Core;
 
 namespace HonamiAnimationSystem.Editor
 {
@@ -71,12 +72,16 @@ namespace HonamiAnimationSystem.Editor
 
             ActiveNode = _state.node;
             IsOverridden = false;
-            if (_runtimeController != null && _runtimeController.IsOverride)
+            if (_runtimeController is HonamiOverrideController overrideController)
             {
-                ActiveNode = _runtimeController.GetActiveNode(_state);
-                if (ActiveNode != _state.node)
+                HonamiOverrideAuthoring.ResolveState(overrideController, _state, out var entry, out _);
+                if (entry != null)
                 {
-                    IsOverridden = true;
+                    IsOverridden = entry.HasAnyOverride;
+                    if (entry.effectiveState != null)
+                    {
+                        ActiveNode = entry.effectiveState.node;
+                    }
                 }
             }
 
@@ -318,6 +323,11 @@ namespace HonamiAnimationSystem.Editor
                     actualPos = parent.ChangeCoordinatesTo(gv.contentViewContainer, newPos.position);
                 }
 
+                if (_runtimeController is HonamiOverrideController ov && !ov.IsOwnedState(_state))
+                {
+                    return;
+                }
+
                 if ((_state.editorPosition - actualPos).sqrMagnitude < 0.01f) return;
                 _state.editorPosition = actualPos;
                 EditorUtility.SetDirty(_state);
@@ -355,6 +365,13 @@ namespace HonamiAnimationSystem.Editor
 
             HonamiSubNodeBase instance = ScriptableObject.CreateInstance(subNodeType) as HonamiSubNodeBase;
             instance.name = subNodeType.Name;
+
+            if (_runtimeController is HonamiOverrideController ov)
+            {
+                HonamiOverrideAuthoring.AddSubNodeToOverride(ov, _state, instance);
+                _graphView.PopulateView(_runtimeController, _graphView.currentLayerIndex);
+                return;
+            }
 
             HonamiAnimationSystem.Editor.Core.HonamiEditorController.AddSubNode(controller, _state, instance);
 

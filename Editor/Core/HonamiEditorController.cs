@@ -529,9 +529,12 @@ namespace HonamiAnimationSystem.Editor.Core
                     if (s != null && s != excludedState && s.node == node) return true;
                 }
 
-                foreach (var nodeOverride in overrideController.nodeOverrides)
+                if (overrideController.overrides != null)
                 {
-                    if (nodeOverride.overrideNode == node) return true;
+                    foreach (var entry in overrideController.overrides)
+                    {
+                        if (entry?.effectiveState != null && entry.effectiveState != excludedState && entry.effectiveState.node == node) return true;
+                    }
                 }
             }
 

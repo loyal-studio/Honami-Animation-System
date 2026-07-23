@@ -507,17 +507,23 @@ namespace HonamiAnimationSystem.Editor
                 {
                     if (targetNodeOverride.IsOverridden)
                     {
-                        evt.menu.AppendAction("Clear Override", (a) => ClearNodeOverride(targetNodeOverride));
+                        evt.menu.AppendAction("Revert All Overrides", (a) => RevertNodeOverrides(targetNodeOverride));
+                        evt.menu.AppendSeparator();
+                    }
+
+                    if (targetNodeOverride.OutputPort != null)
+                    {
+                        evt.menu.AppendAction("Make Transition", (a) => StartMakeTransition(targetNodeOverride));
                     }
 
                     var nodeTypes = TypeCache.GetTypesDerivedFrom<HonamiNodeBase>()
-                        .Where(t => !t.IsAbstract && !t.IsGenericType)
+                        .Where(t => !t.IsAbstract && !t.IsGenericType && t != targetNodeOverride.ActiveNode?.GetType())
                         .OrderBy(t => t.Name).ToList();
 
                     foreach (var type in nodeTypes)
                     {
                         string typeName = type.Name.Replace("Honami", "").Replace("Node", "");
-                        evt.menu.AppendAction($"Create Override/{typeName}", (a) => CreateNodeOverride(targetNodeOverride, type));
+                        evt.menu.AppendAction($"Change Type/{typeName}", (a) => ChangeNodeType(targetNodeOverride, type));
                     }
                 }
                 else

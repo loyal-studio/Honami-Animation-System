@@ -1519,38 +1519,42 @@ namespace HonamiAnimationSystem.Editor
                         RemapStateLayerData(s, map, count);
                 }
 
-                if (over.nodeOverrides != null)
+                if (over.overrides != null)
                 {
-                    for (int i = 0; i < over.nodeOverrides.Count; i++)
+                    foreach (var entry in over.overrides)
                     {
-                        var nodeOverride = over.nodeOverrides[i];
-                        var remapped = RemapInheritedLayerGuid(nodeOverride.stateGuid, map, count);
-                        if (!string.Equals(remapped, nodeOverride.stateGuid, System.StringComparison.Ordinal))
+                        if (entry == null) continue;
+
+                        var remapped = RemapInheritedLayerGuid(entry.parentStateGuid, map, count);
+                        if (!string.Equals(remapped, entry.parentStateGuid, System.StringComparison.Ordinal))
                         {
-                            nodeOverride.stateGuid = remapped;
-                            over.nodeOverrides[i] = nodeOverride;
+                            entry.parentStateGuid = remapped;
+                        }
+
+                        if (entry.effectiveState != null)
+                        {
+                            RemapStateLayerData(entry.effectiveState, map, count);
+                            if (entry.effectiveState.transitions != null)
+                            {
+                                foreach (var t in entry.effectiveState.transitions)
+                                {
+                                    if (t != null) t.targetStateGuid = RemapInheritedLayerGuid(t.targetStateGuid, map, count);
+                                }
+                            }
                         }
                     }
                 }
 
-                if (over.transitionOverrides != null)
+                if (over.nodePositions != null)
                 {
-                    for (int i = 0; i < over.transitionOverrides.Count; i++)
+                    for (int i = 0; i < over.nodePositions.Count; i++)
                     {
-                        var transitionOverride = over.transitionOverrides[i];
-                        var remapped = RemapInheritedLayerGuid(transitionOverride.stateGuid, map, count);
-                        if (!string.Equals(remapped, transitionOverride.stateGuid, System.StringComparison.Ordinal))
+                        var np = over.nodePositions[i];
+                        var remapped = RemapInheritedLayerGuid(np.stateGuid, map, count);
+                        if (!string.Equals(remapped, np.stateGuid, System.StringComparison.Ordinal))
                         {
-                            transitionOverride.stateGuid = remapped;
-                            over.transitionOverrides[i] = transitionOverride;
-                        }
-
-                        if (transitionOverride.transitions != null)
-                        {
-                            foreach (var t in transitionOverride.transitions)
-                            {
-                                if (t != null) t.targetStateGuid = RemapInheritedLayerGuid(t.targetStateGuid, map, count);
-                            }
+                            np.stateGuid = remapped;
+                            over.nodePositions[i] = np;
                         }
                     }
                 }
