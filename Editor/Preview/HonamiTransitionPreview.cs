@@ -87,9 +87,15 @@ namespace HonamiAnimationSystem.Editor.Preview
             Build();
             RefreshChrome();
 
-            _lastUpdate = EditorApplication.timeSinceStartup;
-            EditorApplication.update += OnEditorUpdate;
+            RegisterCallback<AttachToPanelEvent>(_ => OnAttach());
             RegisterCallback<DetachFromPanelEvent>(_ => Dispose());
+        }
+
+        private void OnAttach()
+        {
+            _lastUpdate = EditorApplication.timeSinceStartup;
+            EditorApplication.update -= OnEditorUpdate;
+            EditorApplication.update += OnEditorUpdate;
         }
 
         private HonamiState EffectiveSource => _sourceOverride != null ? _sourceOverride : _source;

@@ -40,11 +40,27 @@ namespace HonamiAnimationSystem.Editor.Preview
 
         public bool NeedsRebuild(IReadOnlyList<AnimationClip> clips) => _topologySignature != Signature(clips);
 
+        private static readonly List<HonamiPreviewSkeleton> LiveSkeletons = new();
+
+        // HideAndDontSave roots outlive a domain reload with no managed owner left to destroy them.
+        static HonamiPreviewSkeleton()
+        {
+            AssemblyReloadEvents.beforeAssemblyReload += DisposeAll;
+            EditorApplication.quitting += DisposeAll;
+        }
+
+        private static void DisposeAll()
+        {
+            for (int i = LiveSkeletons.Count - 1; i >= 0; i--) LiveSkeletons[i].Dispose();
+            LiveSkeletons.Clear();
+        }
+
         public void Build(IReadOnlyList<AnimationClip> clips)
         {
             Dispose();
 
             _root = new GameObject("HonamiPreviewSkeleton") { hideFlags = HideFlags.HideAndDontSave };
+            LiveSkeletons.Add(this);
             var pathToTransform = new Dictionary<string, Transform> { [string.Empty] = _root.transform };
 
             if (clips != null)
@@ -318,7 +334,11 @@ namespace HonamiAnimationSystem.Editor.Preview
 
         public void Dispose()
         {
-            if (_root != null) UnityEngine.Object.DestroyImmediate(_root);
+            if (_root != null)
+            {
+                UnityEngine.Object.DestroyImmediate(_root);
+                LiveSkeletons.Remove(this);
+            }
             _root = null;
             _bones = Array.Empty<Transform>();
             _parentIndex = Array.Empty<int>();

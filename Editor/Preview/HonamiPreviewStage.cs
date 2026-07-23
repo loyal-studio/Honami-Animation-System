@@ -31,22 +31,43 @@ namespace HonamiAnimationSystem.Editor.Preview
 
         private Color _background = new(0.16f, 0.17f, 0.19f, 1f);
 
-        public HonamiPreviewStage()
+        private static readonly List<HonamiPreviewStage> LiveStages = new();
+
+        // PreviewRenderUtility owns a native preview scene that survives a domain reload while the
+        // managed owner does not, so an editor window that never gets a DetachFromPanel (recompile,
+        // editor quit) would leak the scene forever.
+        static HonamiPreviewStage()
         {
-            _preview = new PreviewRenderUtility();
-            _preview.camera.fieldOfView = 45f;
-            _preview.camera.nearClipPlane = 0.01f;
-            _preview.camera.farClipPlane = 2000f;
-            _preview.camera.clearFlags = CameraClearFlags.SolidColor;
-            _preview.camera.backgroundColor = _background;
+            AssemblyReloadEvents.beforeAssemblyReload += DisposeAll;
+            EditorApplication.quitting += DisposeAll;
+        }
 
-            _sphereMesh = PrimitiveMesh(PrimitiveType.Sphere);
-            _cubeMesh = PrimitiveMesh(PrimitiveType.Cube);
-            _gridMesh = BuildGridMesh(10, 1f);
+        private static void DisposeAll()
+        {
+            for (int i = LiveStages.Count - 1; i >= 0; i--) LiveStages[i].Dispose();
+            LiveStages.Clear();
+        }
 
-            _jointMat = ColoredMaterial(new Color(0.95f, 0.78f, 0.35f), true);
-            _boneMat = ColoredMaterial(new Color(0.62f, 0.72f, 0.85f), true);
-            _gridMat = ColoredMaterial(new Color(0.32f, 0.34f, 0.38f, 1f), true);
+        private void EnsureResources()
+        {
+            if (_preview == null)
+            {
+                _preview = new PreviewRenderUtility();
+                _preview.camera.fieldOfView = 45f;
+                _preview.camera.nearClipPlane = 0.01f;
+                _preview.camera.farClipPlane = 2000f;
+                _preview.camera.clearFlags = CameraClearFlags.SolidColor;
+                _preview.camera.backgroundColor = _background;
+                LiveStages.Add(this);
+            }
+
+            if (_sphereMesh == null) _sphereMesh = PrimitiveMesh(PrimitiveType.Sphere);
+            if (_cubeMesh == null) _cubeMesh = PrimitiveMesh(PrimitiveType.Cube);
+            if (_gridMesh == null) _gridMesh = BuildGridMesh(10, 1f);
+
+            if (_jointMat == null) _jointMat = ColoredMaterial(new Color(0.95f, 0.78f, 0.35f), true);
+            if (_boneMat == null) _boneMat = ColoredMaterial(new Color(0.62f, 0.72f, 0.85f), true);
+            if (_gridMat == null) _gridMat = ColoredMaterial(new Color(0.32f, 0.34f, 0.38f, 1f), true);
         }
 
         public void Orbit(Vector2 delta)
@@ -79,8 +100,9 @@ namespace HonamiAnimationSystem.Editor.Preview
 
         public Texture Render(Rect rect, IReadOnlyList<Transform> bones, int[] parentIndex)
         {
-            if (rect.width < 4f || rect.height < 4f || _preview == null) return null;
+            if (rect.width < 4f || rect.height < 4f) return null;
 
+            EnsureResources();
             _preview.BeginPreview(rect, GUIStyle.none);
 
             var cam = _preview.camera;
@@ -180,7 +202,11 @@ namespace HonamiAnimationSystem.Editor.Preview
 
         public void Dispose()
         {
-            _preview?.Cleanup();
+            if (_preview != null)
+            {
+                _preview.Cleanup();
+                LiveStages.Remove(this);
+            }
             _preview = null;
 
             if (_gridMesh != null) UnityEngine.Object.DestroyImmediate(_gridMesh);

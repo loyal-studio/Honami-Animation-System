@@ -45,9 +45,15 @@ namespace HonamiAnimationSystem.Editor.BlendTree
 
             Build();
 
-            _lastUpdate = EditorApplication.timeSinceStartup;
-            EditorApplication.update += OnEditorUpdate;
+            RegisterCallback<AttachToPanelEvent>(_ => OnAttach());
             RegisterCallback<DetachFromPanelEvent>(_ => Dispose());
+        }
+
+        private void OnAttach()
+        {
+            _lastUpdate = EditorApplication.timeSinceStartup;
+            EditorApplication.update -= OnEditorUpdate;
+            EditorApplication.update += OnEditorUpdate;
         }
 
         private void Build()
