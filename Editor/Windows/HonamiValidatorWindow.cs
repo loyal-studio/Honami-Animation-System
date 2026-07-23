@@ -76,9 +76,11 @@ namespace HonamiAnimationSystem.Editor
             }
             else
             {
+                float width = EditorGUIUtility.currentViewWidth - 40f;
                 foreach (var msg in _logMessages)
                 {
-                    EditorGUILayout.SelectableLabel(msg, EditorStyles.wordWrappedLabel, GUILayout.Height(18));
+                    float height = EditorStyles.wordWrappedLabel.CalcHeight(new GUIContent(msg), width);
+                    EditorGUILayout.SelectableLabel(msg, EditorStyles.wordWrappedLabel, GUILayout.Height(height));
                 }
             }
             EditorGUILayout.EndScrollView();
