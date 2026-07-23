@@ -158,7 +158,6 @@ namespace HonamiAnimationSystem.Editor.Core
             entry.effectiveState = transient;
             ov.ClearCaches();
             EditorUtility.SetDirty(ov);
-            HonamiAnimationSystem.Editor.HonamiGraphView.DeferredSave();
             return entry;
         }
 

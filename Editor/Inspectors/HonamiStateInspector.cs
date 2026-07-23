@@ -363,7 +363,7 @@ namespace HonamiAnimationSystem.Editor
                 }
 
                 string lastSnapshot = Snapshot();
-                root.schedule.Execute(() =>
+                void PollingCheck()
                 {
                     if (overrideTransient == null && overrideEntry == null) return;
                     string snap = Snapshot();
@@ -371,7 +371,10 @@ namespace HonamiAnimationSystem.Editor
                     lastSnapshot = snap;
                     HandleChange();
                     lastSnapshot = Snapshot();
-                }).Every(120);
+                }
+
+                root.RegisterCallback<SerializedPropertyChangeEvent>(_ => PollingCheck());
+                root.schedule.Execute(PollingCheck).Every(120);
 
                 root.Insert(0, BuildOverrideHeader(ov, () => overrideEntry, graphView, layerIndex, onRebuildRequired));
                 refreshMarkers();

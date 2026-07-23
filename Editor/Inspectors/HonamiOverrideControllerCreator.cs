@@ -11,6 +11,7 @@ namespace HonamiAnimationSystem.Editor.Inspectors
         public static void CreateOverrideController()
         {
             var overrideController = ScriptableObject.CreateInstance<HonamiOverrideController>();
+            overrideController.OverrideSchemaVersion = HonamiOverrideController.CurrentOverrideSchemaVersion;
             var selected = Selection.activeObject as HonamiRuntimeController;
 
             string path = "Assets";
