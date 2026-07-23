@@ -525,22 +525,28 @@ namespace HonamiAnimationSystem.Editor
                         string typeName = type.Name.Replace("Honami", "").Replace("Node", "");
                         evt.menu.AppendAction($"Change Type/{typeName}", (a) => ChangeNodeType(targetNodeOverride, type));
                     }
+                    return;
                 }
-                else
+
+                var targetEdgeOverride = evt.target as HonamiTransitionEdge ?? (evt.target as VisualElement)?.GetFirstAncestorOfType<HonamiTransitionEdge>();
+                if (targetEdgeOverride != null)
                 {
-                    var overrideGraphPosition = contentViewContainer.WorldToLocal(evt.mousePosition);
-
-                    foreach ((HonamiNodeEditorAttribute attr, _) in HonamiNodeEditorRegistry.AllEntries)
-                    {
-                        Type capturedType = attr.NodeType;
-                        evt.menu.AppendAction($"Create Node/{attr.MenuPath}",
-                            _ => CreateNewStateNodeOfType(overrideGraphPosition, capturedType));
-                    }
-
-                    evt.menu.AppendSeparator();
-                    evt.menu.AppendAction("Create Decoration Group", _ => CreateNewGroup(overrideGraphPosition));
-                    evt.menu.AppendAction("Create Sticky Note", _ => CreateNewStickyNote(overrideGraphPosition));
+                    BuildOverrideEdgeMenu(evt, targetEdgeOverride);
+                    return;
                 }
+
+                var overrideGraphPosition = contentViewContainer.WorldToLocal(evt.mousePosition);
+
+                foreach ((HonamiNodeEditorAttribute attr, _) in HonamiNodeEditorRegistry.AllEntries)
+                {
+                    Type capturedType = attr.NodeType;
+                    evt.menu.AppendAction($"Create Node/{attr.MenuPath}",
+                        _ => CreateNewStateNodeOfType(overrideGraphPosition, capturedType));
+                }
+
+                evt.menu.AppendSeparator();
+                evt.menu.AppendAction("Create Decoration Group", _ => CreateNewGroup(overrideGraphPosition));
+                evt.menu.AppendAction("Create Sticky Note", _ => CreateNewStickyNote(overrideGraphPosition));
                 return;
             }
 

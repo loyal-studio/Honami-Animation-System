@@ -544,6 +544,110 @@ namespace HonamiAnimationSystem.Editor.Core
             Finish(ov, entry);
         }
 
+        public static void ApplyTransitionToParent(HonamiOverrideController ov, HonamiOverrideEntry entry, string transitionId)
+        {
+            var parent = GetParentState(ov, entry?.parentStateGuid);
+            if (parent == null || entry?.effectiveState?.transitions == null || string.IsNullOrEmpty(transitionId))
+            {
+                return;
+            }
+
+            HonamiTransition effTrans = null;
+            foreach (var t in entry.effectiveState.transitions)
+            {
+                if (t != null && t.id == transitionId) { effTrans = t; break; }
+            }
+            if (effTrans == null) return;
+
+            Undo.RegisterCompleteObjectUndo(ov, "Apply Transition To Parent");
+            Undo.RecordObject(parent, "Apply Transition To Parent");
+
+            parent.transitions ??= new List<HonamiTransition>();
+            var clone = CloneTransition(effTrans);
+            int pIdx = -1;
+            for (int i = 0; i < parent.transitions.Count; i++)
+            {
+                if (parent.transitions[i] != null && parent.transitions[i].id == transitionId) { pIdx = i; break; }
+            }
+
+            if (pIdx >= 0) parent.transitions[pIdx] = clone;
+            else parent.transitions.Add(clone);
+
+            EditorUtility.SetDirty(parent);
+            entry.modifiedTransitionIds.Remove(transitionId);
+            entry.addedTransitionIds.Remove(transitionId);
+            ov.parentController?.BaseController?.ClearEffectiveStateCache();
+            Finish(ov, entry);
+        }
+
+        private static SerializedProperty FindTransitionElement(SerializedObject so, string transitionId)
+        {
+            var trans = so.FindProperty("transitions");
+            if (trans == null) return null;
+
+            for (int i = 0; i < trans.arraySize; i++)
+            {
+                var el = trans.GetArrayElementAtIndex(i);
+                var idProp = el.FindPropertyRelative("id");
+                if (idProp != null && idProp.stringValue == transitionId) return el;
+            }
+            return null;
+        }
+
+        public static bool TransitionFieldDiffers(HonamiOverrideController ov, HonamiOverrideEntry entry, string transitionId, string field)
+        {
+            var parent = GetParentState(ov, entry?.parentStateGuid);
+            if (parent == null || entry?.effectiveState == null || string.IsNullOrEmpty(transitionId) || string.IsNullOrEmpty(field)) return false;
+
+            var eField = FindTransitionElement(new SerializedObject(entry.effectiveState), transitionId)?.FindPropertyRelative(field);
+            var pField = FindTransitionElement(new SerializedObject(parent), transitionId)?.FindPropertyRelative(field);
+            if (eField == null) return false;
+            if (pField == null) return true;
+            return !SerializedProperty.DataEquals(eField, pField);
+        }
+
+        public static void RevertTransitionField(HonamiOverrideController ov, HonamiOverrideEntry entry, string transitionId, string field)
+        {
+            var parent = GetParentState(ov, entry?.parentStateGuid);
+            if (parent == null || entry?.effectiveState == null || string.IsNullOrEmpty(transitionId) || string.IsNullOrEmpty(field)) return;
+
+            var pSO = new SerializedObject(parent);
+            var eSO = new SerializedObject(entry.effectiveState);
+            var pField = FindTransitionElement(pSO, transitionId)?.FindPropertyRelative(field);
+            var eField = FindTransitionElement(eSO, transitionId)?.FindPropertyRelative(field);
+            if (pField == null || eField == null) return;
+
+            Undo.RegisterCompleteObjectUndo(ov, "Revert Transition Field");
+            Undo.RecordObject(entry.effectiveState, "Revert Transition Field");
+            eField.boxedValue = pField.boxedValue;
+            eSO.ApplyModifiedProperties();
+
+            RefreshTransitionModified(ov, entry, parent);
+            Finish(ov, entry);
+        }
+
+        public static void ApplyTransitionFieldToParent(HonamiOverrideController ov, HonamiOverrideEntry entry, string transitionId, string field)
+        {
+            var parent = GetParentState(ov, entry?.parentStateGuid);
+            if (parent == null || entry?.effectiveState == null || string.IsNullOrEmpty(transitionId) || string.IsNullOrEmpty(field)) return;
+
+            var pSO = new SerializedObject(parent);
+            var eSO = new SerializedObject(entry.effectiveState);
+            var pField = FindTransitionElement(pSO, transitionId)?.FindPropertyRelative(field);
+            var eField = FindTransitionElement(eSO, transitionId)?.FindPropertyRelative(field);
+            if (pField == null || eField == null) return;
+
+            Undo.RegisterCompleteObjectUndo(ov, "Apply Transition Field");
+            Undo.RecordObject(parent, "Apply Transition Field");
+            pField.boxedValue = eField.boxedValue;
+            pSO.ApplyModifiedProperties();
+            EditorUtility.SetDirty(parent);
+            ov.parentController?.BaseController?.ClearEffectiveStateCache();
+
+            RefreshTransitionModified(ov, entry, parent);
+            Finish(ov, entry);
+        }
+
         public static void RevertTransition(HonamiOverrideController ov, HonamiOverrideEntry entry, string transitionId)
         {
             if (ov == null || entry == null || string.IsNullOrEmpty(transitionId))

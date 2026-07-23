@@ -98,13 +98,44 @@ namespace HonamiAnimationSystem.Editor
             root.style.paddingLeft = root.style.paddingRight = 10;
             root.style.paddingTop = root.style.paddingBottom = 12;
 
+            Label ovBadge = null;
+            Button ovRevert = null;
+            System.Action refreshTransMarkers = null;
+            int effTransitionIndex = transitionIndex;
+            var effSo = so;
+
             if (isOverrideInherited && overrideParent != null)
             {
                 var ovc = overrideController;
                 string parentGuid = overrideParent.guid;
                 var parentSnapshot = overrideParent;
+                var trackedOwner = owner;
 
-                root.TrackSerializedObjectValue(so, _ =>
+                var ovHeader = HonamiGraphStyles.Box();
+                ovHeader.style.marginBottom = 4;
+                var ovRow = HonamiGraphStyles.Row();
+                ovBadge = new Label("INHERITED TRANSITION")
+                {
+                    style = { unityFontStyleAndWeight = FontStyle.Bold, fontSize = 10, color = new Color(0.6f, 0.6f, 0.6f) }
+                };
+                ovRow.Add(ovBadge);
+                ovRow.Add(HonamiGraphStyles.Spacer());
+                ovRevert = HonamiGraphStyles.SmallButton("Revert");
+                ovRevert.style.width = 70;
+                ovRevert.style.display = DisplayStyle.None;
+                ovRevert.clicked += () =>
+                {
+                    if (overrideEntry != null && transition != null)
+                    {
+                        HonamiOverrideAuthoring.RevertTransition(ovc, overrideEntry, transition.id);
+                        graphView?.PopulateView(graphView.RuntimeController, graphView.currentLayerIndex);
+                    }
+                };
+                ovRow.Add(ovRevert);
+                ovHeader.Add(ovRow);
+                root.Add(ovHeader);
+
+                void HandleTransChange()
                 {
                     if (overrideTransient != null)
                     {
@@ -118,37 +149,28 @@ namespace HonamiAnimationSystem.Editor
                         var currentParent = HonamiOverrideAuthoring.GetParentState(ovc, parentGuid);
                         if (currentParent != null) HonamiOverrideAuthoring.RefreshTransitionModified(ovc, overrideEntry, currentParent);
                     }
-                });
+
+                    refreshTransMarkers?.Invoke();
+                }
+
+                root.RegisterCallback<SerializedPropertyChangeEvent>(_ => HandleTransChange());
+
+                string lastSnap = EditorJsonUtility.ToJson(trackedOwner);
+                root.schedule.Execute(() =>
+                {
+                    if (overrideTransient == null && overrideEntry == null) return;
+                    string snap = EditorJsonUtility.ToJson(trackedOwner);
+                    if (snap == lastSnap) return;
+                    lastSnap = snap;
+                    HandleTransChange();
+                    lastSnap = EditorJsonUtility.ToJson(trackedOwner);
+                }).Every(120);
 
                 root.RegisterCallback<DetachFromPanelEvent>(_ =>
                 {
                     HonamiOverrideAuthoring.DestroyTransient(overrideTransient);
                     overrideTransient = null;
                 });
-            }
-
-            if (overrideController != null && overrideEntry != null && !string.IsNullOrEmpty(transition?.id) &&
-                overrideEntry.IsTransitionModified(transition.id))
-            {
-                string revertId = transition.id;
-                var ovHeader = HonamiGraphStyles.Box();
-                ovHeader.style.marginBottom = 4;
-                var ovRow = HonamiGraphStyles.Row();
-                ovRow.Add(new Label("OVERRIDDEN TRANSITION")
-                {
-                    style = { unityFontStyleAndWeight = FontStyle.Bold, fontSize = 10, color = new Color(0.9f, 0.49f, 0.13f) }
-                });
-                ovRow.Add(HonamiGraphStyles.Spacer());
-                var revertBtn = HonamiGraphStyles.SmallButton("Revert");
-                revertBtn.style.width = 70;
-                revertBtn.clicked += () =>
-                {
-                    HonamiOverrideAuthoring.RevertTransition(overrideController, overrideEntry, revertId);
-                    graphView?.PopulateView(graphView.RuntimeController, graphView.currentLayerIndex);
-                };
-                ovRow.Add(revertBtn);
-                ovHeader.Add(ovRow);
-                root.Add(ovHeader);
             }
 
             // ── Breadcrumbs ───────────────────────────────────────────────────
@@ -469,7 +491,107 @@ namespace HonamiAnimationSystem.Editor
             assignFoldout.Add(HonamiStateInspector.BuildParameterAssignments(so, tp.FindPropertyRelative("parameterAssignments"), controller));
             root.Add(assignFoldout);
 
+            if (isOverrideInherited && overrideParent != null)
+            {
+                refreshTransMarkers = () =>
+                {
+                    bool overridden = overrideEntry != null && transition != null && overrideEntry.IsTransitionModified(transition.id);
+                    if (ovBadge != null)
+                    {
+                        ovBadge.text = overridden ? "OVERRIDDEN TRANSITION" : "INHERITED TRANSITION";
+                        ovBadge.style.color = overridden ? new Color(0.9f, 0.49f, 0.13f) : new Color(0.6f, 0.6f, 0.6f);
+                    }
+                    if (ovRevert != null) ovRevert.style.display = overridden ? DisplayStyle.Flex : DisplayStyle.None;
+
+                    DecorateTransitionFields(root, effSo, effTransitionIndex, overrideController, overrideParent, transition,
+                        () => overrideEntry,
+                        () => { effSo?.Update(); refreshTransMarkers?.Invoke(); });
+                };
+                refreshTransMarkers();
+            }
+
             return root;
+        }
+
+        private static void DecorateTransitionFields(VisualElement root, SerializedObject so, int transitionIndex,
+            HonamiOverrideController ov, HonamiState overrideParent, HonamiTransition transition,
+            System.Func<HonamiOverrideEntry> entryGetter, System.Action onChanged)
+        {
+            if (so?.targetObject == null) return;
+            var readSo = new SerializedObject(so.targetObject);
+            var transProp = readSo.FindProperty("transitions");
+            if (transProp == null || transitionIndex < 0 || transitionIndex >= transProp.arraySize) return;
+            var effTp = transProp.GetArrayElementAtIndex(transitionIndex);
+            string effBase = effTp.propertyPath;
+
+            SerializedProperty parentTp = null;
+            var parent = HonamiOverrideAuthoring.GetParentState(ov, overrideParent.guid);
+            if (parent != null && transition != null && !string.IsNullOrEmpty(transition.id))
+            {
+                var parentSo = new SerializedObject(parent);
+                var pTrans = parentSo.FindProperty("transitions");
+                if (pTrans != null)
+                {
+                    for (int i = 0; i < pTrans.arraySize; i++)
+                    {
+                        var el = pTrans.GetArrayElementAtIndex(i);
+                        var idProp = el.FindPropertyRelative("id");
+                        if (idProp != null && idProp.stringValue == transition.id) { parentTp = el; break; }
+                    }
+                }
+            }
+
+            root.Query<PropertyField>().ForEach(pf =>
+            {
+                string path = pf.bindingPath;
+                if (string.IsNullOrEmpty(path) || !path.StartsWith(effBase + ".")) return;
+
+                string rest = path.Substring(effBase.Length + 1);
+                int dot = rest.IndexOf('.');
+                string topField = dot >= 0 ? rest.Substring(0, dot) : rest;
+
+                bool differs;
+                if (parentTp == null)
+                {
+                    differs = true;
+                }
+                else
+                {
+                    var ep = effTp.FindPropertyRelative(topField);
+                    var pp = parentTp.FindPropertyRelative(topField);
+                    differs = ep != null && (pp == null || !SerializedProperty.DataEquals(ep, pp));
+                }
+
+                pf.style.borderLeftWidth = differs ? 2 : 0;
+                pf.style.borderLeftColor = new Color(0.29f, 0.55f, 0.9f);
+                pf.style.paddingLeft = differs ? 5 : 0;
+
+                var label = pf.Q<Label>();
+                if (label != null) label.style.unityFontStyleAndWeight = differs ? FontStyle.Bold : FontStyle.Normal;
+
+                if (!(pf.userData is string tag) || tag != "ov-tmenu")
+                {
+                    pf.userData = "ov-tmenu";
+                    string fieldName = topField;
+                    pf.AddManipulator(new ContextualMenuManipulator(mevt =>
+                    {
+                        var e = entryGetter?.Invoke();
+                        if (e == null || transition == null || string.IsNullOrEmpty(transition.id)) return;
+                        if (!HonamiOverrideAuthoring.TransitionFieldDiffers(ov, e, transition.id, fieldName)) return;
+
+                        mevt.menu.AppendAction("Revert Field", _ =>
+                        {
+                            HonamiOverrideAuthoring.RevertTransitionField(ov, e, transition.id, fieldName);
+                            onChanged?.Invoke();
+                        });
+                        mevt.menu.AppendAction("Apply to Parent", _ =>
+                        {
+                            HonamiOverrideAuthoring.ApplyTransitionFieldToParent(ov, e, transition.id, fieldName);
+                            onChanged?.Invoke();
+                        });
+                    }));
+                }
+            });
         }
 
         private static int FindTransitionIndexById(System.Collections.Generic.List<HonamiTransition> transitions, string id)

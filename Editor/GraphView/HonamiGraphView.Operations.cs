@@ -34,6 +34,58 @@ namespace HonamiAnimationSystem.Editor
             if (entry != null) HonamiOverrideAuthoring.RegisterAddedTransition(ov, entry, transitionId);
         }
 
+        private HonamiState FindTransitionOwnerState(HonamiTransition transition)
+        {
+            if (_runtimeController == null || transition == null) return null;
+
+            var states = _runtimeController.ActiveStates;
+            for (int si = 0; si < states.Count; si++)
+            {
+                var s = states[si];
+                if (s == null) continue;
+
+                var trans = _runtimeController.GetTransitions(s);
+                if (trans == null) continue;
+
+                for (int i = 0; i < trans.Count; i++)
+                {
+                    if (trans[i] == transition) return s;
+                    if (trans[i] != null && !string.IsNullOrEmpty(transition.id) && trans[i].id == transition.id) return s;
+                }
+            }
+
+            return null;
+        }
+
+        private void BuildOverrideEdgeMenu(ContextualMenuPopulateEvent evt, HonamiTransitionEdge edge)
+        {
+            var transition = edge.userData as HonamiTransition;
+            if (transition != null && _runtimeController is HonamiOverrideController ov)
+            {
+                var ownerState = FindTransitionOwnerState(transition);
+                HonamiOverrideAuthoring.ResolveState(ov, ownerState, out var entry, out _);
+                bool overridden = entry != null && !string.IsNullOrEmpty(transition.id) && entry.IsTransitionModified(transition.id);
+
+                if (overridden)
+                {
+                    string id = transition.id;
+                    evt.menu.AppendAction("Revert Transition", _ =>
+                    {
+                        HonamiOverrideAuthoring.RevertTransition(ov, entry, id);
+                        PopulateView(_runtimeController, currentLayerIndex);
+                    });
+                    evt.menu.AppendAction("Apply to Parent", _ =>
+                    {
+                        HonamiOverrideAuthoring.ApplyTransitionToParent(ov, entry, id);
+                        PopulateView(_runtimeController, currentLayerIndex);
+                    });
+                    evt.menu.AppendSeparator();
+                }
+            }
+
+            evt.menu.AppendAction("Delete Transition", _ => DeleteElements(new List<GraphElement> { edge }));
+        }
+
         public void CreateNewStateNodeOfType(Vector2 position, Type nodeType)
         {
             if (_controller == null) return;
