@@ -184,7 +184,7 @@ namespace HonamiAnimationSystem.Editor.Inspectors
                 if (controllerProp.objectReferenceValue != null)
                 {
                     HonamiGraphWindow.OpenWindow();
-                    HonamiGraphWindow.LoadController((HonamiController)controllerProp.objectReferenceValue);
+                    HonamiGraphWindow.LoadController((HonamiRuntimeController)controllerProp.objectReferenceValue);
                 }
                 else
                 {
