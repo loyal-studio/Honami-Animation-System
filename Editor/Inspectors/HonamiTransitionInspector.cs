@@ -45,8 +45,16 @@ namespace HonamiAnimationSystem.Editor
             if (overrideController != null && owner != null)
             {
                 HonamiOverrideAuthoring.ResolveState(overrideController, owner, out overrideEntry, out overrideParent);
-                if (overrideEntry != null && overrideEntry.effectiveState == owner)
+                if (overrideEntry != null && overrideEntry.effectiveState != null)
                 {
+                    owner = overrideEntry.effectiveState;
+                    so = new SerializedObject(owner);
+                    int remapped = FindTransitionIndexById(owner.transitions, transition?.id);
+                    if (remapped >= 0)
+                    {
+                        transitionIndex = remapped;
+                        transition = owner.transitions[remapped];
+                    }
                     isOverrideInherited = true;
                 }
                 else if (overrideParent != null && !overrideController.IsOwnedState(owner))
@@ -462,6 +470,16 @@ namespace HonamiAnimationSystem.Editor
             root.Add(assignFoldout);
 
             return root;
+        }
+
+        private static int FindTransitionIndexById(System.Collections.Generic.List<HonamiTransition> transitions, string id)
+        {
+            if (transitions == null || string.IsNullOrEmpty(id)) return -1;
+            for (int i = 0; i < transitions.Count; i++)
+            {
+                if (transitions[i] != null && transitions[i].id == id) return i;
+            }
+            return -1;
         }
 
         private static VisualElement BuildPortalExitUI(

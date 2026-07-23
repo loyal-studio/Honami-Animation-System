@@ -294,6 +294,26 @@ namespace HonamiAnimationSystem.Editor.Handlers
             _leftPanel?.Rebuild();
         }
 
+        private static int FindTransitionIndex(System.Collections.Generic.IReadOnlyList<Runtime.Core.HonamiTransition> transitions, Runtime.Core.HonamiTransition target)
+        {
+            if (transitions == null || target == null) return -1;
+
+            for (int i = 0; i < transitions.Count; i++)
+            {
+                if (transitions[i] == target) return i;
+            }
+
+            if (!string.IsNullOrEmpty(target.id))
+            {
+                for (int i = 0; i < transitions.Count; i++)
+                {
+                    if (transitions[i] != null && transitions[i].id == target.id) return i;
+                }
+            }
+
+            return -1;
+        }
+
         private bool IsMultiSelectionValid()
         {
             foreach (var entry in _multiTransitions)
@@ -305,16 +325,7 @@ namespace HonamiAnimationSystem.Editor.Handlers
                     : entry.Owner.transitions;
                 if (transitions == null) return false;
 
-                bool found = false;
-                for (int i = 0; i < transitions.Count; i++)
-                {
-                    if (transitions[i] == entry.Transition)
-                    {
-                        found = true;
-                        break;
-                    }
-                }
-                if (!found) return false;
+                if (FindTransitionIndex(transitions, entry.Transition) < 0) return false;
             }
             return true;
         }
@@ -458,18 +469,11 @@ namespace HonamiAnimationSystem.Editor.Handlers
                         var transitions = _window.RuntimeController != null ? _window.RuntimeController.GetTransitions(s) : s.transitions;
                         if (transitions == null) continue;
 
-                        int idx = -1;
-                        for (int i = 0; i < transitions.Count; i++)
-                        {
-                            if (transitions[i] == transition)
-                            {
-                                idx = i;
-                                break;
-                            }
-                        }
+                        int idx = FindTransitionIndex(transitions, transition);
                         if (idx < 0) continue;
                         _window.SelectedTransitionOwner = s;
                         _window.SelectedTransitionIndex = idx;
+                        _window.SelectedTransition = transitions[idx];
                         _window.SerializedState = !s.isVirtualInheritedState ? new SerializedObject(s) : null;
                         break;
                     }
@@ -498,6 +502,7 @@ namespace HonamiAnimationSystem.Editor.Handlers
                     foreach (var transition in transitions)
                     {
                         Runtime.Core.HonamiState owner = null;
+                        Runtime.Core.HonamiTransition resolvedTransition = transition;
                         foreach (var s in activeStates)
                         {
                             if (s == null || s.isVirtualInheritedState) continue;
@@ -505,15 +510,13 @@ namespace HonamiAnimationSystem.Editor.Handlers
                             var stateTransitions = _window.RuntimeController != null ? _window.RuntimeController.GetTransitions(s) : s.transitions;
                             if (stateTransitions == null) continue;
 
-                            for (int i = 0; i < stateTransitions.Count; i++)
+                            int mi = FindTransitionIndex(stateTransitions, transition);
+                            if (mi >= 0)
                             {
-                                if (stateTransitions[i] == transition)
-                                {
-                                    owner = s;
-                                    break;
-                                }
+                                owner = s;
+                                resolvedTransition = stateTransitions[mi];
+                                break;
                             }
-                            if (owner != null) break;
                         }
                         if (owner == null) continue;
 
@@ -530,7 +533,7 @@ namespace HonamiAnimationSystem.Editor.Handlers
                             }
                         }
 
-                        _multiTransitions.Add(new HonamiTransitionMultiInspector.Entry(transition, owner, target));
+                        _multiTransitions.Add(new HonamiTransitionMultiInspector.Entry(resolvedTransition, owner, target));
                     }
                 }
                 _window.BuildRightPanel();
