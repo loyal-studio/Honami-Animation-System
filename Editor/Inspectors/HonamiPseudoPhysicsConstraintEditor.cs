@@ -10,6 +10,7 @@ namespace HonamiAnimationSystem.Editor.Riggings
     {
         private SerializedProperty _weight;
         private SerializedProperty _mode;
+        private SerializedProperty _timeSource;
         private SerializedProperty _bones;
 
         private SerializedProperty _simulationGravity;
@@ -46,6 +47,7 @@ namespace HonamiAnimationSystem.Editor.Riggings
         {
             _weight = serializedObject.FindProperty("weight");
             _mode = serializedObject.FindProperty("mode");
+            _timeSource = serializedObject.FindProperty("timeSource");
             _bones = serializedObject.FindProperty("bones");
 
             _simulationGravity = serializedObject.FindProperty("simulationGravity");
@@ -90,6 +92,10 @@ namespace HonamiAnimationSystem.Editor.Riggings
             {
                 EditorGUILayout.PropertyField(_weight);
                 EditorGUILayout.PropertyField(_mode);
+                EditorGUILayout.PropertyField(_timeSource, new GUIContent("Time Source"));
+
+                if ((HonamiPhysicsTimeSource)_timeSource.enumValueIndex == HonamiPhysicsTimeSource.Unscaled)
+                    EditorGUILayout.HelpBox("Real seconds: slow motion no longer slows this rig down, and it keeps swinging while the game is paused. Pick this when the bones are moved by something that ignores Time.timeScale — a photo-mode or menu camera. Leave it on Animation for anything that should slow down with the world.", MessageType.None);
             }
 
             EditorGUILayout.Space(5);
@@ -167,6 +173,13 @@ namespace HonamiAnimationSystem.Editor.Riggings
                     added.FindPropertyRelative("angleLimit").floatValue = 0f;
                     added.FindPropertyRelative("limitCenter").vector3Value = Vector3.zero;
                     added.FindPropertyRelative("upAxis").vector3Value = Vector3.zero;
+                    added.FindPropertyRelative("facingTarget").enumValueIndex = (int)HonamiPhysicsFacingTarget.None;
+                    added.FindPropertyRelative("facingAxis").vector3Value = Vector3.forward;
+                    added.FindPropertyRelative("facingDirection").vector3Value = Vector3.forward;
+                    added.FindPropertyRelative("facingTransform").objectReferenceValue = null;
+                    added.FindPropertyRelative("facingStrength").floatValue = 1f;
+                    added.FindPropertyRelative("facingSpeed").floatValue = 0.5f;
+                    added.FindPropertyRelative("facingMaxAngle").floatValue = 0f;
                     added.FindPropertyRelative("tipDirection").vector3Value = Vector3.zero;
                     added.FindPropertyRelative("tipLength").floatValue = 0f;
                     added.FindPropertyRelative("motionResponse").floatValue = 1f;
@@ -196,6 +209,7 @@ namespace HonamiAnimationSystem.Editor.Riggings
                 {
                     EditorGUILayout.HelpBox("THIS bone hangs on the renderer's mesh surface instead of swinging on its bone length — a mesh collider purely for the physics (green gizmo). It slides across the surface with momentum and settles on the low side under gravity: assign the keyring's renderer on the charm bone and a single entry is a complete keychain. A MeshRenderer surface follows its own transform; a SkinnedMeshRenderer is anchored to the bone it is skinned to, so the surface must not be skinned to this bone itself. Triangles are baked into this component automatically, so Read/Write can stay off; keep the mesh a simple proxy. Joint and Angle Limit are replaced by the mesh — model the shape itself to limit the travel.", MessageType.None);
 
+                    DrawBoneFacing(element);
                     DrawBoneMassAndTip(element);
                     return;
                 }
@@ -221,8 +235,36 @@ namespace HonamiAnimationSystem.Editor.Riggings
                 if (jointValue == HonamiPhysicsJoint.Hinge)
                     EditorGUILayout.HelpBox("A hinge axis along the bone spins it in place like a ring on its peg: the spin follows the parent's twist, and Up Axis marks the ring's heavy side for gravity (zero = balanced ring).", MessageType.None);
 
+                DrawBoneFacing(element);
                 DrawBoneMassAndTip(element);
             }
+        }
+
+        private void DrawBoneFacing(SerializedProperty element)
+        {
+            SerializedProperty facingTarget = element.FindPropertyRelative("facingTarget");
+
+            EditorGUILayout.Space(2);
+            EditorGUILayout.LabelField("Facing (constant to return to)", EditorStyles.miniLabel);
+            EditorGUILayout.PropertyField(facingTarget, new GUIContent("Target"));
+
+            var target = (HonamiPhysicsFacingTarget)facingTarget.enumValueIndex;
+            if (target == HonamiPhysicsFacingTarget.None) return;
+
+            if (target == HonamiPhysicsFacingTarget.WorldDirection)
+                EditorGUILayout.PropertyField(element.FindPropertyRelative("facingDirection"), new GUIContent("Direction"));
+            else if (target == HonamiPhysicsFacingTarget.Transform)
+                EditorGUILayout.PropertyField(element.FindPropertyRelative("facingTransform"), new GUIContent("Transform"));
+
+            EditorGUILayout.PropertyField(element.FindPropertyRelative("facingAxis"), new GUIContent("Facing Axis"));
+            EditorGUILayout.PropertyField(element.FindPropertyRelative("facingStrength"), new GUIContent("Strength"));
+            EditorGUILayout.PropertyField(element.FindPropertyRelative("facingSpeed"), new GUIContent("Speed"));
+            EditorGUILayout.PropertyField(element.FindPropertyRelative("facingMaxAngle"), new GUIContent("Max Angle"));
+
+            EditorGUILayout.HelpBox("The bone keeps hanging wherever physics puts it — this only turns it about that hanging direction, so a flat charm keeps showing its face instead of drifting edge-on. Facing Axis is the charm's face normal in bone space (orange gizmo); it meets the yellow line when the bone is on target. An axis running along the bone cannot be reached by a roll and is ignored.", MessageType.None);
+
+            if (target == HonamiPhysicsFacingTarget.MainCamera)
+                EditorGUILayout.HelpBox("Resolved from Camera.main once and re-resolved if that camera is destroyed. Assign the camera to Transform instead when the rig lives in a prefab with its own camera.", MessageType.None);
         }
 
         private void DrawBoneMassAndTip(SerializedProperty element)

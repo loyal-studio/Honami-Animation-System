@@ -22,11 +22,25 @@ namespace HonamiAnimationSystem.Runtime.Riggings
         World
     }
 
+    public enum HonamiPhysicsTimeSource
+    {
+        Animation,
+        Unscaled
+    }
+
     public enum HonamiPhysicsJoint
     {
         Free,
         Hinge,
         Fixed
+    }
+
+    public enum HonamiPhysicsFacingTarget
+    {
+        None,
+        WorldDirection,
+        Transform,
+        MainCamera
     }
 
     [Serializable]
@@ -54,6 +68,23 @@ namespace HonamiAnimationSystem.Runtime.Riggings
         public Vector3 limitCenter = Vector3.zero;
         [Tooltip("Free joint: bone-local axis kept facing the animated up direction — the roll control, deciding which way the bone faces while physics decides where it points. Hinge along the bone: marks the ring's heavy side, the direction gravity pulls down; zero = a balanced ring that only spins from the parent's motion. Zero on Free = derived automatically.")]
         public Vector3 upAxis = Vector3.zero;
+        [Tooltip("Simulation mode: a constant this bone keeps turning back to while it hangs. Physics decides where the bone points; this decides which way it faces around that direction — a charm that keeps showing its flat side to the player instead of drifting edge-on. None disables it.")]
+        public HonamiPhysicsFacingTarget facingTarget = HonamiPhysicsFacingTarget.None;
+        [Tooltip("Bone-local axis aimed at the target — the charm's face normal, not the direction it hangs. An axis running along the bone cannot be turned by a roll and is ignored.")]
+        public Vector3 facingAxis = Vector3.forward;
+        [Tooltip("World-space direction the Facing Axis is turned toward.")]
+        public Vector3 facingDirection = Vector3.forward;
+        [Tooltip("The bone turns to face this transform's position, so the constant follows it around.")]
+        public Transform facingTransform;
+        [Range(0f, 1f)]
+        [Tooltip("How much of the misalignment is corrected. 1 faces the target exactly, 0.5 meets it halfway and leaves the rest to the swing, 0 disables it.")]
+        public float facingStrength = 1f;
+        [Range(0f, 1f)]
+        [Tooltip("How fast the bone turns back once it is off target. Low values read as a heavy charm slowly settling, high values keep it locked on the target through every swing.")]
+        public float facingSpeed = 0.5f;
+        [Tooltip("Maximum angle (degrees) the facing may turn the bone away from where physics left it. 0 = unlimited.")]
+        public float facingMaxAngle = 0f;
+
         [Tooltip("Last bone of a chain only: bone-local direction of the virtual tip it swings. Zero = continue the bone's own offset from its parent.")]
         public Vector3 tipDirection = Vector3.zero;
         [Tooltip("Last bone of a chain only: length of the virtual tip in the bone's local units. 0 = the bone's own length.")]
@@ -147,6 +178,10 @@ namespace HonamiAnimationSystem.Runtime.Riggings
         [Tooltip("PseudoPhysics: offsets reacting to the animated bone's own motion, always springing back to the animated pose. Simulation: a real hanging chain — the listed bones become particles with mass, gravity and a rigid bone length, so they swing, wrap around and settle on their own. Use Simulation for keychains, pendants and straps.")]
         public HonamiPhysicsMode mode = HonamiPhysicsMode.PseudoPhysics;
 
+        [Header("Time")]
+        [Tooltip("Animation: the rig integrates on the same clock the animation plays on, so slow motion slows the swing with it and a frozen game holds the pose. Unscaled: real seconds — the rig keeps reacting while the game is slowed or paused, which is what anything moved by an unscaled camera needs. Match this to whatever moves the bones: motion arriving in real seconds while the physics integrates in scaled ones is what makes the reaction shrink as Time.timeScale drops.")]
+        public HonamiPhysicsTimeSource timeSource = HonamiPhysicsTimeSource.Animation;
+
         [Header("Target Bones")]
         [Tooltip("In Simulation mode, listed bones that are direct parent/child of each other are linked into one chain; the rest start their own chain.")]
         public HonamiPhysicsBoneData[] bones;
@@ -234,6 +269,8 @@ namespace HonamiAnimationSystem.Runtime.Riggings
         private const float UpFollowRate = 6f;
         // nominal pendulum arm for a rolling ring's heavy side; Gravity Scale is the per-bone tune
         private const float RollLeverLength = 0.05f;
+        // how fast a bone turns back to its facing constant at Facing Speed 1
+        private const float MaxFacingRate = 20f;
         // ~0.16°: wide enough that a world-rotation write surviving the round trip back through the
         // parent matrices still counts as ours, or the rest pose ratchets onto the physics output
         private const float WrittenPoseTolerance = 0.999999f;
@@ -272,6 +309,10 @@ namespace HonamiAnimationSystem.Runtime.Riggings
             public Vector3 localHingeAxis;
             public Vector3 localHeavyDir;
             public bool hasHeavy;
+            public float facingAngle;
+            public bool facingInitialized;
+            public Camera facingCamera;
+
             public float rollAngle;
             public float rollPrevAngle;
             public Quaternion lastRestWorldRot;
@@ -320,6 +361,7 @@ namespace HonamiAnimationSystem.Runtime.Riggings
 
 #if UNITY_EDITOR
         private double _lastEditorTime;
+        private Camera _gizmoCamera;
 #endif
 
         private AnimationScriptPlayable _playable;
@@ -414,10 +456,12 @@ namespace HonamiAnimationSystem.Runtime.Riggings
                 return;
             }
 
-            // keep last frame's offsets applied on paused frames; zeroing the weight pops the bone for one frame
-            if (deltaTime <= 0.0001f) return;
-
-            float dt = deltaTime > MaxSimDeltaTime ? MaxSimDeltaTime : deltaTime;
+            float dt = ResolveDeltaTime(deltaTime);
+            // a frozen clock must not integrate, but the offsets still have to be re-applied every frame:
+            // the graph re-evaluates the animated pose even at dt 0, so skipping the write drops the whole
+            // physics offset for as long as the pause lasts
+            bool frozen = dt <= 0.0001f;
+            if (dt > MaxSimDeltaTime) dt = MaxSimDeltaTime;
 
             if (!_isInitialized)
             {
@@ -448,7 +492,8 @@ namespace HonamiAnimationSystem.Runtime.Riggings
                     b.bone.SetPositionAndRotation(animPos, animRot);
                 }
 
-                StepBonePhysics(b, animPos, animRot, dt);
+                if (frozen) HoldBonePhysics(b, animPos, animRot);
+                else StepBonePhysics(b, animPos, animRot, dt);
 
                 float w = b.weightMultiplier * weight;
                 if (w > 0.001f)
@@ -509,6 +554,21 @@ namespace HonamiAnimationSystem.Runtime.Riggings
             }
         }
 
+        private float ResolveDeltaTime(float animationDeltaTime)
+            => timeSource == HonamiPhysicsTimeSource.Unscaled && Application.isPlaying
+                ? Time.unscaledDeltaTime
+                : animationDeltaTime;
+
+        // the offsets are left exactly as they are and only the pose history is resynced: as far as the
+        // velocity estimate is concerned, the frames the clock skipped never happened
+        private static void HoldBonePhysics(HonamiPhysicsBoneData b, Vector3 animPos, Quaternion animRot)
+        {
+            b.lastWorldPos = animPos;
+            b.lastWorldRot = animRot;
+            b.lastVelocity = Vector3.zero;
+            b.lastAngularVelocity = Vector3.zero;
+        }
+
         private void StepBonePhysics(HonamiPhysicsBoneData b, Vector3 animPos, Quaternion animRot, float dt)
         {
             Vector3 deltaPos = animPos - b.lastWorldPos;
@@ -521,10 +581,7 @@ namespace HonamiAnimationSystem.Runtime.Riggings
                 || (teleportAngleThreshold > 0f && Mathf.Abs(angle) > teleportAngleThreshold);
             if (teleported)
             {
-                b.lastWorldPos = animPos;
-                b.lastWorldRot = animRot;
-                b.lastVelocity = Vector3.zero;
-                b.lastAngularVelocity = Vector3.zero;
+                HoldBonePhysics(b, animPos, animRot);
                 return;
             }
 
@@ -946,6 +1003,18 @@ namespace HonamiAnimationSystem.Runtime.Riggings
                 rootFrom = rootTo;
                 rootDelta = Vector3.zero;
                 rootRotDelta = Quaternion.identity;
+            }
+
+            // a frozen clock must not integrate, but the chain still has to ride along with its attachment
+            // and keep being written: an unscaled camera flying around would otherwise leave it hanging in
+            // world space, and skipping the write snaps every bone back to the animated pose
+            if (dt <= 0f)
+            {
+                TransportChain(ps, rootFrom, rootDelta, rootRotDelta);
+                ps[0].prevPos = rootTo;
+                ps[0].simPos = rootTo;
+                ApplyChain(ps, 0f);
+                return;
             }
 
             int substeps = Mathf.Clamp(Mathf.CeilToInt(dt / MaxSimStep), 1, MaxSimSubstepCount);
@@ -1439,6 +1508,8 @@ namespace HonamiAnimationSystem.Runtime.Riggings
                 p.rollPrevAngle = 0f;
                 p.rollInitialized = false;
                 p.upInitialized = false;
+                p.facingAngle = 0f;
+                p.facingInitialized = false;
             }
         }
 
@@ -1597,6 +1668,7 @@ namespace HonamiAnimationSystem.Runtime.Riggings
                 Quaternion simRot = BuildAimRotation(p, aimDir, upBlend);
                 if (p.isRollHinge && p.rollAngle != 0f)
                     simRot *= Quaternion.AngleAxis(p.rollAngle * Mathf.Rad2Deg, p.localHingeAxis);
+                simRot = ApplyFacing(p, simRot, aimDir, dt);
                 Quaternion finalRot = w >= 0.999f ? simRot : Quaternion.Slerp(p.restWorldRot, simRot, w);
 
                 p.transform.rotation = finalRot;
@@ -1623,6 +1695,87 @@ namespace HonamiAnimationSystem.Runtime.Riggings
             child.transform.localPosition = final;
             child.writtenLocalPos = final;
             child.hasWrittenPos = true;
+        }
+
+        // physics owns where the bone points, so the only room left is the roll about that direction:
+        // the facing constant is solved there, as the single angle that best aims Facing Axis at the target
+        private static Quaternion ApplyFacing(SimParticle p, Quaternion simRot, Vector3 aimDir, float dt)
+        {
+            var d = p.data;
+            bool enabled = d != null && d.facingTarget != HonamiPhysicsFacingTarget.None && d.facingStrength > 0f;
+            if (!enabled && !p.facingInitialized) return simRot;
+
+            // a disabled facing unwinds instead of snapping, so toggling it mid-swing stays watchable
+            float desired = 0f;
+            float speed = enabled ? Mathf.Clamp01(d.facingSpeed) : 1f;
+            if (enabled)
+            {
+                if (TryResolveFacingDirection(d, p.simPos, ref p.facingCamera, out Vector3 targetDir)
+                    && TrySolveFacingAngle(simRot, d.facingAxis, aimDir, targetDir, out float solved))
+                {
+                    desired = solved * Mathf.Clamp01(d.facingStrength);
+                    if (d.facingMaxAngle > 0f) desired = Mathf.Clamp(desired, -d.facingMaxAngle, d.facingMaxAngle);
+                }
+                else
+                {
+                    // no solvable angle this frame — hold, or the bone would unwind and snap back
+                    desired = p.facingAngle;
+                }
+            }
+
+            float blend = p.facingInitialized ? 1f - Mathf.Exp(-MaxFacingRate * speed * speed * dt) : 1f;
+            // the correction wraps, so it has to be eased the short way around or a target crossing
+            // behind the bone sends it spinning the long way
+            // LerpAngle carries the angle past a full turn, and a target circling the bone would let it
+            // grow without bound; the rotation is unchanged by a turn, so fold it back
+            p.facingAngle = Mathf.Repeat(Mathf.LerpAngle(p.facingAngle, desired, blend) + 180f, 360f) - 180f;
+            p.facingInitialized = enabled || Mathf.Abs(p.facingAngle) > 0.01f;
+
+            return Mathf.Abs(p.facingAngle) > 1e-4f
+                ? Quaternion.AngleAxis(p.facingAngle, aimDir) * simRot
+                : simRot;
+        }
+
+        private static bool TryResolveFacingDirection(HonamiPhysicsBoneData d, Vector3 from, ref Camera camera,
+            out Vector3 dir)
+        {
+            switch (d.facingTarget)
+            {
+                case HonamiPhysicsFacingTarget.WorldDirection:
+                    dir = d.facingDirection;
+                    break;
+                case HonamiPhysicsFacingTarget.Transform:
+                    dir = d.facingTransform != null ? d.facingTransform.position - from : Vector3.zero;
+                    break;
+                case HonamiPhysicsFacingTarget.MainCamera:
+                    if (camera == null) camera = Camera.main;
+                    dir = camera != null ? camera.transform.position - from : Vector3.zero;
+                    break;
+                default:
+                    dir = Vector3.zero;
+                    break;
+            }
+
+            if (dir.sqrMagnitude < 1e-10f) return false;
+            dir.Normalize();
+            return true;
+        }
+
+        // both directions are flattened onto the plane the roll sweeps: what is left of the misalignment
+        // there is exactly what a roll can fix, and the component along the bone is unreachable
+        private static bool TrySolveFacingAngle(Quaternion baseRot, Vector3 localFacingAxis, Vector3 aimDir,
+            Vector3 targetDir, out float angle)
+        {
+            angle = 0f;
+            if (localFacingAxis.sqrMagnitude < 1e-8f) return false;
+
+            Vector3 current = baseRot * localFacingAxis.normalized;
+            Vector3 from = current - aimDir * Vector3.Dot(current, aimDir);
+            Vector3 to = targetDir - aimDir * Vector3.Dot(targetDir, aimDir);
+            if (from.sqrMagnitude < 1e-6f || to.sqrMagnitude < 1e-6f) return false;
+
+            angle = Vector3.SignedAngle(from.normalized, to.normalized, aimDir);
+            return true;
         }
 
         // a minimal-arc rotation off the bind direction goes singular once the chain hangs ~180° away from it,
@@ -1697,7 +1850,7 @@ namespace HonamiAnimationSystem.Runtime.Riggings
                 return;
             }
 
-            float dt = deltaTime;
+            float dt = ResolveDeltaTime(deltaTime);
 #if UNITY_EDITOR
             // Time.deltaTime is 0 outside Play mode, so the editor preview keeps its own clock
             if (!isPlaying)
@@ -1708,12 +1861,12 @@ namespace HonamiAnimationSystem.Runtime.Riggings
             }
 #endif
 
-            if (dt <= 0.0001f) return;
+            bool frozen = dt <= 0.0001f;
             if (dt > MaxSimDeltaTime) dt = MaxSimDeltaTime;
 
             if (mode == HonamiPhysicsMode.Simulation)
             {
-                SimulateChains(dt);
+                SimulateChains(frozen ? 0f : dt);
                 return;
             }
 
@@ -1742,7 +1895,8 @@ namespace HonamiAnimationSystem.Runtime.Riggings
                     UnapplyOffsets(b, currentPos, currentRot, out animPos, out animRot);
                 }
 
-                StepBonePhysics(b, animPos, animRot, dt);
+                if (frozen) HoldBonePhysics(b, animPos, animRot);
+                else StepBonePhysics(b, animPos, animRot, dt);
 
                 float w = weight * b.weightMultiplier;
                 Vector3 finalPosOffset = Vector3.Scale(b.currentPosOffset, positionAxisMask) * w;
@@ -1941,6 +2095,24 @@ namespace HonamiAnimationSystem.Runtime.Riggings
 
                 Gizmos.color = Color.magenta;
                 Gizmos.DrawLine(b.bone.position - axis * len, b.bone.position + axis * len);
+            }
+
+            for (int i = 0; i < bones.Length; i++)
+            {
+                var b = bones[i];
+                if (b == null || b.bone == null) continue;
+                if (b.facingTarget == HonamiPhysicsFacingTarget.None || b.facingStrength <= 0f) continue;
+                if (!TryResolveFacingDirection(b, b.bone.position, ref _gizmoCamera, out Vector3 targetDir)) continue;
+
+                float len = b.bone.localPosition.magnitude;
+                if (len <= 1e-4f) len = 0.05f;
+
+                // the two lines are the misalignment the roll is closing: when they meet, the bone is on target
+                Gizmos.color = new Color(1f, 0.75f, 0.2f, 0.9f);
+                Gizmos.DrawLine(b.bone.position, b.bone.position + targetDir * len * 2f);
+                if (b.facingAxis.sqrMagnitude < 1e-8f) continue;
+                Gizmos.color = new Color(1f, 0.45f, 0.1f, 0.9f);
+                Gizmos.DrawLine(b.bone.position, b.bone.position + b.bone.rotation * b.facingAxis.normalized * len);
             }
 
             if (_chains == null) return;
