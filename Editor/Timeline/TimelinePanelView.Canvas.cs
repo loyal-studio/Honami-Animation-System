@@ -69,6 +69,7 @@ namespace HonamiAnimationSystem.Editor.Timeline
         private void AddStateEvent(float time, HonamiEventType eventType)
         {
             if (_state.SelectedState == null) return;
+            _state.PreModifyState();
             Undo.RecordObject(_state.SelectedState, eventType == HonamiEventType.Local ? "Add Local Event" : "Add Global Event");
             _state.SelectedState.events ??= new List<HonamiEventMarker>();
             _state.SelectedState.events.Add(new HonamiEventMarker
@@ -79,15 +80,18 @@ namespace HonamiAnimationSystem.Editor.Timeline
                 globalEventId = eventType == HonamiEventType.Global ? "NewEvent" : string.Empty
             });
             EditorUtility.SetDirty(_state.SelectedState);
+            _state.PostModifyState();
             _rebuild();
         }
 
         private void AddSequencedClip(float time)
         {
             if (!_state.IsSeqState) return;
+            _state.PreModifyState();
             Undo.RecordObject(_state.SeqNode, "Add Sequenced Clip");
             _state.SeqNode.sequencedClips.Add(new HonamiSequencedAnimationClip { startTime = time });
             EditorUtility.SetDirty(_state.SeqNode);
+            _state.PostModifyState();
             _rebuild();
         }
 
@@ -544,6 +548,7 @@ namespace HonamiAnimationSystem.Editor.Timeline
             });
             startHandle.RegisterCallback<PointerUpEvent>(evt =>
             {
+                _state.PostModifyState();
                 _state.IsDraggingRandomAnimStart = false;
                 _state.SnapLineTime = -1f;
                 startHandle.ReleasePointer(evt.pointerId);
@@ -580,6 +585,7 @@ namespace HonamiAnimationSystem.Editor.Timeline
             });
             endHandle.RegisterCallback<PointerUpEvent>(evt =>
             {
+                _state.PostModifyState();
                 _state.IsDraggingRandomAnimEnd = false;
                 _state.SnapLineTime = -1f;
                 endHandle.ReleasePointer(evt.pointerId);
@@ -646,6 +652,7 @@ namespace HonamiAnimationSystem.Editor.Timeline
             });
             clip.RegisterCallback<PointerUpEvent>(evt =>
             {
+                _state.PostModifyState();
                 _state.SnapLineTime = -1f;
                 _draggingElement = false;
                 _dragTarget = null;
@@ -739,6 +746,7 @@ namespace HonamiAnimationSystem.Editor.Timeline
             });
             marker.RegisterCallback<PointerUpEvent>(evt =>
             {
+                _state.PostModifyState();
                 _state.SnapLineTime = -1f;
                 _draggingElement = false;
                 _dragTarget = null;

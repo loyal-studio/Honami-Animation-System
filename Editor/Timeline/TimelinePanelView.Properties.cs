@@ -49,13 +49,29 @@ namespace HonamiAnimationSystem.Editor.Timeline
         {
             root.Add(Title("State"));
             AddText(root, "Name", targetState.stateName, v =>
-                HonamiEditorController.EditStateProps(targetState, v, targetState.loop, targetState.isReversed, targetState.speed));
+            {
+                _state.PreModifyState();
+                HonamiEditorController.EditStateProps(_state.SelectedState, v, _state.SelectedState.loop, _state.SelectedState.isReversed, _state.SelectedState.speed);
+                _state.PostModifyState();
+            });
             AddToggle(root, "Loop", targetState.loop, v =>
-                HonamiEditorController.EditStateProps(targetState, targetState.stateName, v, targetState.isReversed, targetState.speed));
+            {
+                _state.PreModifyState();
+                HonamiEditorController.EditStateProps(_state.SelectedState, _state.SelectedState.stateName, v, _state.SelectedState.isReversed, _state.SelectedState.speed);
+                _state.PostModifyState();
+            });
             AddToggle(root, "Reversed", targetState.isReversed, v =>
-                HonamiEditorController.EditStateProps(targetState, targetState.stateName, targetState.loop, v, targetState.speed));
+            {
+                _state.PreModifyState();
+                HonamiEditorController.EditStateProps(_state.SelectedState, _state.SelectedState.stateName, _state.SelectedState.loop, v, _state.SelectedState.speed);
+                _state.PostModifyState();
+            });
             AddFloat(root, "Speed", targetState.speed, v =>
-                HonamiEditorController.EditStateProps(targetState, targetState.stateName, targetState.loop, targetState.isReversed, v));
+            {
+                _state.PreModifyState();
+                HonamiEditorController.EditStateProps(_state.SelectedState, _state.SelectedState.stateName, _state.SelectedState.loop, _state.SelectedState.isReversed, v);
+                _state.PostModifyState();
+            });
 
             if (!_state.IsAnimState || _state.AnimNode == null) return;
 
@@ -65,13 +81,17 @@ namespace HonamiAnimationSystem.Editor.Timeline
             float clipLen = animNode.clip != null ? animNode.clip.length : 0f;
             AddFloat(root, $"Start Time (0–{clipLen:F2}s)", animNode.startTime, v =>
             {
-                float end = animNode.endTime > 0f ? animNode.endTime : clipLen;
-                HonamiEditorController.EditAnimNodeClipTime(animNode, Mathf.Clamp(v, 0f, end - 0.001f), animNode.endTime);
+                _state.PreModifyState();
+                float end = _state.AnimNode.endTime > 0f ? _state.AnimNode.endTime : clipLen;
+                HonamiEditorController.EditAnimNodeClipTime(_state.AnimNode, Mathf.Clamp(v, 0f, end - 0.001f), _state.AnimNode.endTime);
+                _state.PostModifyState();
             });
             AddFloat(root, $"End Time (0 = full, max {clipLen:F2}s)", animNode.endTime, v =>
             {
-                float clampedEnd = v <= 0f ? 0f : Mathf.Clamp(v, animNode.startTime + 0.001f, clipLen);
-                HonamiEditorController.EditAnimNodeClipTime(animNode, animNode.startTime, clampedEnd);
+                _state.PreModifyState();
+                float clampedEnd = v <= 0f ? 0f : Mathf.Clamp(v, _state.AnimNode.startTime + 0.001f, clipLen);
+                HonamiEditorController.EditAnimNodeClipTime(_state.AnimNode, _state.AnimNode.startTime, clampedEnd);
+                _state.PostModifyState();
             });
         }
 
@@ -128,32 +148,64 @@ namespace HonamiAnimationSystem.Editor.Timeline
 
         private void BuildSeqClipProperties(VisualElement root, HonamiSequencedAnimationClip clip)
         {
-            var seqNode = _state.SeqNode;
             root.Add(Title("Sequencer Clip"));
-            AddObject<AnimationClip>(root, "Clip", clip.clip, v => HonamiEditorController.EditSequencedClip(seqNode, clip, v, clip.startTime, clip.speed));
-            AddFloat(root, "Start Time", clip.startTime, v => HonamiEditorController.EditSequencedClip(seqNode, clip, clip.clip, v, clip.speed));
-            AddFloat(root, "Speed", clip.speed, v => HonamiEditorController.EditSequencedClip(seqNode, clip, clip.clip, clip.startTime, v));
+            AddObject<AnimationClip>(root, "Clip", clip.clip, v => 
+            {
+                _state.PreModifyState();
+                HonamiEditorController.EditSequencedClip(_state.SeqNode, clip, v, clip.startTime, clip.speed);
+                _state.PostModifyState();
+            });
+            AddFloat(root, "Start Time", clip.startTime, v => 
+            {
+                _state.PreModifyState();
+                HonamiEditorController.EditSequencedClip(_state.SeqNode, clip, clip.clip, v, clip.speed);
+                _state.PostModifyState();
+            });
+            AddFloat(root, "Speed", clip.speed, v => 
+            {
+                _state.PreModifyState();
+                HonamiEditorController.EditSequencedClip(_state.SeqNode, clip, clip.clip, clip.startTime, v);
+                _state.PostModifyState();
+            });
         }
 
         private void BuildStateEventProperties(VisualElement root, HonamiEventMarker evt)
         {
-            var targetState = _state.SelectedState;
             root.Add(Title("State Event"));
-            AddFloat(root, "Time", evt.time, v => HonamiEditorController.EditStateEvent(targetState, evt, v, evt.eventType, evt.eventName, evt.globalEventId));
+            AddFloat(root, "Time", evt.time, v => 
+            {
+                _state.PreModifyState();
+                HonamiEditorController.EditStateEvent(_state.SelectedState, evt, v, evt.eventType, evt.eventName, evt.globalEventId);
+                _state.PostModifyState();
+            });
             AddEnum(root, "Type", evt.eventType, v =>
             {
-                HonamiEditorController.EditStateEvent(targetState, evt, evt.time, (HonamiEventType)v, evt.eventName, evt.globalEventId);
+                _state.PreModifyState();
+                HonamiEditorController.EditStateEvent(_state.SelectedState, evt, evt.time, (HonamiEventType)v, evt.eventName, evt.globalEventId);
+                _state.PostModifyState();
                 _rebuild();
             });
 
             if (evt.eventType == HonamiEventType.Local)
-                AddText(root, "Event Name", evt.eventName, v => HonamiEditorController.EditStateEvent(targetState, evt, evt.time, evt.eventType, v, evt.globalEventId));
+                AddText(root, "Event Name", evt.eventName, v => 
+                {
+                    _state.PreModifyState();
+                    HonamiEditorController.EditStateEvent(_state.SelectedState, evt, evt.time, evt.eventType, v, evt.globalEventId);
+                    _state.PostModifyState();
+                });
             else if (evt.eventType == HonamiEventType.Global)
-                AddText(root, "Global ID", evt.globalEventId, v => HonamiEditorController.EditStateEvent(targetState, evt, evt.time, evt.eventType, evt.eventName, v));
+                AddText(root, "Global ID", evt.globalEventId, v => 
+                {
+                    _state.PreModifyState();
+                    HonamiEditorController.EditStateEvent(_state.SelectedState, evt, evt.time, evt.eventType, evt.eventName, v);
+                    _state.PostModifyState();
+                });
 
             AddDangerButton(root, "Remove Event", () =>
             {
-                HonamiEditorController.DeleteStateEvents(targetState, new List<HonamiEventMarker> { evt });
+                _state.PreModifyState();
+                HonamiEditorController.DeleteStateEvents(_state.SelectedState, new List<HonamiEventMarker> { evt });
+                _state.PostModifyState();
                 _state.SelectedEvents.Clear();
                 _rebuild();
             });

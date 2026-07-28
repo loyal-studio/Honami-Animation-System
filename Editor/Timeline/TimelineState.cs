@@ -244,6 +244,52 @@ namespace HonamiAnimationSystem.Editor.Timeline
         public float GetTimelineWidth(float windowWidth) =>
             Mathf.Max(GetDuration() * TimeScale + 100f, windowWidth - TrackHeaderWidth);
 
+        public void PreModifyState()
+        {
+            if (Mode != TimelineMode.HonamiState || Controller == null || SelectedState == null) return;
+            if (Controller is HonamiOverrideController ov && !ov.IsOwnedState(SelectedState))
+            {
+                var eff = Editor.Core.HonamiOverrideAuthoring.EnsureEffectiveState(ov, SelectedState);
+                if (eff != SelectedState)
+                {
+                    var newSelectedEvents = new List<HonamiEventMarker>();
+                    foreach (var ev in SelectedEvents)
+                    {
+                        int index = SelectedState.events?.IndexOf(ev) ?? -1;
+                        if (index >= 0 && index < (eff.events?.Count ?? 0))
+                            newSelectedEvents.Add(eff.events[index]);
+                    }
+                    SelectedEvents = newSelectedEvents;
+
+                    if (SelectedState.node is HonamiSequencerNode oldSeq && eff.node is HonamiSequencerNode newSeq)
+                    {
+                        var newSeqClips = new List<HonamiSequencedAnimationClip>();
+                        foreach (var sc in SelectedSeqClips)
+                        {
+                            int index = oldSeq.sequencedClips?.IndexOf(sc) ?? -1;
+                            if (index >= 0 && index < (newSeq.sequencedClips?.Count ?? 0))
+                                newSeqClips.Add(newSeq.sequencedClips[index]);
+                        }
+                        SelectedSeqClips = newSeqClips;
+                    }
+                    SelectedState = eff;
+                }
+            }
+        }
+
+        public void PostModifyState()
+        {
+            if (Mode != TimelineMode.HonamiState || Controller == null || SelectedState == null) return;
+            if (Controller is HonamiOverrideController ov)
+            {
+                Editor.Core.HonamiOverrideAuthoring.ResolveState(ov, SelectedState, out var entry, out _);
+                if (entry != null)
+                {
+                    Editor.Core.HonamiOverrideAuthoring.RefreshStateModified(ov, entry);
+                }
+            }
+        }
+
         internal static void TogglePlayback(TimelineState state)
         {
             state.IsPlaying = !state.IsPlaying;

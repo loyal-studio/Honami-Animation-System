@@ -79,6 +79,7 @@ namespace HonamiAnimationSystem.Editor.Timeline
 
         public void Refresh()
         {
+            _state.PreModifyState();
             float currentWidth = resolvedStyle.width;
             if (currentWidth > 1f)
                 _lastTimelineViewportWidth = currentWidth;
@@ -338,15 +339,19 @@ namespace HonamiAnimationSystem.Editor.Timeline
 
             if (_state.SelectedSeqClips.Count > 0)
             {
+                _state.PreModifyState();
                 for (int i = _state.SelectedSeqClips.Count - 1; i >= 0; i--)
                     HonamiEditorController.DeleteSequencedClip(_state.SeqNode, _state.SelectedSeqClips[i]);
+                _state.PostModifyState();
                 _state.SelectedSeqClips.Clear();
                 changed = true;
             }
 
             if (_state.SelectedEvents.Count > 0)
             {
+                _state.PreModifyState();
                 HonamiEditorController.DeleteStateEvents(_state.SelectedState, new List<HonamiEventMarker>(_state.SelectedEvents));
+                _state.PostModifyState();
                 _state.SelectedEvents.Clear();
                 changed = true;
             }
@@ -401,7 +406,11 @@ namespace HonamiAnimationSystem.Editor.Timeline
                 }
 
                 if (eventsToPaste.Count > 0)
+                {
+                    _state.PreModifyState();
                     HonamiEditorController.PasteStateEvents(_state.SelectedState, eventsToPaste, _state.PlayheadTime);
+                    _state.PostModifyState();
+                }
             }
             else if (_state.Mode == TimelineMode.HonamiTimeline && _state.ActiveTimeline != null && _state.SelectedTimelineTrack != null)
             {
