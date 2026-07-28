@@ -418,7 +418,7 @@ namespace HonamiAnimationSystem.Editor.Handlers
                      node.State.node is Runtime.Core.HonamiSequencerNode) &&
                     EditorWindow.HasOpenInstances<HonamiAnimationSystem.Editor.Timeline.HonamiTimelineWindow>())
                 {
-                    HonamiAnimationSystem.Editor.Timeline.HonamiTimelineWindow.InspectState(_window.Controller, node.State.guid);
+                    HonamiAnimationSystem.Editor.Timeline.HonamiTimelineWindow.InspectState(_window.RuntimeController, node.State.guid);
                 }
                 _window.BuildRightPanel();
             };

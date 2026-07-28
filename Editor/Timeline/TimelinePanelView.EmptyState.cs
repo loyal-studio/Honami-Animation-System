@@ -54,14 +54,14 @@ namespace HonamiAnimationSystem.Editor.Timeline
         }
 
         private static readonly int ControllerPickerControlId = "HonamiTimelineControllerPicker".GetHashCode();
-        private HonamiController _lastPickedController;
+        private HonamiRuntimeController _lastPickedController;
 
         private void ShowControllerPicker()
         {
             EditorApplication.delayCall += () =>
             {
                 _lastPickedController = null;
-                EditorGUIUtility.ShowObjectPicker<HonamiController>(null, false, "", ControllerPickerControlId);
+                EditorGUIUtility.ShowObjectPicker<HonamiRuntimeController>(null, false, "", ControllerPickerControlId);
                 EditorApplication.update -= PollControllerPicker;
                 EditorApplication.update += PollControllerPicker;
             };
@@ -77,20 +77,20 @@ namespace HonamiAnimationSystem.Editor.Timeline
 
             if (EditorGUIUtility.GetObjectPickerControlID() == ControllerPickerControlId)
             {
-                if (EditorGUIUtility.GetObjectPickerObject() is HonamiController picked)
+                if (EditorGUIUtility.GetObjectPickerObject() is HonamiRuntimeController picked)
                     _lastPickedController = picked;
                 return;
             }
 
             EditorApplication.update -= PollControllerPicker;
-            if (EditorGUIUtility.GetObjectPickerObject() is HonamiController closedPick)
+            if (EditorGUIUtility.GetObjectPickerObject() is HonamiRuntimeController closedPick)
                 _lastPickedController = closedPick;
             if (_lastPickedController != null)
                 SelectController(_lastPickedController);
             _lastPickedController = null;
         }
 
-        private void SelectController(HonamiController controller)
+        private void SelectController(HonamiRuntimeController controller)
         {
             _state.Controller = controller;
             _state.SelectedState = FirstPreviewableState(controller);
@@ -100,12 +100,14 @@ namespace HonamiAnimationSystem.Editor.Timeline
             _rebuild();
         }
 
-        private static HonamiState FirstPreviewableState(HonamiController controller)
+        private static HonamiState FirstPreviewableState(HonamiRuntimeController controller)
         {
-            if (controller == null || controller.states == null) return null;
+            if (controller == null || controller.ActiveStates == null) return null;
+
             HonamiState first = null;
-            foreach (var st in controller.states)
+            for (int i = 0; i < controller.ActiveStates.Count; i++)
             {
+                var st = controller.ActiveStates[i];
                 if (st == null) continue;
                 first ??= st;
                 if (TimelineToolbarView.IsPreviewableState(st)) return st;

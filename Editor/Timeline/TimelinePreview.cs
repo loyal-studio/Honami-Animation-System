@@ -168,10 +168,10 @@ namespace HonamiAnimationSystem.Editor.Timeline
                 return s.SelectedState.avatarMask;
 
             if (s.Controller == null || s.SelectedLayerIndex < 0
-                || s.SelectedLayerIndex >= s.Controller.layers.Count)
+                || s.SelectedLayerIndex >= s.Controller.ActiveLayers.Count)
                 return null;
 
-            return s.Controller.layers[s.SelectedLayerIndex].avatarMask;
+            return s.Controller.ActiveLayers[s.SelectedLayerIndex].avatarMask;
         }
 
         private static void SampleHonamiStateWithMask(TimelineState s, GameObject root, HonamiAvatarMask mask)

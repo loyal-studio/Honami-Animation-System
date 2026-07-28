@@ -156,17 +156,17 @@ namespace HonamiAnimationSystem.Editor.Timeline
             root.style.flexShrink = 1;
             if (_state.Mode == TimelineMode.HonamiState)
             {
-                _stateControllerField = new ObjectField { objectType = typeof(HonamiController), value = _state.Controller };
+                _stateControllerField = new ObjectField { objectType = typeof(HonamiRuntimeController), value = _state.Controller };
                 _stateControllerField.style.width = StyleKeyword.Auto;
                 _stateControllerField.style.minWidth = 80;
                 _stateControllerField.style.maxWidth = 155;
                 _stateControllerField.style.flexGrow = 1;
                 _stateControllerField.RegisterValueChangedCallback(evt =>
                 {
-                    _state.Controller = evt.newValue as HonamiController;
-                    _state.SelectedState = _state.Controller?.states?
+                    _state.Controller = evt.newValue as HonamiRuntimeController;
+                    _state.SelectedState = _state.Controller?.ActiveStates?
                         .FirstOrDefault(IsPreviewableState)
-                        ?? _state.Controller?.states?.FirstOrDefault();
+                        ?? _state.Controller?.ActiveStates?.FirstOrDefault();
                     _state.PlayheadTime = 0f;
                     _state.IsPlaying = false;
                     _rebuild();
@@ -176,8 +176,8 @@ namespace HonamiAnimationSystem.Editor.Timeline
                 _stateDropdown = new DropdownField { style = { width = StyleKeyword.Auto, minWidth = 100, maxWidth = 190, flexGrow = 1 } };
                 _stateDropdown.RegisterValueChangedCallback(evt =>
                 {
-                    if (_state.Controller?.states == null) return;
-                    _state.SelectedState = _state.Controller.states.FirstOrDefault(st => st != null && st.stateName == evt.newValue);
+                    if (_state.Controller?.ActiveStates == null) return;
+                    _state.SelectedState = _state.Controller.ActiveStates.FirstOrDefault(st => st != null && st.stateName == evt.newValue);
                     _state.PlayheadTime = 0f;
                     _state.IsPlaying = false;
                     _state.RandomPreviewIdx = 0;
@@ -308,9 +308,9 @@ namespace HonamiAnimationSystem.Editor.Timeline
 
         private void RefreshStateDropdown()
         {
-            if (_stateDropdown == null || _state.Controller?.states == null) return;
-
-            var states = _state.Controller.states;
+            if (_stateDropdown == null || _state.Controller?.ActiveStates == null) return;
+            
+            var states = _state.Controller.ActiveStates;
             var choices = new List<string>();
 
             for (int i = 0; i < states.Count; i++)

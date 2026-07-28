@@ -36,7 +36,7 @@ namespace HonamiAnimationSystem.Editor.Timeline
         public TimelineMode Mode = TimelineMode.HonamiState;
         public GameObject PreviewRoot;
 
-        public HonamiController Controller;
+        public HonamiRuntimeController Controller;
         public HonamiState SelectedState;
         public int SelectedLayerIndex = -1;
         public int RandomPreviewIdx;

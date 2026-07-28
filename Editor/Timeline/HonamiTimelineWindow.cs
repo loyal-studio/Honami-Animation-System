@@ -41,7 +41,7 @@ namespace HonamiAnimationSystem.Editor.Timeline
             w.minSize = new Vector2(600, 300);
         }
 
-        public static void InspectState(HonamiController controller, string stateGuid)
+        public static void InspectState(HonamiRuntimeController controller, string stateGuid)
         {
             var w = GetWindow<HonamiTimelineWindow>();
             if (w == null || controller == null) return;
@@ -112,7 +112,7 @@ namespace HonamiAnimationSystem.Editor.Timeline
         private static bool IsTabEmpty(TimelineState s) =>
             s.Controller == null && s.ActiveTimeline == null && s.ActiveClip == null;
 
-        private void FocusOrOpenState(HonamiController controller, string stateGuid)
+        private void FocusOrOpenState(HonamiRuntimeController controller, string stateGuid)
         {
             for (int i = 0; i < _tabs.Count; i++)
             {
@@ -133,7 +133,7 @@ namespace HonamiAnimationSystem.Editor.Timeline
 
             target.Mode = TimelineMode.HonamiState;
             target.Controller = controller;
-            target.SelectedState = controller.states.FirstOrDefault(s => s != null && s.guid == stateGuid);
+            target.SelectedState = controller.ActiveStates.FirstOrDefault(s => s != null && s.guid == stateGuid);
             target.SelectedLayerIndex = target.SelectedState != null ? target.SelectedState.layerIndex : -1;
             SelectTab(_tabs.IndexOf(target));
         }
@@ -509,9 +509,9 @@ namespace HonamiAnimationSystem.Editor.Timeline
                 switch (s.Mode)
                 {
                     case TimelineMode.HonamiState:
-                        s.Controller = FromObjectId<HonamiController>(td.controllerId);
+                        s.Controller = FromObjectId<HonamiRuntimeController>(td.controllerId);
                         if (s.Controller == null) continue;
-                        s.SelectedState = s.Controller.states?.FirstOrDefault(st => st != null && st.guid == td.stateGuid);
+                        s.SelectedState = s.Controller.ActiveStates?.FirstOrDefault(st => st != null && st.guid == td.stateGuid);
                         s.SelectedLayerIndex = td.layerIndex;
                         break;
                     case TimelineMode.HonamiTimeline:
