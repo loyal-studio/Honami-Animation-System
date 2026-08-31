@@ -625,7 +625,7 @@ namespace HonamiAnimationSystem.Runtime.Core
                 state,
                 stateIndex,
                 anim.GetNodeRuntime(stateIndex),
-                anim.GetStateBlendParam(state));
+                anim.GetStateBlendParam(stateIndex));
 
             if (resetTime)
             {
@@ -1021,7 +1021,7 @@ namespace HonamiAnimationSystem.Runtime.Core
                 state,
                 stateIdx,
                 anim.GetNodeRuntime(stateIdx),
-                anim.GetStateBlendParam(state));
+                anim.GetStateBlendParam(stateIdx));
 
             playable.SetTime(state.isReversed ? duration : 0f);
         }

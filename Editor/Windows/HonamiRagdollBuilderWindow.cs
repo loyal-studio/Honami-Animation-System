@@ -101,6 +101,8 @@ namespace HonamiAnimationSystem.Editor.Windows
             HumanBodyBones.RightUpperLeg, HumanBodyBones.RightLowerLeg, HumanBodyBones.RightFoot
         };
 
+        private SerializedObject _so;
+
         private void OnGUI()
         {
             EditorGUILayout.Space();
@@ -123,7 +125,8 @@ namespace HonamiAnimationSystem.Editor.Windows
 
             scrollPos = EditorGUILayout.BeginScrollView(scrollPos);
 
-            SerializedObject so = new SerializedObject(this);
+            _so ??= new SerializedObject(this);
+            SerializedObject so = _so;
             so.Update();
 
             DrawSettings(so);

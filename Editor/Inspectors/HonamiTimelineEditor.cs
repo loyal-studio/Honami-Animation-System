@@ -7,6 +7,23 @@ namespace HonamiAnimationSystem.Editor.Sequence
     [CustomEditor(typeof(HonamiTimeline))]
     public sealed class HonamiTimelineEditor : UnityEditor.Editor
     {
+        private SerializedProperty _timelineName;
+        private SerializedProperty _durationOverride;
+        private SerializedProperty _tracks;
+
+        private static readonly GUIContent _durationOverrideContent = new GUIContent("Duration Override", "0 = auto from tracks");
+        private static readonly GUIContent _muteContent = new GUIContent("M", "Mute track");
+        private static readonly GUIContent _targetContent = new GUIContent("Target GameObject");
+        private static readonly GUIContent _clipsContent = new GUIContent("Clips");
+        private static readonly GUIContent _eventsContent = new GUIContent("Events");
+
+        private void OnEnable()
+        {
+            _timelineName = serializedObject.FindProperty("timelineName");
+            _durationOverride = serializedObject.FindProperty("durationOverride");
+            _tracks = serializedObject.FindProperty("tracks");
+        }
+
         public override void OnInspectorGUI()
         {
             serializedObject.Update();
@@ -18,42 +35,40 @@ namespace HonamiAnimationSystem.Editor.Sequence
                 HonamiAnimationSystem.Editor.Timeline.HonamiTimelineWindow.InspectTimeline(tl);
 
             EditorGUILayout.Space(8);
-            EditorGUILayout.PropertyField(serializedObject.FindProperty("timelineName"));
-            EditorGUILayout.PropertyField(serializedObject.FindProperty("durationOverride"),
-                new GUIContent("Duration Override", "0 = auto from tracks"));
+            EditorGUILayout.PropertyField(_timelineName);
+            EditorGUILayout.PropertyField(_durationOverride, _durationOverrideContent);
 
             EditorGUILayout.Space(8);
             EditorGUILayout.LabelField("Tracks", EditorStyles.boldLabel);
 
-            var tracksP = serializedObject.FindProperty("tracks");
-            for (int i = 0; i < tracksP.arraySize; i++)
+            for (int i = 0; i < _tracks.arraySize; i++)
             {
-                var tp = tracksP.GetArrayElementAtIndex(i);
+                var tp = _tracks.GetArrayElementAtIndex(i);
                 using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox))
                 {
+                    var trackTypeProp = tp.FindPropertyRelative("trackType");
+                    var mutedProp = tp.FindPropertyRelative("muted");
+
                     EditorGUILayout.BeginHorizontal();
                     EditorGUILayout.PropertyField(tp.FindPropertyRelative("trackName"), GUIContent.none, GUILayout.ExpandWidth(true));
-                    EditorGUILayout.PropertyField(tp.FindPropertyRelative("trackType"), GUIContent.none, GUILayout.Width(100));
-                    tp.FindPropertyRelative("muted").boolValue = GUILayout.Toggle(
-                        tp.FindPropertyRelative("muted").boolValue,
-                        new GUIContent("M", "Mute track"), GUILayout.Width(20));
+                    EditorGUILayout.PropertyField(trackTypeProp, GUIContent.none, GUILayout.Width(100));
+                    mutedProp.boolValue = GUILayout.Toggle(mutedProp.boolValue, _muteContent, GUILayout.Width(20));
                     if (GUILayout.Button(HonamiEditorSymbols.Remove, GUILayout.Width(22)))
                     {
-                        tracksP.DeleteArrayElementAtIndex(i);
+                        _tracks.DeleteArrayElementAtIndex(i);
                         serializedObject.ApplyModifiedProperties();
                         return;
                     }
                     EditorGUILayout.EndHorizontal();
 
-                    var trackTypeProp = tp.FindPropertyRelative("trackType");
                     if (trackTypeProp.enumValueIndex == (int)HonamiTimelineTrackType.Animation)
                     {
-                        EditorGUILayout.PropertyField(tp.FindPropertyRelative("target"), new GUIContent("Target GameObject"));
-                        EditorGUILayout.PropertyField(tp.FindPropertyRelative("clips"), new GUIContent("Clips"), true);
+                        EditorGUILayout.PropertyField(tp.FindPropertyRelative("target"), _targetContent);
+                        EditorGUILayout.PropertyField(tp.FindPropertyRelative("clips"), _clipsContent, true);
                     }
                     else
                     {
-                        EditorGUILayout.PropertyField(tp.FindPropertyRelative("events"), new GUIContent("Events"), true);
+                        EditorGUILayout.PropertyField(tp.FindPropertyRelative("events"), _eventsContent, true);
                     }
                 }
                 EditorGUILayout.Space(2);
@@ -63,15 +78,15 @@ namespace HonamiAnimationSystem.Editor.Sequence
             EditorGUILayout.BeginHorizontal();
             if (GUILayout.Button("+ Animation Track"))
             {
-                tracksP.InsertArrayElementAtIndex(tracksP.arraySize);
-                var np = tracksP.GetArrayElementAtIndex(tracksP.arraySize - 1);
+                _tracks.InsertArrayElementAtIndex(_tracks.arraySize);
+                var np = _tracks.GetArrayElementAtIndex(_tracks.arraySize - 1);
                 np.FindPropertyRelative("trackName").stringValue = "Animation Track";
                 np.FindPropertyRelative("trackType").enumValueIndex = (int)HonamiTimelineTrackType.Animation;
             }
             if (GUILayout.Button("+ Event Track"))
             {
-                tracksP.InsertArrayElementAtIndex(tracksP.arraySize);
-                var np = tracksP.GetArrayElementAtIndex(tracksP.arraySize - 1);
+                _tracks.InsertArrayElementAtIndex(_tracks.arraySize);
+                var np = _tracks.GetArrayElementAtIndex(_tracks.arraySize - 1);
                 np.FindPropertyRelative("trackName").stringValue = "Event Track";
                 np.FindPropertyRelative("trackType").enumValueIndex = (int)HonamiTimelineTrackType.Event;
             }

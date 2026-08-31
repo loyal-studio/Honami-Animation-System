@@ -41,8 +41,8 @@ namespace HonamiAnimationSystem.Runtime.Core
         internal void ResetPlayableTreeTime(Playable playable)
             => HonamiEventEngine.ResetPlayableTreeTime(this, playable);
 
-        internal float GetStateBlendParam(HonamiState state)
-            => HonamiEventEngine.GetStateBlendParam(this, state);
+        internal float GetStateBlendParam(int stateIndex)
+            => HonamiEventEngine.GetStateBlendParam(this, stateIndex);
 
         internal void TriggerStateEntered(string stateName)
             => OnStateEntered?.Invoke(stateName);

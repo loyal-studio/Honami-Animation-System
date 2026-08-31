@@ -126,9 +126,22 @@ namespace HonamiAnimationSystem.Editor
             container.RegisterCallback<AttachToPanelEvent>(_ => field.Bind(nodeSO));
         }
 
+        private static HonamiState _lastStateFieldTarget;
+        private static SerializedObject _lastStateFieldSO;
+
         protected static void AddStateField(VisualElement container, HonamiState state, string propName, string label)
         {
-            SerializedObject so = new SerializedObject(state);
+            SerializedObject so;
+            if (_lastStateFieldTarget == state && _lastStateFieldSO != null)
+            {
+                so = _lastStateFieldSO;
+            }
+            else
+            {
+                so = new SerializedObject(state);
+                _lastStateFieldTarget = state;
+                _lastStateFieldSO = so;
+            }
             so.Update();
             SerializedProperty prop = so.FindProperty(propName);
             if (prop == null) return;

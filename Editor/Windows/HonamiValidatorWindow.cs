@@ -13,6 +13,9 @@ namespace HonamiAnimationSystem.Editor
         private Vector2 _scrollPos;
         private List<string> _logMessages = new List<string>();
         private readonly List<string> _pendingMissingScriptPaths = new();
+        private readonly List<float> _logHeights = new();
+        private float _cachedLogWidth = -1f;
+        private bool _logDirty = true;
 
         [MenuItem("Window/Honami/Honami Controller Validator")]
         public static void ShowWindow()
@@ -77,10 +80,18 @@ namespace HonamiAnimationSystem.Editor
             else
             {
                 float width = EditorGUIUtility.currentViewWidth - 40f;
-                foreach (var msg in _logMessages)
+                if (width != _cachedLogWidth || _logDirty)
                 {
-                    float height = EditorStyles.wordWrappedLabel.CalcHeight(new GUIContent(msg), width);
-                    EditorGUILayout.SelectableLabel(msg, EditorStyles.wordWrappedLabel, GUILayout.Height(height));
+                    _cachedLogWidth = width;
+                    _logDirty = false;
+                    _logHeights.Clear();
+                    for (int i = 0; i < _logMessages.Count; i++)
+                        _logHeights.Add(EditorStyles.wordWrappedLabel.CalcHeight(new GUIContent(_logMessages[i]), width));
+                }
+
+                for (int i = 0; i < _logMessages.Count; i++)
+                {
+                    EditorGUILayout.SelectableLabel(_logMessages[i], EditorStyles.wordWrappedLabel, GUILayout.Height(_logHeights[i]));
                 }
             }
             EditorGUILayout.EndScrollView();
@@ -89,12 +100,14 @@ namespace HonamiAnimationSystem.Editor
         private void Log(string message)
         {
             _logMessages.Add(message);
+            _logDirty = true;
         }
 
         private void ScanSelected()
         {
             if (_controller == null) return;
             _logMessages.Clear();
+            _logDirty = true;
             Log($"Scanning controller: '{_controller.name}'...");
             ValidateController(_controller, true);
         }
@@ -104,6 +117,7 @@ namespace HonamiAnimationSystem.Editor
             if (_controller == null) return;
 
             _logMessages.Clear();
+            _logDirty = true;
             _pendingMissingScriptPaths.Clear();
             Log($"Starting validation and fix for controller: '{_controller.name}'...");
 
@@ -125,6 +139,7 @@ namespace HonamiAnimationSystem.Editor
         private void ProcessAllControllers(bool dryRun)
         {
             _logMessages.Clear();
+            _logDirty = true;
             _pendingMissingScriptPaths.Clear();
             Log(dryRun ? "Scanning all HonamiControllers in project..." : "Fixing all HonamiControllers in project...");
 

@@ -8,6 +8,7 @@ namespace HonamiAnimationSystem.Editor.Inspectors
     public sealed class HonamiDirectorEditor : UnityEditor.Editor
     {
         private float _previewTime = 0f;
+        private static GUIStyle _headerStyle;
 
         public override void OnInspectorGUI()
         {
@@ -18,8 +19,8 @@ namespace HonamiAnimationSystem.Editor.Inspectors
             EditorGUILayout.Space(10);
             EditorGUILayout.BeginVertical(EditorStyles.helpBox);
 
-            GUIStyle headerStyle = new GUIStyle(EditorStyles.boldLabel) { normal = { textColor = new Color(0.18f, 0.76f, 0.9f) } };
-            GUILayout.Label(" Director Preview", headerStyle);
+            _headerStyle ??= new GUIStyle(EditorStyles.boldLabel) { normal = { textColor = new Color(0.18f, 0.76f, 0.9f) } };
+            GUILayout.Label(" Director Preview", _headerStyle);
             EditorGUILayout.Space(3);
 
             if (director.timeline != null)

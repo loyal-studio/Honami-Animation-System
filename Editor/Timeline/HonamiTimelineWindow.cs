@@ -16,6 +16,7 @@ namespace HonamiAnimationSystem.Editor.Timeline
         private readonly List<TimelineState> _tabs = new();
         private readonly List<TimelineState> _sampleBuffer = new();
         private int _activeIndex;
+        private double _lastIdleSampleTime;
 
         private HonamiNotificationPanel _notificationPanel;
         private TimelineToolbarView _toolbarView;
@@ -277,15 +278,24 @@ namespace HonamiAnimationSystem.Editor.Timeline
         private void OnEditorUpdate()
         {
             bool anyPlaying = false;
+            bool anyDragging = false;
             for (int i = 0; i < _tabs.Count; i++)
             {
                 var t = _tabs[i];
-                if (t != null && t.IsPlaying && !t.IsDraggingPlayhead)
+                if (t == null) continue;
+                if (t.IsDraggingPlayhead) anyDragging = true;
+                if (t.IsPlaying && !t.IsDraggingPlayhead)
                 {
                     if (EditorApplication.timeSinceStartup - t.LastUpdateTime < 1.0 / 60.0) return;
                     anyPlaying = true;
                     break;
                 }
+            }
+
+            if (!anyPlaying && !anyDragging)
+            {
+                if (EditorApplication.timeSinceStartup - _lastIdleSampleTime < 1.0 / 60.0) return;
+                _lastIdleSampleTime = EditorApplication.timeSinceStartup;
             }
 
             var active = Active;

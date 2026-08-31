@@ -16,6 +16,14 @@ namespace HonamiAnimationSystem.Editor
         private HonamiLinkedAnimatorSearchProvider _brainSearchProvider;
         private List<HonamiLinkedAnimatorNode> _cachedBrainNodes = new();
         private List<HonamiLinkedAnimatorEventNode> _cachedBrainEventNodes = new();
+        private readonly Dictionary<HonamiLinkedAnimatorNodeBase, HonamiLinkedAnimatorNode> _brainNodeByAsset = new();
+        private readonly Dictionary<HonamiLinkedAnimatorEvent, HonamiLinkedAnimatorEventNode> _brainEventNodeByAsset = new();
+        private readonly HashSet<HonamiLinkedAnimatorNodeBase> _activeBrainNodeSet = new();
+
+        private static List<Type> _cachedBrainNodeTypes;
+        private static List<Type> CachedBrainNodeTypes => _cachedBrainNodeTypes ??= TypeCache.GetTypesDerivedFrom<HonamiLinkedAnimatorNodeBase>()
+            .Where(t => !t.IsAbstract && !t.IsGenericType)
+            .OrderBy(t => t.Name).ToList();
         private Label _brainWatermark;
         private EditorWindow _window;
 
@@ -147,14 +155,14 @@ namespace HonamiAnimationSystem.Editor
 
         public void UpdateLinkedAnimatorNodeUI(HonamiLinkedAnimatorNodeBase nodeBase)
         {
-            var node = _cachedBrainNodes.FirstOrDefault(n => n.BrainNode == nodeBase);
-            node?.UpdateUI();
+            if (nodeBase != null && _brainNodeByAsset.TryGetValue(nodeBase, out var node))
+                node.UpdateUI();
         }
 
         public void UpdateLinkedAnimatorEventUI(HonamiLinkedAnimatorEvent eventBase)
         {
-            var evtNode = _cachedBrainEventNodes.FirstOrDefault(n => n.BrainEvent == eventBase);
-            evtNode?.UpdateTitle();
+            if (eventBase != null && _brainEventNodeByAsset.TryGetValue(eventBase, out var evtNode))
+                evtNode.UpdateTitle();
         }
 
         public void PopulateBrainView(HonamiLinkedAnimatorGraph graph)
@@ -162,6 +170,8 @@ namespace HonamiAnimationSystem.Editor
             _brainGraph = graph;
             _cachedBrainNodes.Clear();
             _cachedBrainEventNodes.Clear();
+            _brainNodeByAsset.Clear();
+            _brainEventNodeByAsset.Clear();
 
             DeleteElements(graphElements.ToList());
 
@@ -178,6 +188,7 @@ namespace HonamiAnimationSystem.Editor
                 eventNode.SetPosition(new Rect(evt.editorPosition, Vector2.zero));
                 AddElement(eventNode);
                 _cachedBrainEventNodes.Add(eventNode);
+                _brainEventNodeByAsset.TryAdd(evt, eventNode);
             }
 
             foreach (var node in graph.nodes)
@@ -188,6 +199,7 @@ namespace HonamiAnimationSystem.Editor
                 brainNode.SetPosition(new Rect(node.editorPosition, Vector2.zero));
                 AddElement(brainNode);
                 _cachedBrainNodes.Add(brainNode);
+                _brainNodeByAsset.TryAdd(node, brainNode);
             }
 
             ConnectBrainFlows(graph);
@@ -201,14 +213,12 @@ namespace HonamiAnimationSystem.Editor
             {
                 if (evt?.rootNodes == null) continue;
 
-                var eventNode = _cachedBrainEventNodes.FirstOrDefault(e => e.BrainEvent == evt);
-                if (eventNode == null) continue;
+                if (!_brainEventNodeByAsset.TryGetValue(evt, out var eventNode)) continue;
 
                 foreach (var rootNode in evt.rootNodes)
                 {
                     if (rootNode == null) continue;
-                    var targetNode = _cachedBrainNodes.FirstOrDefault(n => n.BrainNode == rootNode);
-                    if (targetNode == null) continue;
+                    if (!_brainNodeByAsset.TryGetValue(rootNode, out var targetNode)) continue;
 
                     var edge = eventNode.FlowOut.ConnectTo(targetNode.FlowIn);
                     AddElement(edge);
@@ -219,14 +229,12 @@ namespace HonamiAnimationSystem.Editor
             {
                 if (node is LinkedAnimatorSequenceNode seq && seq.children != null)
                 {
-                    var sourceNode = _cachedBrainNodes.FirstOrDefault(n => n.BrainNode == node);
-                    if (sourceNode == null) continue;
+                    if (!_brainNodeByAsset.TryGetValue(node, out var sourceNode)) continue;
 
                     foreach (var child in seq.children)
                     {
                         if (child == null) continue;
-                        var targetNode = _cachedBrainNodes.FirstOrDefault(n => n.BrainNode == child);
-                        if (targetNode == null) continue;
+                        if (!_brainNodeByAsset.TryGetValue(child, out var targetNode)) continue;
 
                         var edge = sourceNode.FlowOut.ConnectTo(targetNode.FlowIn);
                         AddElement(edge);
@@ -235,13 +243,11 @@ namespace HonamiAnimationSystem.Editor
 
                 if (node is LinkedAnimatorConditionNode cond)
                 {
-                    var sourceNode = _cachedBrainNodes.FirstOrDefault(n => n.BrainNode == node);
-                    if (sourceNode == null) continue;
+                    if (!_brainNodeByAsset.TryGetValue(node, out var sourceNode)) continue;
 
                     if (cond.onTrue != null)
                     {
-                        var trueNode = _cachedBrainNodes.FirstOrDefault(n => n.BrainNode == cond.onTrue);
-                        if (trueNode != null)
+                        if (_brainNodeByAsset.TryGetValue(cond.onTrue, out var trueNode))
                         {
                             var edge = sourceNode.FlowOut.ConnectTo(trueNode.FlowIn);
                             AddElement(edge);
@@ -249,8 +255,7 @@ namespace HonamiAnimationSystem.Editor
                     }
                     if (cond.onFalse != null)
                     {
-                        var falseNode = _cachedBrainNodes.FirstOrDefault(n => n.BrainNode == cond.onFalse);
-                        if (falseNode != null)
+                        if (_brainNodeByAsset.TryGetValue(cond.onFalse, out var falseNode))
                         {
                             var edge = sourceNode.FlowOut.ConnectTo(falseNode.FlowIn);
                             AddElement(edge);
@@ -281,6 +286,7 @@ namespace HonamiAnimationSystem.Editor
             eventNode.SetPosition(new Rect(position, Vector2.zero));
             AddElement(eventNode);
             _cachedBrainEventNodes.Add(eventNode);
+            _brainEventNodeByAsset[evt] = eventNode;
 
             ClearSelection();
             AddToSelection(eventNode);
@@ -312,6 +318,7 @@ namespace HonamiAnimationSystem.Editor
             brainNode.SetPosition(new Rect(position, Vector2.zero));
             AddElement(brainNode);
             _cachedBrainNodes.Add(brainNode);
+            _brainNodeByAsset[nodeInstance] = brainNode;
 
             ClearSelection();
             AddToSelection(brainNode);
@@ -347,6 +354,7 @@ namespace HonamiAnimationSystem.Editor
             Undo.DestroyObjectImmediate(node.BrainNode);
 
             _cachedBrainNodes.Remove(node);
+            _brainNodeByAsset.Remove(node.BrainNode);
             RemoveElement(node);
 
             EditorUtility.SetDirty(_brainGraph);
@@ -362,6 +370,7 @@ namespace HonamiAnimationSystem.Editor
             Undo.DestroyObjectImmediate(eventNode.BrainEvent);
 
             _cachedBrainEventNodes.Remove(eventNode);
+            _brainEventNodeByAsset.Remove(eventNode.BrainEvent);
             RemoveElement(eventNode);
 
             EditorUtility.SetDirty(_brainGraph);
@@ -527,9 +536,13 @@ namespace HonamiAnimationSystem.Editor
         {
             if (activeNodes == null) return;
 
+            _activeBrainNodeSet.Clear();
+            for (int i = 0; i < activeNodes.Count; i++)
+                _activeBrainNodeSet.Add(activeNodes[i]);
+
             foreach (var node in _cachedBrainNodes)
             {
-                bool isActive = activeNodes.Contains(node.BrainNode);
+                bool isActive = _activeBrainNodeSet.Contains(node.BrainNode);
                 node.SetActive(isActive);
             }
         }
@@ -542,9 +555,7 @@ namespace HonamiAnimationSystem.Editor
             evt.menu.AppendAction("Create Event Entry Point", _ => CreateBrainEvent(graphPosition));
             evt.menu.AppendSeparator();
 
-            var brainNodeTypes = TypeCache.GetTypesDerivedFrom<HonamiLinkedAnimatorNodeBase>()
-                .Where(t => !t.IsAbstract && !t.IsGenericType)
-                .OrderBy(t => t.Name).ToList();
+            var brainNodeTypes = CachedBrainNodeTypes;
 
             foreach (var type in brainNodeTypes)
             {

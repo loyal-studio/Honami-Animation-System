@@ -24,6 +24,14 @@ namespace HonamiAnimationSystem.Editor.Inspectors
         private static readonly Color _accentColor = new Color(0.2f, 1f, 0.6f);
         private static readonly Color _warningColor = new Color(1f, 0.7f, 0.2f);
 
+        private static GUIStyle _headerStyle;
+        private static GUIStyle _subStyle;
+        private static GUIStyle _foldoutStyle;
+        private static GUIStyle _infoStyle;
+        private static GUIStyle _dimStyle;
+        private static GUIStyle _debugHeaderStyle;
+        private static GUIStyle _valStyle;
+
         private void OnEnable()
         {
             _bone = serializedObject.FindProperty("bone");
@@ -66,21 +74,21 @@ namespace HonamiAnimationSystem.Editor.Inspectors
 
         private new void DrawHeader()
         {
-            GUIStyle headerStyle = new GUIStyle(EditorStyles.boldLabel)
+            _headerStyle ??= new GUIStyle(EditorStyles.boldLabel)
             {
                 fontSize = 15,
                 alignment = TextAnchor.MiddleCenter,
                 normal = { textColor = _accentColor }
             };
-            GUIStyle subStyle = new GUIStyle(EditorStyles.centeredGreyMiniLabel)
+            _subStyle ??= new GUIStyle(EditorStyles.centeredGreyMiniLabel)
             {
                 fontSize = 10,
                 alignment = TextAnchor.MiddleCenter
             };
 
             EditorGUILayout.Space(8);
-            GUILayout.Label("HONAMI SCALE FIXER", headerStyle);
-            GUILayout.Label("Eliminates Scale Jitter from FBX / Retargeted Animations", subStyle);
+            GUILayout.Label("HONAMI SCALE FIXER", _headerStyle);
+            GUILayout.Label("Eliminates Scale Jitter from FBX / Retargeted Animations", _subStyle);
 
             Rect line = EditorGUILayout.GetControlRect(false, 2);
             EditorGUI.DrawRect(line, new Color(_accentColor.r, _accentColor.g, _accentColor.b, 0.5f));
@@ -124,13 +132,13 @@ namespace HonamiAnimationSystem.Editor.Inspectors
 
                 if (Application.isPlaying)
                 {
-                    GUIStyle info = new GUIStyle(EditorStyles.miniLabel) { normal = { textColor = _accentColor } };
-                    GUILayout.Label(rig.bone != null ? rig.bone.localScale.ToString("F4") : "—", info);
+                    _infoStyle ??= new GUIStyle(EditorStyles.miniLabel) { normal = { textColor = _accentColor } };
+                    GUILayout.Label(rig.bone != null ? rig.bone.localScale.ToString("F4") : "—", _infoStyle);
                 }
                 else
                 {
-                    GUIStyle dim = new GUIStyle(EditorStyles.miniLabel) { normal = { textColor = Color.grey } };
-                    GUILayout.Label("(captured at Awake / Enable)", dim);
+                    _dimStyle ??= new GUIStyle(EditorStyles.miniLabel) { normal = { textColor = Color.grey } };
+                    GUILayout.Label("(captured at Awake / Enable)", _dimStyle);
                 }
 
                 EditorGUILayout.EndHorizontal();
@@ -191,13 +199,13 @@ namespace HonamiAnimationSystem.Editor.Inspectors
 
             EditorGUILayout.BeginVertical(EditorStyles.helpBox);
 
-            GUIStyle debugHeader = new GUIStyle(EditorStyles.boldLabel) { normal = { textColor = _warningColor } };
-            GUILayout.Label("  Runtime Scale", debugHeader);
+            _debugHeaderStyle ??= new GUIStyle(EditorStyles.boldLabel) { normal = { textColor = _warningColor } };
+            GUILayout.Label("  Runtime Scale", _debugHeaderStyle);
             EditorGUILayout.Space(2);
 
             Vector3 current = rig.bone.localScale;
-            GUIStyle valStyle = new GUIStyle(EditorStyles.miniLabel) { normal = { textColor = _accentColor } };
-            EditorGUILayout.LabelField("Current localScale", current.ToString("F4"), valStyle);
+            _valStyle ??= new GUIStyle(EditorStyles.miniLabel) { normal = { textColor = _accentColor } };
+            EditorGUILayout.LabelField("Current localScale", current.ToString("F4"), _valStyle);
 
             Repaint();
             EditorGUILayout.EndVertical();
@@ -215,13 +223,10 @@ namespace HonamiAnimationSystem.Editor.Inspectors
 
         private static bool DrawFoldoutHeader(string title, bool state, Color color)
         {
-            GUIStyle style = new GUIStyle(EditorStyles.foldout)
-            {
-                fontStyle = FontStyle.Bold,
-                normal = { textColor = color },
-                onNormal = { textColor = color }
-            };
-            return EditorGUILayout.Foldout(state, title, true, style);
+            _foldoutStyle ??= new GUIStyle(EditorStyles.foldout) { fontStyle = FontStyle.Bold };
+            _foldoutStyle.normal.textColor = color;
+            _foldoutStyle.onNormal.textColor = color;
+            return EditorGUILayout.Foldout(state, title, true, _foldoutStyle);
         }
     }
 }

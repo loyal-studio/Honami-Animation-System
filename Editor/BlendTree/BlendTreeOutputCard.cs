@@ -12,6 +12,7 @@ namespace HonamiAnimationSystem.Editor.BlendTree
     internal sealed class BlendTreeOutputCard : VisualElement
     {
         private readonly BlendTreeState _state;
+        private float _lastDisplayedValue = float.NaN;
         private Label _paramLabel;
         private Label _previewValueLabel;
         private Label _blendTypeBadge;
@@ -225,7 +226,12 @@ namespace HonamiAnimationSystem.Editor.BlendTree
 
         public void UpdatePreviewValue(float paramValue, float min, float max)
         {
-            _previewValueLabel.text = paramValue.ToString("0.00");
+            float rounded = Mathf.Round(paramValue * 100f) / 100f;
+            if (rounded != _lastDisplayedValue)
+            {
+                _lastDisplayedValue = rounded;
+                _previewValueLabel.text = rounded.ToString("0.00");
+            }
 
             float range = max - min;
             float t = range > 0.0001f ? Mathf.Clamp01((paramValue - min) / range) : 0f;

@@ -127,8 +127,12 @@ namespace HonamiAnimationSystem.Runtime.Core
         public bool TryGetFloatIndex(int hash, out int index) => _floatHashToIndex.TryGetValue(hash, out index);
         public bool TryGetIntIndex(int hash, out int index) => _intHashToIndex.TryGetValue(hash, out index);
         public bool TryGetBoolIndex(int hash, out int index) => _boolHashToIndex.TryGetValue(hash, out index);
+        public bool TryGetTriggerIndex(int hash, out int index) => _triggerHashToIndex.TryGetValue(hash, out index);
 
         public float GetFloatByIndex(int index) => _floatValues[index];
+        public int GetIntByIndex(int index) => _intValues[index];
+        public bool GetBoolByIndex(int index) => _boolValues[index];
+        public bool GetTriggerByIndex(int index) => _triggerValues[index];
 
         public void CommitTriggers(List<int> tentativeHashes)
         {

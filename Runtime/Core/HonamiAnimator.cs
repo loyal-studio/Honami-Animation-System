@@ -647,7 +647,7 @@ namespace HonamiAnimationSystem.Runtime.Core
 
         public void PauseState(string stateName, bool paused, int layer = 0)
         {
-            if (_stateNameToIndex.TryGetValue(stateName.GetHashCode(), out int idx))
+            if (_stateNameToIndex.TryGetValue(StringToHash(stateName), out int idx))
                 SetStatePause(idx, layer, paused);
         }
 
@@ -739,7 +739,7 @@ namespace HonamiAnimationSystem.Runtime.Core
 
         public void StopState(string stateName, int layer = 0)
         {
-            if (_stateNameToIndex.TryGetValue(stateName.GetHashCode(), out int idx))
+            if (_stateNameToIndex.TryGetValue(StringToHash(stateName), out int idx))
                 StopStateInternal(idx, layer);
         }
 
@@ -836,7 +836,7 @@ namespace HonamiAnimationSystem.Runtime.Core
                 if (playable.IsValid())
                 {
                     float unscaledDuration = HonamiStateEvaluator.GetUnscaledStateDuration(
-                        controller, state, stateIndex, GetNodeRuntime(stateIndex), GetStateBlendParam(state));
+                        controller, state, stateIndex, GetNodeRuntime(stateIndex), GetStateBlendParam(stateIndex));
                     if (unscaledDuration > 0)
                     {
                         float progress = Mathf.Max(0f, state.isReversed ? (1f - (float)(playable.GetTime() / unscaledDuration)) : (float)(playable.GetTime() / unscaledDuration));
@@ -881,7 +881,7 @@ namespace HonamiAnimationSystem.Runtime.Core
                 if (playable.IsValid())
                 {
                     float unscaledDuration = HonamiStateEvaluator.GetUnscaledStateDuration(
-                        controller, state, stateIndex, GetNodeRuntime(stateIndex), GetStateBlendParam(state));
+                        controller, state, stateIndex, GetNodeRuntime(stateIndex), GetStateBlendParam(stateIndex));
                     if (unscaledDuration > 0)
                     {
                         float progress = Mathf.Max(0f, state.isReversed ? (1f - (float)(playable.GetTime() / unscaledDuration)) : (float)(playable.GetTime() / unscaledDuration));
@@ -1035,7 +1035,7 @@ namespace HonamiAnimationSystem.Runtime.Core
             int realIdx = (statePortIdx == TransientPortIndex) ? _layerStates[layer].TransientStateIndex : statePortIdx;
             if (realIdx < 0 || realIdx >= _activeStatesCount) return 0f;
 
-            float dur = HonamiStateEvaluator.GetUnscaledStateDuration(controller, _runtimeStates[realIdx], realIdx, GetNodeRuntime(realIdx), GetStateBlendParam(_runtimeStates[realIdx]));
+            float dur = HonamiStateEvaluator.GetUnscaledStateDuration(controller, _runtimeStates[realIdx], realIdx, GetNodeRuntime(realIdx), GetStateBlendParam(realIdx));
             if (dur <= 0) return 0f;
 
             double rawTime = playable.GetTime();

@@ -48,7 +48,7 @@ namespace HonamiAnimationSystem.Runtime.Core
 
         private static void EvaluateEventsForState(HonamiAnimator anim, int layer, int portIdx, HonamiState state, int stateIdx, Playable playable)
         {
-            float unscaledDuration = HonamiStateEvaluator.GetUnscaledStateDuration(anim.controller, state, stateIdx, anim.GetNodeRuntime(stateIdx), GetStateBlendParam(anim, state));
+            float unscaledDuration = HonamiStateEvaluator.GetUnscaledStateDuration(anim.controller, state, stateIdx, anim.GetNodeRuntime(stateIdx), GetStateBlendParam(anim, stateIdx));
             if (unscaledDuration <= 0f) return;
 
             double rawTime = playable.GetTime();
@@ -246,11 +246,11 @@ namespace HonamiAnimationSystem.Runtime.Core
                 ResetPlayableTreeTime(anim, p.GetInput(i));
         }
 
-        public static float GetStateBlendParam(HonamiAnimator anim, HonamiState s)
+        public static float GetStateBlendParam(HonamiAnimator anim, int stateIndex)
         {
-            if (s?.node is not HonamiBlendTreeNode btNode || string.IsNullOrEmpty(btNode.blendParameter)) return 0f;
-            int hash = HonamiAnimator.StringToHash(btNode.blendParameter);
-            return anim._params.GetFloat(hash);
+            if (anim._blendTreeParamHashes == null || stateIndex < 0 || stateIndex >= anim._blendTreeParamHashes.Length) return 0f;
+            int hash = anim._blendTreeParamHashes[stateIndex];
+            return hash != -1 ? anim._params.GetFloat(hash) : 0f;
         }
     }
 }

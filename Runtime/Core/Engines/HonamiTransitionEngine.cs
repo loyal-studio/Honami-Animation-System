@@ -134,8 +134,8 @@ namespace HonamiAnimationSystem.Runtime.Core
                     if (playable.IsValid())
                     {
                         float unscaledDuration = HonamiStateEvaluator.GetUnscaledStateDuration(
-                            anim.controller, anim._runtimeStates[currentIdx], currentIdx, 
-                            anim.GetNodeRuntime(currentIdx), anim.GetStateBlendParam(anim._runtimeStates[currentIdx]));
+                            anim.controller, anim._runtimeStates[currentIdx], currentIdx,
+                            anim.GetNodeRuntime(currentIdx), anim.GetStateBlendParam(currentIdx));
                         if (unscaledDuration > 0)
                         {
                             double rawTime = playable.GetTime();
@@ -158,8 +158,8 @@ namespace HonamiAnimationSystem.Runtime.Core
                     if (playable.IsValid())
                     {
                         float unscaledDuration = HonamiStateEvaluator.GetUnscaledStateDuration(
-                            anim.controller, anim._runtimeStates[currentIdx], currentIdx, 
-                            anim.GetNodeRuntime(currentIdx), anim.GetStateBlendParam(anim._runtimeStates[currentIdx]));
+                            anim.controller, anim._runtimeStates[currentIdx], currentIdx,
+                            anim.GetNodeRuntime(currentIdx), anim.GetStateBlendParam(currentIdx));
                         if (unscaledDuration > 0)
                         {
                             float normalizedTime = (float)(playable.GetTime() / unscaledDuration);

@@ -31,6 +31,11 @@ namespace HonamiAnimationSystem.Editor
         private HonamiController _controller;
         public int currentLayerIndex = 0;
 
+        private static List<Type> _cachedNodeTypes;
+        private static List<Type> CachedNodeTypes => _cachedNodeTypes ??= TypeCache.GetTypesDerivedFrom<HonamiNodeBase>()
+            .Where(t => !t.IsAbstract && !t.IsGenericType)
+            .OrderBy(t => t.Name).ToList();
+
         private MiniMap _miniMap;
         private bool _isMiniMapVisible = true;
         private bool _animationsEnabled = true;
@@ -516,12 +521,10 @@ namespace HonamiAnimationSystem.Editor
                         evt.menu.AppendAction("Make Transition", (a) => StartMakeTransition(targetNodeOverride));
                     }
 
-                    var nodeTypes = TypeCache.GetTypesDerivedFrom<HonamiNodeBase>()
-                        .Where(t => !t.IsAbstract && !t.IsGenericType && t != targetNodeOverride.ActiveNode?.GetType())
-                        .OrderBy(t => t.Name).ToList();
-
-                    foreach (var type in nodeTypes)
+                    var excludedType = targetNodeOverride.ActiveNode?.GetType();
+                    foreach (var type in CachedNodeTypes)
                     {
+                        if (type == excludedType) continue;
                         string typeName = type.Name.Replace("Honami", "").Replace("Node", "");
                         evt.menu.AppendAction($"Change Type/{typeName}", (a) => ChangeNodeType(targetNodeOverride, type));
                     }
@@ -607,12 +610,10 @@ namespace HonamiAnimationSystem.Editor
                 }
 
                 evt.menu.AppendSeparator();
-                var nodeTypes = TypeCache.GetTypesDerivedFrom<HonamiNodeBase>()
-                    .Where(t => !t.IsAbstract && !t.IsGenericType && (targetNode.State.node == null || t != targetNode.State.node.GetType()))
-                    .OrderBy(t => t.Name).ToList();
-
-                foreach (var type in nodeTypes)
+                var excludedNodeType = targetNode.State.node == null ? null : targetNode.State.node.GetType();
+                foreach (var type in CachedNodeTypes)
                 {
+                    if (type == excludedNodeType) continue;
                     string typeName = type.Name.Replace("Honami", "").Replace("Node", "");
                     evt.menu.AppendAction($"Change Type/{typeName}", (a) => ChangeNodeType(targetNode, type));
                 }

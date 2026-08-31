@@ -84,7 +84,7 @@ namespace HonamiAnimationSystem.Runtime.Core
                 PlayStateInternal(defaultIndex, 0f, defaultLayer, true, null, 0f);
                 
                 // Fast forward to end
-                float dur = HonamiStateEvaluator.GetUnscaledStateDuration(controller, defaultState, defaultIndex, GetNodeRuntime(defaultIndex), GetStateBlendParam(defaultState));
+                float dur = HonamiStateEvaluator.GetUnscaledStateDuration(controller, defaultState, defaultIndex, GetNodeRuntime(defaultIndex), GetStateBlendParam(defaultIndex));
                 if (dur <= 0f) dur = 1f; // Fallback
                 _playableGraph.Evaluate(dur);
                 

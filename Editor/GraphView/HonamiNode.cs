@@ -2,6 +2,8 @@ using UnityEditor.Experimental.GraphView;
 using UnityEngine;
 using UnityEngine.UIElements;
 using UnityEditor;
+using System;
+using System.Collections.Generic;
 using System.Linq;
 using HonamiAnimationSystem.Runtime.Core;
 using HonamiAnimationSystem.Editor.Core;
@@ -22,6 +24,12 @@ namespace HonamiAnimationSystem.Editor
 
         public Port InputPort;
         public Port OutputPort;
+
+        private static List<Type> _cachedSubNodeTypes;
+        private static List<Type> CachedSubNodeTypes => _cachedSubNodeTypes ??= TypeCache.GetTypesDerivedFrom<HonamiSubNodeBase>()
+            .Where(t => !t.IsAbstract)
+            .OrderBy(t => t.Name)
+            .ToList();
 
         private System.Collections.Generic.Dictionary<HonamiSubNodeBase, Label> _subNodeBadges = new();
 
@@ -344,12 +352,7 @@ namespace HonamiAnimationSystem.Editor
                 return;
             }
 
-            var types = TypeCache.GetTypesDerivedFrom<HonamiSubNodeBase>()
-                .Where(t => !t.IsAbstract)
-                .OrderBy(t => t.Name)
-                .ToList();
-
-            foreach (var t in types)
+            foreach (var t in CachedSubNodeTypes)
             {
                 string name = t.Name.Replace("Honami", "").Replace("SubNode", "");
                 name = ObjectNames.NicifyVariableName(name);

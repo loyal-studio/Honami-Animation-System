@@ -23,6 +23,8 @@ namespace HonamiAnimationSystem.Editor.Inspectors
         private bool _bonesFoldout = true;
 
         private static readonly Color _accentColor = new Color(0.18f, 0.76f, 0.9f);
+        private static GUIStyle _headerStyle;
+        private static GUIStyle _subStyle;
 
         private void OnEnable()
         {
@@ -54,21 +56,21 @@ namespace HonamiAnimationSystem.Editor.Inspectors
 
         private void DrawTitle()
         {
-            GUIStyle headerStyle = new GUIStyle(EditorStyles.boldLabel)
+            _headerStyle ??= new GUIStyle(EditorStyles.boldLabel)
             {
                 fontSize = 15,
                 alignment = TextAnchor.MiddleCenter,
                 normal = { textColor = _accentColor }
             };
-            GUIStyle subStyle = new GUIStyle(EditorStyles.centeredGreyMiniLabel)
+            _subStyle ??= new GUIStyle(EditorStyles.centeredGreyMiniLabel)
             {
                 fontSize = 10,
                 alignment = TextAnchor.MiddleCenter
             };
 
             EditorGUILayout.Space(8);
-            GUILayout.Label("HONAMI BONE RENDERER", headerStyle);
-            GUILayout.Label("Scene View Skeleton Display & Picking", subStyle);
+            GUILayout.Label("HONAMI BONE RENDERER", _headerStyle);
+            GUILayout.Label("Scene View Skeleton Display & Picking", _subStyle);
 
             Rect line = EditorGUILayout.GetControlRect(false, 2);
             EditorGUI.DrawRect(line, new Color(_accentColor.r, _accentColor.g, _accentColor.b, 0.5f));

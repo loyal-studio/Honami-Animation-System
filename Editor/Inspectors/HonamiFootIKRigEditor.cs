@@ -34,6 +34,14 @@ namespace HonamiAnimationSystem.Editor.Inspectors
         private static readonly Color _warningColor = new Color(1f, 0.7f, 0.2f);
         private static readonly Color _okColor = new Color(0.3f, 0.9f, 0.4f);
 
+        private static GUIStyle _headerStyle;
+        private static GUIStyle _subStyle;
+        private static GUIStyle _foldoutStyle;
+        private static GUIStyle _legLabelStyle;
+        private static GUIStyle _removeStyle;
+        private static GUIStyle _debugHeaderStyle;
+        private string[] _legLabelCache = System.Array.Empty<string>();
+
         private void OnEnable()
         {
             _legs = serializedObject.FindProperty("legs");
@@ -89,21 +97,21 @@ namespace HonamiAnimationSystem.Editor.Inspectors
 
         private new void DrawHeader()
         {
-            GUIStyle headerStyle = new GUIStyle(EditorStyles.boldLabel)
+            _headerStyle ??= new GUIStyle(EditorStyles.boldLabel)
             {
                 fontSize = 15,
                 alignment = TextAnchor.MiddleCenter,
                 normal = { textColor = _accentColor }
             };
-            GUIStyle subStyle = new GUIStyle(EditorStyles.centeredGreyMiniLabel)
+            _subStyle ??= new GUIStyle(EditorStyles.centeredGreyMiniLabel)
             {
                 fontSize = 10,
                 alignment = TextAnchor.MiddleCenter
             };
 
             EditorGUILayout.Space(8);
-            GUILayout.Label("HONAMI FOOT IK", headerStyle);
-            GUILayout.Label("Procedural Ground Adaptation - Any Skeleton", subStyle);
+            GUILayout.Label("HONAMI FOOT IK", _headerStyle);
+            GUILayout.Label("Procedural Ground Adaptation - Any Skeleton", _subStyle);
 
             Rect line = EditorGUILayout.GetControlRect(false, 2);
             EditorGUI.DrawRect(line, new Color(_accentColor.r, _accentColor.g, _accentColor.b, 0.5f));
@@ -160,10 +168,10 @@ namespace HonamiAnimationSystem.Editor.Inspectors
             EditorGUILayout.BeginVertical(EditorStyles.helpBox);
 
             EditorGUILayout.BeginHorizontal();
-            GUIStyle legLabelStyle = new GUIStyle(EditorStyles.boldLabel) { normal = { textColor = new Color(0.8f, 0.95f, 1f) } };
-            GUILayout.Label($"Leg {index}", legLabelStyle);
-            GUIStyle removeStyle = new GUIStyle(GUI.skin.button) { fixedWidth = 22, fixedHeight = 18, normal = { textColor = _warningColor } };
-            if (GUILayout.Button(HonamiEditorSymbols.Remove, removeStyle)) { _legs.DeleteArrayElementAtIndex(index); return; }
+            _legLabelStyle ??= new GUIStyle(EditorStyles.boldLabel) { normal = { textColor = new Color(0.8f, 0.95f, 1f) } };
+            GUILayout.Label($"Leg {index}", _legLabelStyle);
+            _removeStyle ??= new GUIStyle(GUI.skin.button) { fixedWidth = 22, fixedHeight = 18, normal = { textColor = _warningColor } };
+            if (GUILayout.Button(HonamiEditorSymbols.Remove, _removeStyle)) { _legs.DeleteArrayElementAtIndex(index); return; }
             EditorGUILayout.EndHorizontal();
             EditorGUI.indentLevel++;
             EditorGUILayout.PropertyField(legProp.FindPropertyRelative("thigh"), new GUIContent("Thigh"));
@@ -255,14 +263,22 @@ namespace HonamiAnimationSystem.Editor.Inspectors
             if (rig.legs == null || rig.legs.Length == 0) return;
 
             EditorGUILayout.BeginVertical(EditorStyles.helpBox);
-            GUIStyle debugHeader = new GUIStyle(EditorStyles.boldLabel) { normal = { textColor = _warningColor } };
-            GUILayout.Label("  Runtime Status", debugHeader);
+            _debugHeaderStyle ??= new GUIStyle(EditorStyles.boldLabel) { normal = { textColor = _warningColor } };
+            GUILayout.Label("  Runtime Status", _debugHeaderStyle);
             EditorGUILayout.Space(2);
 
-            foreach (var leg in rig.legs)
+            if (_legLabelCache.Length != rig.legs.Length)
             {
+                _legLabelCache = new string[rig.legs.Length];
+                for (int i = 0; i < _legLabelCache.Length; i++)
+                    _legLabelCache[i] = $"Leg {i}";
+            }
+
+            for (int legIndex = 0; legIndex < rig.legs.Length; legIndex++)
+            {
+                var leg = rig.legs[legIndex];
                 if (leg == null) continue;
-                string lbl = $"Leg {System.Array.IndexOf(rig.legs, leg)}";
+                string lbl = _legLabelCache[legIndex];
 
                 EditorGUILayout.BeginHorizontal();
                 GUILayout.Label(lbl, GUILayout.Width(90));
@@ -297,13 +313,10 @@ namespace HonamiAnimationSystem.Editor.Inspectors
 
         private static bool DrawFoldoutHeader(string title, bool state, Color color)
         {
-            GUIStyle style = new GUIStyle(EditorStyles.foldout)
-            {
-                fontStyle = FontStyle.Bold,
-                normal = { textColor = color },
-                onNormal = { textColor = color }
-            };
-            return EditorGUILayout.Foldout(state, title, true, style);
+            _foldoutStyle ??= new GUIStyle(EditorStyles.foldout) { fontStyle = FontStyle.Bold };
+            _foldoutStyle.normal.textColor = color;
+            _foldoutStyle.onNormal.textColor = color;
+            return EditorGUILayout.Foldout(state, title, true, _foldoutStyle);
         }
     }
 }

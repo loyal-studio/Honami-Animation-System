@@ -25,7 +25,9 @@ namespace HonamiAnimationSystem.Editor
 
         private HonamiAnimator _targetAnimator;
         private List<Transform> _boneTransforms = new();
+        private readonly HashSet<Transform> _boneTransformSet = new();
         private Dictionary<Transform, BoneRowRefs> _boneRowRefs = new();
+        private readonly List<Component> _componentBuffer = new();
 
         private struct BoneRowRefs
         {
@@ -34,6 +36,10 @@ namespace HonamiAnimationSystem.Editor
             public Label valuesLabel;
             public Label reasonLabel;
             public VisualElement row;
+            public Vector3 lastRot;
+            public Vector3 lastScale;
+            public bool hasLastValues;
+            public string lastReason;
         }
 
         [MenuItem("Window/Honami/Honami Bone Debug")]
@@ -167,14 +173,26 @@ namespace HonamiAnimationSystem.Editor
                 // Update Values
                 var rot = t.localEulerAngles;
                 var scl = t.localScale;
-                refs.valuesLabel.text = $"R:({rot.x:0},{rot.y:0},{rot.z:0}) S:({scl.x:0.##},{scl.y:0.##},{scl.z:0.##})";
+                if (!refs.hasLastValues || refs.lastRot != rot || refs.lastScale != scl)
+                {
+                    refs.valuesLabel.text = $"R:({rot.x:0},{rot.y:0},{rot.z:0}) S:({scl.x:0.##},{scl.y:0.##},{scl.z:0.##})";
+                    refs.lastRot = rot;
+                    refs.lastScale = scl;
+                    refs.hasLastValues = true;
+                }
 
                 // Update Reason
-                refs.reasonLabel.text = reason;
+                if (refs.lastReason != reason)
+                {
+                    refs.reasonLabel.text = reason;
+                    refs.lastReason = reason;
+                }
                 refs.reasonLabel.style.color = status == Health.Bad ? new Color(1f, 0.4f, 0.4f) : new Color(1f, 0.7f, 0.3f);
 
                 // Update highlight
                 refs.nameLabel.style.unityFontStyleAndWeight = (t == activeT) ? FontStyle.Bold : FontStyle.Normal;
+
+                _boneRowRefs[t] = refs;
             }
         }
 
@@ -269,11 +287,12 @@ namespace HonamiAnimationSystem.Editor
             if (float.IsNaN(ang)) { reason = "NaN Rotation"; return Health.Bad; }
 
             // Components check
-            var components = t.GetComponents<Component>();
-            if (components.Length > 2) // Transform + 1 other is okay, more is "Normal" (e.g. constraints)
+            t.GetComponents(_componentBuffer);
+            if (_componentBuffer.Count > 2) // Transform + 1 other is okay, more is "Normal" (e.g. constraints)
             {
-                foreach (var comp in components)
+                for (int i = 0; i < _componentBuffer.Count; i++)
                 {
+                    var comp = _componentBuffer[i];
                     if (comp is Transform) continue;
                     if (comp.GetType().Name.Contains("Honami")) { reason = "Has Honami Constraint"; return Health.Normal; }
                 }
@@ -345,9 +364,10 @@ namespace HonamiAnimationSystem.Editor
         private void RefreshBones()
         {
             _boneTransforms.Clear();
+            _boneTransformSet.Clear();
             if (_targetAnimator == null) return;
 
-            var avatar = (HonamiAvatar)new SerializedObject(_targetAnimator).FindProperty("avatar").objectReferenceValue;
+            var avatar = _targetAnimator.Avatar;
 
             if (_avatarOnly && avatar != null)
             {
@@ -363,6 +383,8 @@ namespace HonamiAnimationSystem.Editor
             {
                 _boneTransforms.AddRange(_targetAnimator.GetComponentsInChildren<Transform>());
             }
+
+            foreach (var t in _boneTransforms) _boneTransformSet.Add(t);
         }
 
         private void OnSceneGUI(SceneView sceneView)
@@ -378,7 +400,7 @@ namespace HonamiAnimationSystem.Editor
             RefreshBones();
 
             var activeT = Selection.activeTransform;
-            bool hasValidSelection = activeT != null && (_targetAnimator == null || activeT.IsChildOf(_targetAnimator.transform) || _boneTransforms.Contains(activeT));
+            bool hasValidSelection = activeT != null && (_targetAnimator == null || activeT.IsChildOf(_targetAnimator.transform) || _boneTransformSet.Contains(activeT));
 
             if (_onlyShowSelected && hasValidSelection)
             {
@@ -394,7 +416,7 @@ namespace HonamiAnimationSystem.Editor
             }
 
             // Ensure selected bone is drawn even if not in _boneTransforms (e.g. Avatar Only is on)
-            if (activeT != null && activeT.IsChildOf(_targetAnimator.transform) && !_boneTransforms.Contains(activeT))
+            if (activeT != null && activeT.IsChildOf(_targetAnimator.transform) && !_boneTransformSet.Contains(activeT))
             {
                 DrawBoneDebug(activeT, true);
             }
@@ -411,7 +433,7 @@ namespace HonamiAnimationSystem.Editor
                 Handles.SphereHandleCap(0, pos, Quaternion.identity, _sphereSize * (isSelected ? 1.5f : 1f), EventType.Repaint);
             }
 
-            if (_drawBones && t.parent != null && (_boneTransforms.Contains(t.parent) || isSelected))
+            if (_drawBones && t.parent != null && (_boneTransformSet.Contains(t.parent) || isSelected))
             {
                 Handles.DrawLine(t.parent.position, pos);
             }

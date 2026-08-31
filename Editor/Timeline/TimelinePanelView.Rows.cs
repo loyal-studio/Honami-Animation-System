@@ -324,7 +324,17 @@ namespace HonamiAnimationSystem.Editor.Timeline
                 && _state.RandomPreviewIdx >= 0 && _state.RandomPreviewIdx < _state.RandomNode.randomClips.Count)
                 clip = _state.RandomNode.randomClips[_state.RandomPreviewIdx].clip;
             if (clip == null && _state.IsBlendState && _state.BlendNode.blendMotions != null)
-                clip = _state.BlendNode.blendMotions.FirstOrDefault(m => m.clip != null)?.clip;
+            {
+                var motions = _state.BlendNode.blendMotions;
+                for (int i = 0; i < motions.Count; i++)
+                {
+                    if (motions[i].clip != null)
+                    {
+                        clip = motions[i].clip;
+                        break;
+                    }
+                }
+            }
             return clip != null ? clip.frameRate : 0f;
         }
 

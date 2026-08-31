@@ -664,13 +664,16 @@ namespace HonamiAnimationSystem.Editor.Timeline
             return selected;
         }
 
+        private static readonly HashSet<string> _mirroredPathsBuffer = new();
+
         internal static void ApplyManualMirror(GameObject root)
         {
             if (root == null) return;
             if (!root.TryGetComponent<HonamiAnimator>(out var anim) || anim.Avatar == null) return;
 
             var avatar = anim.Avatar;
-            var mirroredPaths = new HashSet<string>();
+            var mirroredPaths = _mirroredPathsBuffer;
+            mirroredPaths.Clear();
             root.TryGetComponent<HonamiBoneReplacer>(out var replacer);
 
             for (int i = 0; i < avatar.mirrorBones.Count; i++)

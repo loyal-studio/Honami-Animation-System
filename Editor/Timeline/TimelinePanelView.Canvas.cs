@@ -12,6 +12,8 @@ namespace HonamiAnimationSystem.Editor.Timeline
     internal sealed partial class TimelinePanelView : ITimelineTrackDrawer
     {
         private int _rowCount;
+        private GUIStyle _rulerLabelStyle;
+        private readonly List<float> _snapPointsBuffer = new();
 
         private void DrawTimelineOverlay(float height)
         {
@@ -131,7 +133,8 @@ namespace HonamiAnimationSystem.Editor.Timeline
             else if (timeScale < 10f) step = 5f;
 
             float duration = width / timeScale;
-            var labelStyle = new GUIStyle(EditorStyles.miniLabel) { fontSize = 9, normal = { textColor = TimelineTheme.MutedText } };
+            _rulerLabelStyle ??= new GUIStyle(EditorStyles.miniLabel) { fontSize = 9 };
+            _rulerLabelStyle.normal.textColor = TimelineTheme.MutedText;
 
             for (float t = 0; t <= duration; t += step)
             {
@@ -139,7 +142,7 @@ namespace HonamiAnimationSystem.Editor.Timeline
                 if (x < 0 || x > width) continue;
                 EditorGUI.DrawRect(new Rect(x, rulerHeight - 8, 1, 8), TimelineTheme.MajorGrid);
                 string txt = _state.ShowFrames && fps > 0 ? $"{(t * fps):F0}f" : $"{t:F1}s";
-                GUI.Label(new Rect(x + 3, 2, 60, 15), txt, labelStyle);
+                GUI.Label(new Rect(x + 3, 2, 60, 15), txt, _rulerLabelStyle);
             }
         }
 
@@ -919,7 +922,10 @@ namespace HonamiAnimationSystem.Editor.Timeline
             float best = time;
             float minDistance = float.MaxValue;
 
-            var points = new List<float> { 0f, _state.GetDuration() };
+            var points = _snapPointsBuffer;
+            points.Clear();
+            points.Add(0f);
+            points.Add(_state.GetDuration());
             AddStateSnapPoints(points, ignore);
             AddTimelineSnapPoints(points, ignore);
 

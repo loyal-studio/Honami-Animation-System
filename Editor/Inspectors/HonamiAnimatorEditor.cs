@@ -7,6 +7,74 @@ namespace HonamiAnimationSystem.Editor.Inspectors
     [CustomEditor(typeof(HonamiAnimator))]
     public sealed class HonamiAnimatorEditor : UnityEditor.Editor
     {
+        private SerializedProperty _controller;
+        private SerializedProperty _avatar;
+        private SerializedProperty _mirrorAvatar;
+        private SerializedProperty _mirrorBlendSpeed;
+        private SerializedProperty _startup;
+        private SerializedProperty _updateMode;
+        private SerializedProperty _timeScale;
+        private SerializedProperty _fpsCap;
+        private SerializedProperty _targetFPS;
+        private SerializedProperty _fpsCapInterpolate;
+        private SerializedProperty _applyRootMotion;
+        private SerializedProperty _cullingMode;
+        private SerializedProperty _captureInitialPoseOnAwake;
+        private SerializedProperty _captureFromDefaultStateEnd;
+        private SerializedProperty _restoreInitialPoseWhenIdle;
+        private SerializedProperty _releaseFinishedStatesWithoutDefault;
+        private SerializedProperty _includeRootTransformInInitialPose;
+        private SerializedProperty _globalWeightMode;
+
+        private static GUIStyle _headerStyle;
+        private static GUIStyle _subtitleStyle;
+        private static GUIStyle _buttonStyle;
+        private static GUIStyle _debugHeaderStyle;
+
+        private static readonly GUIContent _controllerContent = new GUIContent("Controller", "The HonamiController asset that defines states and transitions.");
+        private static readonly GUIContent _avatarContent = new GUIContent("Avatar", "Optional skeleton definition. Required to use Avatar Masks on states.");
+        private static readonly GUIContent _mirrorAvatarContent = new GUIContent("Global Mirror", "Dynamically mirror all animations applied to the avatar's bones.");
+        private static readonly GUIContent _mirrorBlendSpeedContent = new GUIContent("Mirror Blend Speed", "Speed of the smooth transition when toggling mirror. 0 = instant.");
+        private static readonly GUIContent _startupContent = new GUIContent("Startup Action", "When should the animation start playing?");
+        private static readonly GUIContent _updateModeContent = new GUIContent("Update Mode", "How time drives the animation graph.");
+        private static readonly GUIContent _timeScaleContent = new GUIContent("Time Scale", "Multiplier for animation speed.");
+        private static readonly GUIContent _fpsCapContent = new GUIContent("FPS Cap", "Limit the animation update rate to a fixed number of frames per second.");
+        private static readonly GUIContent _targetFpsContent = new GUIContent("Target FPS", "Animation graph ticks at this rate. Lower values reduce CPU cost but increase motion choppiness.");
+        private static readonly GUIContent _fpsCapInterpolateContent = new GUIContent("Interpolate", "Lerp bone transforms between capped ticks each game frame for smooth motion at low target FPS.");
+        private static readonly GUIContent _applyRootMotionContent = new GUIContent("Apply Root Motion", "Should root motion be applied from the animation?");
+        private static readonly GUIContent _cullingModeContent = new GUIContent("Culling Mode", "Controls how the Unity Animator updates when off-screen.");
+        private static readonly GUIContent _captureOnAwakeContent = new GUIContent("Capture On Awake", "Capture the hierarchy pose before Honami starts evaluating.");
+        private static readonly GUIContent _captureFromDefaultStateEndContent = new GUIContent("Capture From Default State End", "If true, captures the initial pose from the final frame of the default state instead of the Awake pose.");
+        private static readonly GUIContent _restoreWhenIdleContent = new GUIContent("Restore When Idle", "Restore the captured initial pose whenever no Honami state is active.");
+        private static readonly GUIContent _releaseFinishedWithoutDefaultContent = new GUIContent("Release Finished Without Default", "For non-loop states on layers without a default state, release the state after it finishes instead of holding its final frame.");
+        private static readonly GUIContent _includeRootTransformContent = new GUIContent("Include Root Transform", "Include this GameObject's transform in the captured pose. Leave disabled for character roots.");
+        private static readonly GUIContent _globalWeightModeContent = new GUIContent("Global Weight Mode", "How GlobalWeight attenuates the animator. Init: blend the pose toward the captured initial pose (clean neutral). Bind: scale the animation output weight against the Animator bind pose.");
+
+        private string[] _layerLabelCache = System.Array.Empty<string>();
+        private HonamiRuntimeController _layerLabelCacheController;
+
+        private void OnEnable()
+        {
+            _controller = serializedObject.FindProperty("controller");
+            _avatar = serializedObject.FindProperty("avatar");
+            _mirrorAvatar = serializedObject.FindProperty("_mirrorAvatar");
+            _mirrorBlendSpeed = serializedObject.FindProperty("_mirrorBlendSpeed");
+            _startup = serializedObject.FindProperty("startup");
+            _updateMode = serializedObject.FindProperty("updateMode");
+            _timeScale = serializedObject.FindProperty("timeScale");
+            _fpsCap = serializedObject.FindProperty("fpsCap");
+            _targetFPS = serializedObject.FindProperty("targetFPS");
+            _fpsCapInterpolate = serializedObject.FindProperty("fpsCapInterpolate");
+            _applyRootMotion = serializedObject.FindProperty("applyRootMotion");
+            _cullingMode = serializedObject.FindProperty("cullingMode");
+            _captureInitialPoseOnAwake = serializedObject.FindProperty("captureInitialPoseOnAwake");
+            _captureFromDefaultStateEnd = serializedObject.FindProperty("captureFromDefaultStateEnd");
+            _restoreInitialPoseWhenIdle = serializedObject.FindProperty("restoreInitialPoseWhenIdle");
+            _releaseFinishedStatesWithoutDefault = serializedObject.FindProperty("releaseFinishedStatesWithoutDefault");
+            _includeRootTransformInInitialPose = serializedObject.FindProperty("includeRootTransformInInitialPose");
+            _globalWeightMode = serializedObject.FindProperty("globalWeightMode");
+        }
+
         public override void OnInspectorGUI()
         {
             serializedObject.Update();
@@ -36,7 +104,7 @@ namespace HonamiAnimationSystem.Editor.Inspectors
 
         private void DrawCustomHeader()
         {
-            GUIStyle headerStyle = new GUIStyle(EditorStyles.boldLabel)
+            _headerStyle ??= new GUIStyle(EditorStyles.boldLabel)
             {
                 fontSize = 16,
                 alignment = TextAnchor.MiddleCenter,
@@ -44,14 +112,14 @@ namespace HonamiAnimationSystem.Editor.Inspectors
             };
 
             EditorGUILayout.Space(10);
-            GUILayout.Label("HONAMI ANIMATOR", headerStyle);
+            GUILayout.Label("HONAMI ANIMATOR", _headerStyle);
 
-            GUIStyle subtitleStyle = new GUIStyle(EditorStyles.centeredGreyMiniLabel)
+            _subtitleStyle ??= new GUIStyle(EditorStyles.centeredGreyMiniLabel)
             {
                 fontSize = 11,
                 alignment = TextAnchor.MiddleCenter
             };
-            GUILayout.Label("Advanced Playable Animation System", subtitleStyle);
+            GUILayout.Label("Advanced Playable Animation System", _subtitleStyle);
 
             Rect rect = EditorGUILayout.GetControlRect(false, 2);
             EditorGUI.DrawRect(rect, new Color(0.18f, 0.76f, 0.9f, 0.5f));
@@ -64,19 +132,16 @@ namespace HonamiAnimationSystem.Editor.Inspectors
             GUILayout.Label(" Core Configuration", EditorStyles.boldLabel);
             EditorGUILayout.Space(3);
 
-            var controllerProp = serializedObject.FindProperty("controller");
-            var avatarProp = serializedObject.FindProperty("avatar");
+            EditorGUILayout.PropertyField(_controller, _controllerContent);
+            EditorGUILayout.PropertyField(_avatar, _avatarContent);
 
-            EditorGUILayout.PropertyField(controllerProp, new GUIContent("Controller", "The HonamiController asset that defines states and transitions."));
-            EditorGUILayout.PropertyField(avatarProp, new GUIContent("Avatar", "Optional skeleton definition. Required to use Avatar Masks on states."));
-
-            if (avatarProp.objectReferenceValue != null)
+            if (_avatar.objectReferenceValue != null)
             {
-                EditorGUILayout.PropertyField(serializedObject.FindProperty("_mirrorAvatar"), new GUIContent("Global Mirror", "Dynamically mirror all animations applied to the avatar's bones."));
-                EditorGUILayout.PropertyField(serializedObject.FindProperty("_mirrorBlendSpeed"), new GUIContent("Mirror Blend Speed", "Speed of the smooth transition when toggling mirror. 0 = instant."));
+                EditorGUILayout.PropertyField(_mirrorAvatar, _mirrorAvatarContent);
+                EditorGUILayout.PropertyField(_mirrorBlendSpeed, _mirrorBlendSpeedContent);
             }
 
-            if (controllerProp.objectReferenceValue == null)
+            if (_controller.objectReferenceValue == null)
             {
                 EditorGUILayout.HelpBox("A Honami Controller is required to run animations.", MessageType.Warning);
             }
@@ -90,28 +155,25 @@ namespace HonamiAnimationSystem.Editor.Inspectors
             GUILayout.Label(" Playback Settings", EditorStyles.boldLabel);
             EditorGUILayout.Space(3);
 
-            EditorGUILayout.PropertyField(serializedObject.FindProperty("startup"), new GUIContent("Startup Action", "When should the animation start playing?"));
-            EditorGUILayout.PropertyField(serializedObject.FindProperty("updateMode"), new GUIContent("Update Mode", "How time drives the animation graph."));
+            EditorGUILayout.PropertyField(_startup, _startupContent);
+            EditorGUILayout.PropertyField(_updateMode, _updateModeContent);
 
             EditorGUILayout.Space(3);
-            var timeScaleProp = serializedObject.FindProperty("timeScale");
-            EditorGUILayout.Slider(timeScaleProp, 0f, 10f, new GUIContent("Time Scale", "Multiplier for animation speed."));
+            EditorGUILayout.Slider(_timeScale, 0f, 10f, _timeScaleContent);
 
-            if (timeScaleProp.floatValue == 0f)
+            if (_timeScale.floatValue == 0f)
             {
                 EditorGUILayout.HelpBox("Time Scale is 0. Animation is paused.", MessageType.Info);
             }
 
             EditorGUILayout.Space(3);
-            var fpsCapProp = serializedObject.FindProperty("fpsCap");
-            EditorGUILayout.PropertyField(fpsCapProp, new GUIContent("FPS Cap", "Limit the animation update rate to a fixed number of frames per second."));
+            EditorGUILayout.PropertyField(_fpsCap, _fpsCapContent);
 
-            if (fpsCapProp.boolValue)
+            if (_fpsCap.boolValue)
             {
-                var targetFpsProp = serializedObject.FindProperty("targetFPS");
-                EditorGUILayout.IntSlider(targetFpsProp, 1, 120, new GUIContent("Target FPS", "Animation graph ticks at this rate. Lower values reduce CPU cost but increase motion choppiness."));
-                EditorGUILayout.PropertyField(serializedObject.FindProperty("fpsCapInterpolate"), new GUIContent("Interpolate", "Lerp bone transforms between capped ticks each game frame for smooth motion at low target FPS."));
-                EditorGUILayout.HelpBox($"Animation updates at {targetFpsProp.intValue} FPS instead of the game's frame rate.", MessageType.Info);
+                EditorGUILayout.IntSlider(_targetFPS, 1, 120, _targetFpsContent);
+                EditorGUILayout.PropertyField(_fpsCapInterpolate, _fpsCapInterpolateContent);
+                EditorGUILayout.HelpBox($"Animation updates at {_targetFPS.intValue} FPS instead of the game's frame rate.", MessageType.Info);
             }
 
             EditorGUILayout.EndVertical();
@@ -123,8 +185,8 @@ namespace HonamiAnimationSystem.Editor.Inspectors
             GUILayout.Label(" Animator Synchronization", EditorStyles.boldLabel);
             EditorGUILayout.Space(3);
 
-            EditorGUILayout.PropertyField(serializedObject.FindProperty("applyRootMotion"), new GUIContent("Apply Root Motion", "Should root motion be applied from the animation?"));
-            EditorGUILayout.PropertyField(serializedObject.FindProperty("cullingMode"), new GUIContent("Culling Mode", "Controls how the Unity Animator updates when off-screen."));
+            EditorGUILayout.PropertyField(_applyRootMotion, _applyRootMotionContent);
+            EditorGUILayout.PropertyField(_cullingMode, _cullingModeContent);
 
             EditorGUILayout.EndVertical();
         }
@@ -135,18 +197,17 @@ namespace HonamiAnimationSystem.Editor.Inspectors
             GUILayout.Label(" Initial Pose", EditorStyles.boldLabel);
             EditorGUILayout.Space(3);
 
-            EditorGUILayout.PropertyField(serializedObject.FindProperty("captureInitialPoseOnAwake"), new GUIContent("Capture On Awake", "Capture the hierarchy pose before Honami starts evaluating."));
-            EditorGUILayout.PropertyField(serializedObject.FindProperty("captureFromDefaultStateEnd"), new GUIContent("Capture From Default State End", "If true, captures the initial pose from the final frame of the default state instead of the Awake pose."));
-            EditorGUILayout.PropertyField(serializedObject.FindProperty("restoreInitialPoseWhenIdle"), new GUIContent("Restore When Idle", "Restore the captured initial pose whenever no Honami state is active."));
-            EditorGUILayout.PropertyField(serializedObject.FindProperty("releaseFinishedStatesWithoutDefault"), new GUIContent("Release Finished Without Default", "For non-loop states on layers without a default state, release the state after it finishes instead of holding its final frame."));
-            EditorGUILayout.PropertyField(serializedObject.FindProperty("includeRootTransformInInitialPose"), new GUIContent("Include Root Transform", "Include this GameObject's transform in the captured pose. Leave disabled for character roots."));
+            EditorGUILayout.PropertyField(_captureInitialPoseOnAwake, _captureOnAwakeContent);
+            EditorGUILayout.PropertyField(_captureFromDefaultStateEnd, _captureFromDefaultStateEndContent);
+            EditorGUILayout.PropertyField(_restoreInitialPoseWhenIdle, _restoreWhenIdleContent);
+            EditorGUILayout.PropertyField(_releaseFinishedStatesWithoutDefault, _releaseFinishedWithoutDefaultContent);
+            EditorGUILayout.PropertyField(_includeRootTransformInInitialPose, _includeRootTransformContent);
 
             EditorGUILayout.Space(4);
-            var globalWeightModeProp = serializedObject.FindProperty("globalWeightMode");
-            EditorGUILayout.PropertyField(globalWeightModeProp, new GUIContent("Global Weight Mode", "How GlobalWeight attenuates the animator. Init: blend the pose toward the captured initial pose (clean neutral). Bind: scale the animation output weight against the Animator bind pose."));
+            EditorGUILayout.PropertyField(_globalWeightMode, _globalWeightModeContent);
 
-            bool capturesPose = serializedObject.FindProperty("captureInitialPoseOnAwake").boolValue || serializedObject.FindProperty("captureFromDefaultStateEnd").boolValue;
-            if (globalWeightModeProp.enumValueIndex == (int)HonamiGlobalWeightMode.Init && !capturesPose)
+            bool capturesPose = _captureInitialPoseOnAwake.boolValue || _captureFromDefaultStateEnd.boolValue;
+            if (_globalWeightMode.enumValueIndex == (int)HonamiGlobalWeightMode.Init && !capturesPose)
             {
                 EditorGUILayout.HelpBox("Global Weight Mode is Init but no initial pose is captured. GlobalWeight < 1 will have no effect. Enable Capture On Awake, or switch to Bind.", MessageType.Warning);
             }
@@ -172,19 +233,18 @@ namespace HonamiAnimationSystem.Editor.Inspectors
         {
             EditorGUILayout.BeginVertical(EditorStyles.helpBox);
 
-            GUIStyle buttonStyle = new GUIStyle(GUI.skin.button)
+            _buttonStyle ??= new GUIStyle(GUI.skin.button)
             {
                 fontStyle = FontStyle.Bold,
                 fixedHeight = 35
             };
 
-            if (GUILayout.Button("Open Graph Editor", buttonStyle))
+            if (GUILayout.Button("Open Graph Editor", _buttonStyle))
             {
-                var controllerProp = serializedObject.FindProperty("controller");
-                if (controllerProp.objectReferenceValue != null)
+                if (_controller.objectReferenceValue != null)
                 {
                     HonamiGraphWindow.OpenWindow();
-                    HonamiGraphWindow.LoadController((HonamiRuntimeController)controllerProp.objectReferenceValue);
+                    HonamiGraphWindow.LoadController((HonamiRuntimeController)_controller.objectReferenceValue);
                 }
                 else
                 {
@@ -197,13 +257,19 @@ namespace HonamiAnimationSystem.Editor.Inspectors
         private void DrawRuntimeDebugInfo(HonamiAnimator animator)
         {
             EditorGUILayout.BeginVertical(EditorStyles.helpBox);
-            GUIStyle debugHeader = new GUIStyle(EditorStyles.boldLabel) { normal = { textColor = new Color(0.9f, 0.6f, 0.2f) } };
-            GUILayout.Label(" Runtime Debug", debugHeader);
+            _debugHeaderStyle ??= new GUIStyle(EditorStyles.boldLabel) { normal = { textColor = new Color(0.9f, 0.6f, 0.2f) } };
+            GUILayout.Label(" Runtime Debug", _debugHeaderStyle);
             EditorGUILayout.Space(3);
 
             var controller = animator.CurrentController;
             if (controller != null && controller.ActiveLayers.Count > 0)
             {
+                if (_layerLabelCache.Length != controller.ActiveLayers.Count || _layerLabelCacheController != controller)
+                {
+                    _layerLabelCache = new string[controller.ActiveLayers.Count];
+                    _layerLabelCacheController = controller;
+                }
+
                 for (int i = 0; i < controller.ActiveLayers.Count; i++)
                 {
                     int currentStateIdx = animator.GetActiveStateIndex(i);
@@ -215,7 +281,8 @@ namespace HonamiAnimationSystem.Editor.Inspectors
                         stateName = state != null ? state.stateName : "Invalid";
                     }
 
-                    EditorGUILayout.LabelField($"Layer {i} [{controller.ActiveLayers[i].name}]:", stateName, EditorStyles.boldLabel);
+                    string layerLabel = _layerLabelCache[i] ??= $"Layer {i} [{controller.ActiveLayers[i].name}]:";
+                    EditorGUILayout.LabelField(layerLabel, stateName, EditorStyles.boldLabel);
 
                     float progress = animator.GetStateProgress(i, currentStateIdx);
                     EditorGUI.ProgressBar(EditorGUILayout.GetControlRect(false, 15), progress, $"Progress: {progress * 100:F1}%");

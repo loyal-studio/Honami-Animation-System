@@ -7,6 +7,8 @@ namespace HonamiAnimationSystem.Editor.Inspectors
     [CustomEditor(typeof(HonamiLinkedAnimator))]
     public sealed class HonamiLinkedAnimatorBrainEditor : UnityEditor.Editor
     {
+        private static GUIStyle _headerStyle;
+
         public override void OnInspectorGUI()
         {
             DrawDefaultInspector();
@@ -16,8 +18,8 @@ namespace HonamiAnimationSystem.Editor.Inspectors
             EditorGUILayout.Space(10);
             EditorGUILayout.BeginVertical(EditorStyles.helpBox);
 
-            GUIStyle headerStyle = new GUIStyle(EditorStyles.boldLabel) { normal = { textColor = new Color(0.9f, 0.6f, 0.2f) } };
-            GUILayout.Label(" Brain Testing & Debug", headerStyle);
+            _headerStyle ??= new GUIStyle(EditorStyles.boldLabel) { normal = { textColor = new Color(0.9f, 0.6f, 0.2f) } };
+            GUILayout.Label(" Brain Testing & Debug", _headerStyle);
             EditorGUILayout.Space(3);
 
             if (GUILayout.Button("Refresh Linked Animators", GUILayout.Height(25)))

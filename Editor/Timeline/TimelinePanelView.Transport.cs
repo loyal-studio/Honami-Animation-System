@@ -261,22 +261,36 @@ namespace HonamiAnimationSystem.Editor.Timeline
             RefreshTimeLabel();
         }
 
+        private float _lastDisplayedSeconds = float.NaN;
+        private int _lastDisplayedFrame = int.MinValue;
+
         private void RefreshTimeLabel()
         {
             if (_timeSecLabel == null || _isEditingTime) return;
 
-            _timeSecLabel.text = $"{_state.PlayheadTime:F2}s";
+            float roundedSeconds = Mathf.Round(_state.PlayheadTime * 100f) / 100f;
+            if (roundedSeconds != _lastDisplayedSeconds)
+            {
+                _lastDisplayedSeconds = roundedSeconds;
+                _timeSecLabel.text = $"{roundedSeconds:F2}s";
+            }
 
             if (TryGetFrameFactor(out float factor))
             {
                 _timeSepLabel.style.display = DisplayStyle.Flex;
                 _timeFrameLabel.style.display = DisplayStyle.Flex;
-                _timeFrameLabel.text = $"{Mathf.FloorToInt(_state.PlayheadTime * factor + 0.0001f)}f";
+                int frame = Mathf.FloorToInt(_state.PlayheadTime * factor + 0.0001f);
+                if (frame != _lastDisplayedFrame)
+                {
+                    _lastDisplayedFrame = frame;
+                    _timeFrameLabel.text = $"{frame}f";
+                }
             }
             else
             {
                 _timeSepLabel.style.display = DisplayStyle.None;
                 _timeFrameLabel.style.display = DisplayStyle.None;
+                _lastDisplayedFrame = int.MinValue;
             }
         }
 

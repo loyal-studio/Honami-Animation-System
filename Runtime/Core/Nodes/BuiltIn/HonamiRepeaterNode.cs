@@ -199,7 +199,7 @@ namespace HonamiAnimationSystem.Runtime.Core
             var currentState = animator._runtimeStates[currentStateIndex];
             float unscaledDuration = HonamiStateEvaluator.GetUnscaledStateDuration(
                 animator.controller, currentState, currentStateIndex,
-                animator.GetNodeRuntime(currentStateIndex), animator.GetStateBlendParam(currentState));
+                animator.GetNodeRuntime(currentStateIndex), animator.GetStateBlendParam(currentStateIndex));
             if (unscaledDuration <= 0f) return false;
 
             float normalizedTime = (float)(playable.GetTime() / unscaledDuration);

@@ -19,6 +19,7 @@ namespace HonamiAnimationSystem.Editor.BlendTree
         private readonly Color _color;
         private readonly BlendTreeState _state;
         private float _weight;
+        private int _lastDisplayedPct = -1;
 
         private VisualElement _arcContainer;
         private Label _arcLabel;
@@ -248,8 +249,12 @@ namespace HonamiAnimationSystem.Editor.BlendTree
         public void UpdateWeight(float weight)
         {
             _weight = Mathf.Clamp01(weight);
-            float pct = _weight * 100f;
-            _arcLabel.text = $"{pct:F0}%";
+            int pct = Mathf.RoundToInt(_weight * 100f);
+            if (pct != _lastDisplayedPct)
+            {
+                _lastDisplayedPct = pct;
+                _arcLabel.text = $"{pct}%";
+            }
             _arcLabel.style.color = _weight > 0.05f ? Color.white : BlendTreeTheme.MutedText;
             _arcContainer.MarkDirtyRepaint();
         }

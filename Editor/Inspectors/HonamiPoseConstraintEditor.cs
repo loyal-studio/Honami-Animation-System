@@ -49,6 +49,7 @@ namespace HonamiAnimationSystem.Editor.Riggings
         private List<Vector3> _multiDragStartPoseWorldPos = new List<Vector3>();
         private List<Quaternion> _multiDragStartPoseWorldRot = new List<Quaternion>();
         private List<Transform> _multiDragStartBones = new List<Transform>();
+        private readonly HashSet<Transform> _multiDragStartBoneSet = new HashSet<Transform>();
 
         private void OnEnable()
         {
@@ -332,19 +333,21 @@ namespace HonamiAnimationSystem.Editor.Riggings
             if (showBox) EditorGUILayout.EndVertical();
         }
 
+        private static GUIStyle _headerStyle;
+
         private void DrawHeader(string label)
         {
-            GUIStyle headerStyle = new GUIStyle(EditorStyles.boldLabel)
+            _headerStyle ??= new GUIStyle(EditorStyles.boldLabel)
             {
                 fontSize = 11,
                 fontStyle = FontStyle.Bold,
                 alignment = TextAnchor.MiddleLeft
             };
-            headerStyle.normal.textColor = EditorGUIUtility.isProSkin ? new Color(0.8f, 0.8f, 0.8f) : Color.black;
+            _headerStyle.normal.textColor = EditorGUIUtility.isProSkin ? new Color(0.8f, 0.8f, 0.8f) : Color.black;
 
-            Rect rect = GUILayoutUtility.GetRect(18, 18, headerStyle);
+            Rect rect = GUILayoutUtility.GetRect(18, 18, _headerStyle);
             GUI.Box(rect, GUIContent.none, EditorStyles.toolbar);
-            EditorGUI.LabelField(new Rect(rect.x + 4, rect.y, rect.width, rect.height), label, headerStyle);
+            EditorGUI.LabelField(new Rect(rect.x + 4, rect.y, rect.width, rect.height), label, _headerStyle);
         }
 
         private void OnSceneGUI()
@@ -384,6 +387,7 @@ namespace HonamiAnimationSystem.Editor.Riggings
                     _multiDragStartPoseWorldPos.Clear();
                     _multiDragStartPoseWorldRot.Clear();
                     _multiDragStartBones.Clear();
+                    _multiDragStartBoneSet.Clear();
                     foreach (int idx in _selectedTargetIndices)
                     {
                         if (idx >= 0 && idx < count)
@@ -435,6 +439,7 @@ namespace HonamiAnimationSystem.Editor.Riggings
                             _multiDragStartPosOffsets.Add(posOffset);
                             _multiDragStartRotOffsets.Add(rotOffset);
                             _multiDragStartBones.Add(bone);
+                            _multiDragStartBoneSet.Add(bone);
 
                             if (bone != null)
                             {
@@ -602,6 +607,7 @@ namespace HonamiAnimationSystem.Editor.Riggings
                     _multiDragStartPoseWorldPos.Clear();
                     _multiDragStartPoseWorldRot.Clear();
                     _multiDragStartBones.Clear();
+                    _multiDragStartBoneSet.Clear();
                 }
                 _isDragging = false;
             }
@@ -785,7 +791,7 @@ namespace HonamiAnimationSystem.Editor.Riggings
                                 Transform p = m_bone.parent;
                                 while (p != null)
                                 {
-                                    if (_multiDragStartBones.Contains(p))
+                                    if (_multiDragStartBoneSet.Contains(p))
                                     {
                                         isDescendant = true;
                                         break;

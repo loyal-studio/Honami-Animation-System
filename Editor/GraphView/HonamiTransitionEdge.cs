@@ -525,12 +525,6 @@ namespace HonamiAnimationSystem.Editor
                 p.strokeColor = edgeColor;
                 p.lineWidth = (_isSelected || _isRuntimeActive) ? 3.5f : 2.5f;
 
-                if (_isRuntimeActive)
-                {
-                    float time = (float)EditorApplication.timeSinceStartup;
-                    float dashOffset = (time * 80.0f) % 40.0f;
-                }
-
                 if (_isLoop)
                 {
                     Vector2 nodeCenter = new Vector2(style.width.value.value / 2, style.height.value.value - _loopRect.height / 2);
@@ -552,15 +546,15 @@ namespace HonamiAnimationSystem.Editor
                         p.strokeColor = new Color(1, 1, 1, 0.6f);
                         p.lineWidth = 5.0f;
 
+                        p.BeginPath();
                         for (float t = t_offset; t < 1.0f; t += 0.3f)
                         {
                             Vector2 p1 = GetBezierPoint(startPoint, cp1, cp2, endPoint, t);
                             Vector2 p2 = GetBezierPoint(startPoint, cp1, cp2, endPoint, Mathf.Min(t + 0.05f, 1.0f));
-                            p.BeginPath();
                             p.MoveTo(p1);
                             p.LineTo(p2);
-                            p.Stroke();
                         }
+                        p.Stroke();
                     }
 
                     Vector2 endDir = (endPoint - cp2).normalized;
@@ -580,15 +574,15 @@ namespace HonamiAnimationSystem.Editor
                         p.strokeColor = new Color(1, 1, 1, 0.7f);
                         p.lineWidth = 5.0f;
 
+                        p.BeginPath();
                         for (float t = t_offset; t < 1.0f; t += 0.4f)
                         {
                             Vector2 p1 = Vector2.Lerp(_localStart, _localEnd, t);
                             Vector2 p2 = Vector2.Lerp(_localStart, _localEnd, Mathf.Min(t + 0.1f, 1.0f));
-                            p.BeginPath();
                             p.MoveTo(p1);
                             p.LineTo(p2);
-                            p.Stroke();
                         }
+                        p.Stroke();
                     }
 
                     DrawArrow(p, _localEnd, _dir, edgeColor);

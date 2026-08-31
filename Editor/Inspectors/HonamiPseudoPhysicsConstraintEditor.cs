@@ -349,19 +349,21 @@ namespace HonamiAnimationSystem.Editor.Riggings
             }
         }
 
+        private static GUIStyle _headerStyle;
+
         private void DrawHeader(string label)
         {
-            GUIStyle headerStyle = new GUIStyle(EditorStyles.boldLabel)
+            _headerStyle ??= new GUIStyle(EditorStyles.boldLabel)
             {
                 fontSize = 11,
                 fontStyle = FontStyle.Bold,
                 alignment = TextAnchor.MiddleLeft
             };
-            headerStyle.normal.textColor = EditorGUIUtility.isProSkin ? new Color(0.8f, 0.8f, 0.8f) : Color.black;
+            _headerStyle.normal.textColor = EditorGUIUtility.isProSkin ? new Color(0.8f, 0.8f, 0.8f) : Color.black;
 
-            Rect rect = GUILayoutUtility.GetRect(18, 18, headerStyle);
+            Rect rect = GUILayoutUtility.GetRect(18, 18, _headerStyle);
             GUI.Box(rect, GUIContent.none, EditorStyles.toolbar);
-            EditorGUI.LabelField(new Rect(rect.x + 4, rect.y, rect.width, rect.height), label, headerStyle);
+            EditorGUI.LabelField(new Rect(rect.x + 4, rect.y, rect.width, rect.height), label, _headerStyle);
         }
     }
 }

@@ -182,18 +182,24 @@ namespace HonamiAnimationSystem.Editor
             _treeRoot.Clear();
             if (_graph == null) return;
 
+            var statesByGuid = new Dictionary<string, HonamiProfileState>(_graph.states.Count);
+            foreach (var s in _graph.states)
+            {
+                if (s != null && !string.IsNullOrEmpty(s.guid)) statesByGuid.TryAdd(s.guid, s);
+            }
+
             var roots = _graph.states.Where(s => string.IsNullOrEmpty(s.parentGuid)).ToList();
             float currentY = 0;
 
             foreach (var root in roots)
             {
-                currentY += RenderItem(root, _treeRoot, 0, currentY);
+                currentY += RenderItem(root, _treeRoot, 0, currentY, statesByGuid);
             }
 
             UpdateBreadcrumbs();
         }
 
-        private float RenderItem(HonamiProfileState state, VisualElement container, int depth, float yOffset)
+        private float RenderItem(HonamiProfileState state, VisualElement container, int depth, float yOffset, Dictionary<string, HonamiProfileState> statesByGuid)
         {
             if (state == null) return 0;
 
@@ -204,8 +210,7 @@ namespace HonamiAnimationSystem.Editor
             {
                 foreach (var childGuid in state.childrenGuids)
                 {
-                    var child = _graph.states.FirstOrDefault(s => s.guid == childGuid);
-                    if (child != null && ChildMatchesSearch(child))
+                    if (statesByGuid.TryGetValue(childGuid, out var child) && ChildMatchesSearch(child, statesByGuid))
                     {
                         hasMatchingChild = true;
                         break;
@@ -228,7 +233,7 @@ namespace HonamiAnimationSystem.Editor
             if (state.isExpanded || !string.IsNullOrEmpty(_searchQuery))
             {
                 var children = state.childrenGuids
-                    .Select(guid => _graph.states.FirstOrDefault(s => s.guid == guid))
+                    .Select(guid => statesByGuid.TryGetValue(guid, out var s) ? s : null)
                     .Where(s => s != null)
                     .ToList();
 
@@ -238,7 +243,7 @@ namespace HonamiAnimationSystem.Editor
                 for (int i = 0; i < children.Count; i++)
                 {
                     float childTop = yOffset + itemHeight + currentChildrenHeight;
-                    float childHeight = RenderItem(children[i], container, depth + 1, childTop);
+                    float childHeight = RenderItem(children[i], container, depth + 1, childTop, statesByGuid);
 
                     if (childHeight > 0)
                     {
@@ -276,13 +281,12 @@ namespace HonamiAnimationSystem.Editor
             return itemHeight + childrenHeight;
         }
 
-        private bool ChildMatchesSearch(HonamiProfileState state)
+        private bool ChildMatchesSearch(HonamiProfileState state, Dictionary<string, HonamiProfileState> statesByGuid)
         {
             if (state.stateName.ToLower().Contains(_searchQuery)) return true;
             foreach (var childGuid in state.childrenGuids)
             {
-                var child = _graph.states.FirstOrDefault(s => s.guid == childGuid);
-                if (child != null && ChildMatchesSearch(child)) return true;
+                if (statesByGuid.TryGetValue(childGuid, out var child) && ChildMatchesSearch(child, statesByGuid)) return true;
             }
             return false;
         }

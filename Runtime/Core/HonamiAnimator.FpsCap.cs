@@ -16,10 +16,20 @@ namespace HonamiAnimationSystem.Runtime.Core
         private FpsCapPose[] _fpsPoseA;
         private FpsCapPose[] _fpsPoseB;
         private bool _fpsPoseReady;
+        private bool _fpsTransformsDirty = true;
         private readonly List<Transform> _fpsTransforms = new List<Transform>();
+
+        /// <summary>
+        /// Call after adding/removing child transforms at runtime (e.g. equipping items) on a
+        /// character using fpsCap + fpsCapInterpolate, so the interpolation buffers pick them up.
+        /// </summary>
+        public void RefreshFpsCapHierarchy() => _fpsTransformsDirty = true;
 
         private void EnsureFpsCapPoseBuffers()
         {
+            if (!_fpsTransformsDirty) return;
+            _fpsTransformsDirty = false;
+
             GetComponentsInChildren<Transform>(true, _fpsTransforms);
             int count = _fpsTransforms.Count;
 
@@ -119,9 +129,10 @@ namespace HonamiAnimationSystem.Runtime.Core
         private void ResetFpsCapState()
         {
             _fpsAccumulator = 0.0;
-            _fpsPoseReady   = false;
-            _fpsPoseA       = null;
-            _fpsPoseB       = null;
+            _fpsPoseReady = false;
+            _fpsPoseA = null;
+            _fpsPoseB = null;
+            _fpsTransformsDirty = true;
         }
     }
 }

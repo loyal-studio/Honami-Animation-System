@@ -44,6 +44,7 @@ namespace HonamiAnimationSystem.Editor.Preview
         private Button _playButton;
         private Label _headerLabel;
         private Label _weightLabel;
+        private int _lastDisplayedWeightPct = -1;
         private DropdownField _fromDropdown;
         private VisualElement _blendContainer;
 
@@ -408,7 +409,15 @@ namespace HonamiAnimationSystem.Editor.Preview
             _skeleton.CaptureInto(_poseTo);
 
             _skeleton.ApplyCrossfade(_poseFrom, _poseTo, weight);
-            if (_weightLabel != null) _weightLabel.text = $"{Mathf.RoundToInt(weight * 100f)}%";
+            if (_weightLabel != null)
+            {
+                int pct = Mathf.RoundToInt(weight * 100f);
+                if (pct != _lastDisplayedWeightPct)
+                {
+                    _lastDisplayedWeightPct = pct;
+                    _weightLabel.text = $"{pct}%";
+                }
+            }
         }
 
         private bool SampleState(HonamiState state, float normalizedTime, float blendValue)

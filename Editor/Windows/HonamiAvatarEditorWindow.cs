@@ -152,18 +152,21 @@ namespace HonamiAnimationSystem.Editor
             RebuildBoneList();
         }
 
+        private GUIStyle _dropZoneStyle;
+
         private IMGUIContainer BuildDropZone()
         {
             var zone = new IMGUIContainer(() =>
             {
                 var rect = GUILayoutUtility.GetRect(0, 50, GUILayout.ExpandWidth(true));
-                var style = new GUIStyle(GUI.skin.box)
+                _dropZoneStyle ??= new GUIStyle(GUI.skin.box)
                 {
                     alignment = TextAnchor.MiddleCenter,
                     fontSize = 11,
                     fontStyle = FontStyle.Bold
                 };
-                style.normal.textColor = HonamiGraphStyles.GreyText;
+                _dropZoneStyle.normal.textColor = HonamiGraphStyles.GreyText;
+                var style = _dropZoneStyle;
 
                 string dropText = _modelSource != null
                     ? $"Model: {_modelSource.name}"
