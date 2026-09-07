@@ -294,6 +294,11 @@ _honami.TargetFPS = 15;");
 
             HonamiDocumentationBuilder.AddSeparator(root);
             HonamiDocumentationBuilder.AddParagraph(root, HonamiDocLocalization.Get(
+                "This page documents HonamiAnimator. Its lighter sibling, HonamiClipPlayer, shares the whole base API — Tick, Pause, Resume, TimeScale, FpsCap, GlobalWeight, CaptureInitialPose, ReactToAction — but replaces states and parameters with a clip list: PlayClip, CrossFade, PlayQueued, Blend, Sample and the player[\"Idle\"] handles. See the Clip Player page in Core Concepts. Both derive from HonamiAnimatorBase, so tooling that should accept either one types against the base.",
+                "Ця сторінка описує HonamiAnimator. Його легший побратим HonamiClipPlayer ділить усе базове API — Tick, Pause, Resume, TimeScale, FpsCap, GlobalWeight, CaptureInitialPose, ReactToAction — але замість станів і параметрів має список кліпів: PlayClip, CrossFade, PlayQueued, Blend, Sample та хендли player[\"Idle\"]. Див. сторінку Clip Player в Основних концептах. Обидва успадковані від HonamiAnimatorBase, тож тулінг, який має приймати будь-який із них, типізується по базі."
+            ));
+
+            HonamiDocumentationBuilder.AddParagraph(root, HonamiDocLocalization.Get(
                 "Broadcasting to many animators at once (SetActionID, PlayState across a squad, ByTag parameter setters) lives on the Linked Animator brain — see the Linked Animation category. The static HonamiLinkedAction class additionally offers global, tag, layer-mask, radius, propagation-wave and closest-N targeting without any brain in the scene.",
                 "Розсилання на багато аніматорів одночасно (SetActionID, PlayState по загону, ByTag-сеттери параметрів) живе на «мозку» Linked Animator — див. категорію Linked Animation. Статичний клас HonamiLinkedAction додатково дає глобальне таргетування, за тегом, layer-маскою, радіусом, хвилею поширення та за N найближчими — без жодного мозку в сцені."
             ));

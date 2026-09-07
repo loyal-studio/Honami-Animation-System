@@ -933,7 +933,7 @@ namespace HonamiAnimationSystem.Runtime.Core
 
             int groupHash = brain != null
                 ? HonamiObjectHash.Of(brain)
-                : HonamiObjectHash.Of(anim.transform.root);
+                : HonamiObjectHash.Of(anim);
 
             int stateHash = state.linkedActionId != null
                 ? HonamiObjectHash.Of(state.linkedActionId)

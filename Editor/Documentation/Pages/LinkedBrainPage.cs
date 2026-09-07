@@ -27,7 +27,7 @@ namespace HonamiAnimationSystem.Editor.Documentation.Pages
                 (HonamiDocLocalization.Get("Mode", "Режим"), 120),
                 (HonamiDocLocalization.Get("Description", "Опис"), 0),
                 ("", 0),
-                ("Childs", HonamiDocLocalization.Get("Automatically finds and controls all HonamiAnimators in children (including inactive ones).", "Автоматично знаходить і керує всіма HonamiAnimator у дочірніх об'єктах (включно з неактивними)."), ""),
+                ("Childs", HonamiDocLocalization.Get("Automatically finds and controls every Honami animator in children — Honami Animators and Clip Players alike, including inactive ones.", "Автоматично знаходить і керує всіма аніматорами Honami у дочірніх об'єктах — і Honami Animator, і Clip Player, включно з неактивними."), ""),
                 ("Manual", HonamiDocLocalization.Get("You explicitly specify a list of animators to control.", "Ви явно вказуєте список аніматорів для керування."), "")
             );
             HonamiDocumentationBuilder.AddCallout(root, HonamiDocLocalization.Get(
@@ -52,6 +52,23 @@ foreach (var anim in brain.LinkedAnimators)
 var results = new HonamiAnimator[32];
 int count = brain.GetLinkedAnimatorsNonAlloc(results,
     HonamiBroadcastTargetMode.ByTag, squadTag);");
+
+            HonamiDocumentationBuilder.AddHeader(root, HonamiDocLocalization.Get("Animators and Clip Players", "Аніматори та Clip Player"), HonamiEditorIcons.Profile);
+            HonamiDocumentationBuilder.AddParagraph(root, HonamiDocLocalization.Get(
+                "A group can mix both Honami components. Playback broadcasts — PlayState by name, ActionIDs, StopAll, PauseAll, ResumeAll, GlobalWeight — reach everything the brain drives. Anything that needs a controller behind it — parameters, TrySkipState, SetLayerWeight, SetController, SetProfile — is applied only to the Honami Animators and silently skips Clip Players, which have no parameters to set.",
+                "Група може змішувати обидва компоненти Honami. Розсилки відтворення — PlayState за іменем, ActionID, StopAll, PauseAll, ResumeAll, GlobalWeight — дістають усе, чим керує мозок. Усе, що потребує контролера — параметри, TrySkipState, SetLayerWeight, SetController, SetProfile — застосовується лише до Honami Animator і тихо оминає Clip Player, у яких немає параметрів."
+            ));
+            HonamiDocumentationBuilder.AddTable(root,
+                (HonamiDocLocalization.Get("Property", "Властивість"), 200),
+                (HonamiDocLocalization.Get("Contains", "Містить"), 0),
+                ("", 0),
+                ("LinkedAnimators", HonamiDocLocalization.Get("Every linked component, typed as HonamiAnimatorBase.", "Усі прилінковані компоненти, типізовані як HonamiAnimatorBase."), ""),
+                ("FullAnimators", HonamiDocLocalization.Get("Only the controller-backed HonamiAnimators — the targets of parameter and state-machine calls.", "Лише HonamiAnimator із контролерами — цілі викликів параметрів і стейт-машини."), "")
+            );
+            HonamiDocumentationBuilder.AddTip(root, HonamiDocLocalization.Get(
+                "GetLinkedAnimatorsNonAlloc fills a Span<HonamiAnimator> and therefore only sees the controller-backed subset. Use GetAllLinkedNonAlloc with a Span<HonamiAnimatorBase> when Clip Players should be included.",
+                "GetLinkedAnimatorsNonAlloc заповнює Span<HonamiAnimator>, тож бачить лише підмножину з контролерами. Використовуйте GetAllLinkedNonAlloc зі Span<HonamiAnimatorBase>, коли Clip Player теж мають потрапити у вибірку."
+            ));
 
             HonamiDocumentationBuilder.AddHeader(root, HonamiDocLocalization.Get("Group control API", "API групового керування"), HonamiEditorIcons.Controller);
             HonamiDocumentationBuilder.AddParagraph(root, HonamiDocLocalization.Get(

@@ -26,7 +26,7 @@ namespace HonamiAnimationSystem.Runtime.Riggings
             while (p != null)
             {
                 if (p.TryGetComponent<HonamiRiggingProcessor>(out var processor)) return processor;
-                if (p.TryGetComponent<HonamiAnimator>(out _)) return null;
+                if (p.TryGetComponent<HonamiAnimatorBase>(out _)) return null;
                 p = p.parent;
             }
             return null;

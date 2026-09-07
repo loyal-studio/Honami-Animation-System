@@ -27,6 +27,11 @@ namespace HonamiAnimationSystem.Editor.Documentation.Pages
             HonamiDocumentationBuilder.AddHeader(root, HonamiDocLocalization.Get("Which one to use?", "Що вибрати?"), HonamiEditorIcons.Controller);
             HonamiDocumentationBuilder.AddBulletPoint(root, HonamiDocLocalization.Get("Use Global Actions when any character in the world might need to react to an event.", "Використовуйте Глобальні дії, коли будь-який персонаж у світі може зреагувати на подію."));
             HonamiDocumentationBuilder.AddBulletPoint(root, HonamiDocLocalization.Get("Use Linked Brain when you have a specific group of objects (like Body, Face, Armor) that MUST move together.", "Використовуйте Linked Brain, коли у вас є конкретна група об'єктів, які ПОВИННІ рухатися разом."));
+
+            HonamiDocumentationBuilder.AddInfoBox(root, HonamiDocLocalization.Get(
+                "Both systems work on Honami Animators and Clip Players alike — an NPC or a scene prop on a Clip Player reacts to an ActionID exactly like a controller-backed character does. Calls that need a controller behind them (parameters, state skipping) simply skip the Clip Players.",
+                "Обидві системи працюють і з Honami Animator, і з Clip Player — NPC чи пропс на Clip Player реагує на ActionID так само, як персонаж із контролером. Виклики, що потребують контролера (параметри, пропуск станів), просто оминають Clip Player."
+            ));
         }
     }
 }

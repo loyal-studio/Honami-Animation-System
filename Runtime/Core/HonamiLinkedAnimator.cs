@@ -21,15 +21,20 @@ namespace HonamiAnimationSystem.Runtime.Core
     {
         [Header("Link Settings")]
         public HonamiBrainLinkMode linkMode = HonamiBrainLinkMode.Childs;
-        public List<HonamiAnimator> manualAnimators = new List<HonamiAnimator>();
+        public List<HonamiAnimatorBase> manualAnimators = new List<HonamiAnimatorBase>();
 
         [Header("Blueprint Graph")]
         public HonamiLinkedAnimatorGraph graph;
 
-        private readonly HashSet<HonamiAnimator> _linkedAnimators = new HashSet<HonamiAnimator>();
+        private readonly HashSet<HonamiAnimatorBase> _linkedAnimators = new HashSet<HonamiAnimatorBase>();
+
+        // Controller-backed subset, so parameter broadcasts need no per-call type test.
+        private readonly List<HonamiAnimator> _fullAnimators = new List<HonamiAnimator>();
+
         private readonly HonamiLinkedAnimatorExecutor _executor = new();
 
-        public IReadOnlyCollection<HonamiAnimator> LinkedAnimators => _linkedAnimators;
+        public IReadOnlyCollection<HonamiAnimatorBase> LinkedAnimators => _linkedAnimators;
+        public IReadOnlyList<HonamiAnimator> FullAnimators => _fullAnimators;
         public HonamiLinkedAnimatorGraph Graph => graph;
         public IReadOnlyList<HonamiLinkedAnimatorNodeBase> ActiveNodes => _executor.ActiveNodes;
 
@@ -45,7 +50,7 @@ namespace HonamiAnimationSystem.Runtime.Core
                 _executor.Tick(Time.deltaTime);
         }
 
-        private readonly List<HonamiAnimator> _animatorBuffer = new List<HonamiAnimator>();
+        private readonly List<HonamiAnimatorBase> _animatorBuffer = new List<HonamiAnimatorBase>();
 
         public void RefreshLinkedAnimators()
         {
@@ -55,17 +60,17 @@ namespace HonamiAnimationSystem.Runtime.Core
                     anim._linkedBrain = null;
             }
             _linkedAnimators.Clear();
+            _fullAnimators.Clear();
 
             if (linkMode == HonamiBrainLinkMode.Childs)
             {
                 _animatorBuffer.Clear();
-                GetComponentsInChildren<HonamiAnimator>(true, _animatorBuffer);
+                GetComponentsInChildren<HonamiAnimatorBase>(true, _animatorBuffer);
                 foreach (var child in _animatorBuffer)
                 {
                     if (child != null && !child.preventLinking)
                     {
-                        _linkedAnimators.Add(child);
-                        child._linkedBrain = this;
+                        Track(child);
                     }
                 }
             }
@@ -77,33 +82,43 @@ namespace HonamiAnimationSystem.Runtime.Core
                     {
                         if (anim != null && !anim.preventLinking)
                         {
-                            _linkedAnimators.Add(anim);
-                            anim._linkedBrain = this;
+                            Track(anim);
                         }
                     }
                 }
             }
         }
 
-        public void Link(HonamiAnimator animator)
+        private void Track(HonamiAnimatorBase animator)
+        {
+            if (!_linkedAnimators.Add(animator)) return;
+
+            animator._linkedBrain = this;
+            if (animator is HonamiAnimator full)
+                _fullAnimators.Add(full);
+        }
+
+        public void Link(HonamiAnimatorBase animator)
         {
             if (animator == null || animator.preventLinking) return;
 
-            _linkedAnimators.Add(animator);
-            animator._linkedBrain = this;
+            Track(animator);
 
             if (linkMode == HonamiBrainLinkMode.Manual && !manualAnimators.Contains(animator))
                 manualAnimators.Add(animator);
 
-            if (animator.CurrentController != null)
-                animator.SetController(animator.CurrentController);
+            if (animator is HonamiAnimator full && full.CurrentController != null)
+                full.SetController(full.CurrentController);
         }
 
-        public void Unlink(HonamiAnimator animator)
+        public void Unlink(HonamiAnimatorBase animator)
         {
             if (animator == null) return;
 
             _linkedAnimators.Remove(animator);
+            if (animator is HonamiAnimator full)
+                _fullAnimators.Remove(full);
+
             if (animator._linkedBrain == this)
                 animator._linkedBrain = null;
 
@@ -122,7 +137,7 @@ namespace HonamiAnimationSystem.Runtime.Core
 
         public void SetController(HonamiRuntimeController newController, float transitionDuration = 0f, AnimationCurve transitionCurve = null, HonamiControllerTransitionMode mode = HonamiControllerTransitionMode.ContinueEvaluating)
         {
-            foreach (var anim in _linkedAnimators)
+            foreach (var anim in _fullAnimators)
             {
                 if (anim != null)
                     anim.SetController(newController, transitionDuration, transitionCurve, mode);
@@ -131,7 +146,7 @@ namespace HonamiAnimationSystem.Runtime.Core
 
         public void SetProfile(string stateName, float transitionDuration = -1f, AnimationCurve transitionCurve = null, HonamiControllerTransitionMode? mode = null)
         {
-            foreach (var anim in _linkedAnimators)
+            foreach (var anim in _fullAnimators)
             {
                 if (anim != null && anim.TryGetComponent<HonamiControllerProfile>(out var profile))
                 {
@@ -261,8 +276,8 @@ namespace HonamiAnimationSystem.Runtime.Core
         {
             foreach (var anim in _linkedAnimators)
             {
-                if (anim != null)
-                    anim.PlayState(stateHash, transitionDuration);
+                if (anim is HonamiAnimator full)
+                    full.PlayState(stateHash, transitionDuration);
             }
         }
 
@@ -271,7 +286,7 @@ namespace HonamiAnimationSystem.Runtime.Core
             foreach (var anim in _linkedAnimators)
             {
                 if (anim != null)
-                    anim.PlayState(stateName, transitionDuration);
+                    anim.Play(stateName, transitionDuration);
             }
         }
 
@@ -286,7 +301,7 @@ namespace HonamiAnimationSystem.Runtime.Core
                 if (anim == null) continue;
                 if (Vector3.SqrMagnitude(anim.transform.position - origin) <= maxDistSq)
                 {
-                    anim.PlayState(stateName, transitionDuration);
+                    anim.Play(stateName, transitionDuration);
                     if (++count >= limit) break;
                 }
             }
@@ -309,13 +324,13 @@ namespace HonamiAnimationSystem.Runtime.Core
                         continue;
                 }
 
-                anim.PlayState(stateName, transitionDuration);
+                anim.Play(stateName, transitionDuration);
             }
         }
 
         public void TrySkipState(int stateHashToSkip, int targetStateHash, float transitionDuration = 0.25f, int layer = 0, bool forceRestart = false, AnimationCurve curve = null, float destinationStartTime = 0f)
         {
-            foreach (var anim in _linkedAnimators)
+            foreach (var anim in _fullAnimators)
             {
                 if (anim != null)
                     anim.TrySkipState(stateHashToSkip, targetStateHash, transitionDuration, layer, forceRestart, curve, destinationStartTime);
@@ -324,7 +339,7 @@ namespace HonamiAnimationSystem.Runtime.Core
 
         public void TrySkipState(string stateToSkip, string targetState, float transitionDuration = 0.25f, int layer = 0, bool forceRestart = false, AnimationCurve curve = null, float destinationStartTime = 0f)
         {
-            foreach (var anim in _linkedAnimators)
+            foreach (var anim in _fullAnimators)
             {
                 if (anim != null)
                     anim.TrySkipState(stateToSkip, targetState, transitionDuration, layer, forceRestart, curve, destinationStartTime);
@@ -333,7 +348,7 @@ namespace HonamiAnimationSystem.Runtime.Core
 
         public void TrySkipStateByGuid(string guidToSkip, string targetGuid, float transitionDuration = 0.25f, int layer = 0, bool forceRestart = false, AnimationCurve curve = null, float destinationStartTime = 0f)
         {
-            foreach (var anim in _linkedAnimators)
+            foreach (var anim in _fullAnimators)
             {
                 if (anim != null)
                     anim.TrySkipStateByGuid(guidToSkip, targetGuid, transitionDuration, layer, forceRestart, curve, destinationStartTime);
@@ -342,7 +357,7 @@ namespace HonamiAnimationSystem.Runtime.Core
 
         public void TryAutoSkipState(int stateHashToSkip, int layer = 0, bool ignoreExitTime = false, bool cancelEvents = false)
         {
-            foreach (var anim in _linkedAnimators)
+            foreach (var anim in _fullAnimators)
             {
                 if (anim != null)
                     anim.TryAutoSkipState(stateHashToSkip, layer, ignoreExitTime, cancelEvents);
@@ -351,7 +366,7 @@ namespace HonamiAnimationSystem.Runtime.Core
 
         public void TryAutoSkipState(string stateToSkip, int layer = 0, bool ignoreExitTime = false, bool cancelEvents = false)
         {
-            foreach (var anim in _linkedAnimators)
+            foreach (var anim in _fullAnimators)
             {
                 if (anim != null)
                     anim.TryAutoSkipState(stateToSkip, layer, ignoreExitTime, cancelEvents);
@@ -360,7 +375,7 @@ namespace HonamiAnimationSystem.Runtime.Core
 
         public void TryAutoSkipStateByGuid(string guidToSkip, int layer = 0, bool ignoreExitTime = false, bool cancelEvents = false)
         {
-            foreach (var anim in _linkedAnimators)
+            foreach (var anim in _fullAnimators)
             {
                 if (anim != null)
                     anim.TryAutoSkipStateByGuid(guidToSkip, layer, ignoreExitTime, cancelEvents);
@@ -369,7 +384,7 @@ namespace HonamiAnimationSystem.Runtime.Core
 
         public void SetFloat(string name, float value)
         {
-            foreach (var anim in _linkedAnimators)
+            foreach (var anim in _fullAnimators)
             {
                 if (anim != null)
                     anim.SetFloat(name, value);
@@ -378,7 +393,7 @@ namespace HonamiAnimationSystem.Runtime.Core
 
         public void SetFloat(int id, float value)
         {
-            foreach (var anim in _linkedAnimators)
+            foreach (var anim in _fullAnimators)
             {
                 if (anim != null)
                     anim.SetFloat(id, value);
@@ -387,7 +402,7 @@ namespace HonamiAnimationSystem.Runtime.Core
 
         public void SetFloatByTag(HonamiTagID tag, string name, float value)
         {
-            foreach (var anim in _linkedAnimators)
+            foreach (var anim in _fullAnimators)
             {
                 if (anim != null && anim.linkingTag == tag)
                     anim.SetFloat(name, value);
@@ -396,7 +411,7 @@ namespace HonamiAnimationSystem.Runtime.Core
 
         public void SetFloatByTag(HonamiTagID tag, int id, float value)
         {
-            foreach (var anim in _linkedAnimators)
+            foreach (var anim in _fullAnimators)
             {
                 if (anim != null && anim.linkingTag == tag)
                     anim.SetFloat(id, value);
@@ -405,7 +420,7 @@ namespace HonamiAnimationSystem.Runtime.Core
 
         public void SetInteger(string name, int value)
         {
-            foreach (var anim in _linkedAnimators)
+            foreach (var anim in _fullAnimators)
             {
                 if (anim != null)
                     anim.SetInteger(name, value);
@@ -414,7 +429,7 @@ namespace HonamiAnimationSystem.Runtime.Core
 
         public void SetInteger(int id, int value)
         {
-            foreach (var anim in _linkedAnimators)
+            foreach (var anim in _fullAnimators)
             {
                 if (anim != null)
                     anim.SetInteger(id, value);
@@ -423,7 +438,7 @@ namespace HonamiAnimationSystem.Runtime.Core
 
         public void SetIntegerByTag(HonamiTagID tag, string name, int value)
         {
-            foreach (var anim in _linkedAnimators)
+            foreach (var anim in _fullAnimators)
             {
                 if (anim != null && anim.linkingTag == tag)
                     anim.SetInteger(name, value);
@@ -432,7 +447,7 @@ namespace HonamiAnimationSystem.Runtime.Core
 
         public void SetIntegerByTag(HonamiTagID tag, int id, int value)
         {
-            foreach (var anim in _linkedAnimators)
+            foreach (var anim in _fullAnimators)
             {
                 if (anim != null && anim.linkingTag == tag)
                     anim.SetInteger(id, value);
@@ -441,7 +456,7 @@ namespace HonamiAnimationSystem.Runtime.Core
 
         public void SetBool(string name, bool value)
         {
-            foreach (var anim in _linkedAnimators)
+            foreach (var anim in _fullAnimators)
             {
                 if (anim != null)
                     anim.SetBool(name, value);
@@ -450,7 +465,7 @@ namespace HonamiAnimationSystem.Runtime.Core
 
         public void SetBool(int id, bool value)
         {
-            foreach (var anim in _linkedAnimators)
+            foreach (var anim in _fullAnimators)
             {
                 if (anim != null)
                     anim.SetBool(id, value);
@@ -459,7 +474,7 @@ namespace HonamiAnimationSystem.Runtime.Core
 
         public void SetBoolByTag(HonamiTagID tag, string name, bool value)
         {
-            foreach (var anim in _linkedAnimators)
+            foreach (var anim in _fullAnimators)
             {
                 if (anim != null && anim.linkingTag == tag)
                     anim.SetBool(name, value);
@@ -468,7 +483,7 @@ namespace HonamiAnimationSystem.Runtime.Core
 
         public void SetBoolByTag(HonamiTagID tag, int id, bool value)
         {
-            foreach (var anim in _linkedAnimators)
+            foreach (var anim in _fullAnimators)
             {
                 if (anim != null && anim.linkingTag == tag)
                     anim.SetBool(id, value);
@@ -477,7 +492,7 @@ namespace HonamiAnimationSystem.Runtime.Core
 
         public void SetTrigger(string name)
         {
-            foreach (var anim in _linkedAnimators)
+            foreach (var anim in _fullAnimators)
             {
                 if (anim != null)
                     anim.SetTrigger(name);
@@ -486,7 +501,7 @@ namespace HonamiAnimationSystem.Runtime.Core
 
         public void SetTrigger(int id)
         {
-            foreach (var anim in _linkedAnimators)
+            foreach (var anim in _fullAnimators)
             {
                 if (anim != null)
                     anim.SetTrigger(id);
@@ -495,7 +510,7 @@ namespace HonamiAnimationSystem.Runtime.Core
 
         public void SetTriggerByTag(HonamiTagID tag, string name)
         {
-            foreach (var anim in _linkedAnimators)
+            foreach (var anim in _fullAnimators)
             {
                 if (anim != null && anim.linkingTag == tag)
                     anim.SetTrigger(name);
@@ -504,7 +519,7 @@ namespace HonamiAnimationSystem.Runtime.Core
 
         public void SetTriggerByTag(HonamiTagID tag, int id)
         {
-            foreach (var anim in _linkedAnimators)
+            foreach (var anim in _fullAnimators)
             {
                 if (anim != null && anim.linkingTag == tag)
                     anim.SetTrigger(id);
@@ -513,7 +528,7 @@ namespace HonamiAnimationSystem.Runtime.Core
 
         public void ResetTrigger(string name)
         {
-            foreach (var anim in _linkedAnimators)
+            foreach (var anim in _fullAnimators)
             {
                 if (anim != null)
                     anim.ResetTrigger(name);
@@ -522,7 +537,7 @@ namespace HonamiAnimationSystem.Runtime.Core
 
         public void SetLayerWeight(int layer, float weight)
         {
-            foreach (var anim in _linkedAnimators)
+            foreach (var anim in _fullAnimators)
             {
                 if (anim != null)
                     anim.SetLayerWeight(layer, weight);
@@ -578,7 +593,7 @@ namespace HonamiAnimationSystem.Runtime.Core
             _executor.StopAll();
         }
 
-        public int GetLinkedAnimatorsNonAlloc(System.Span<HonamiAnimator> result, HonamiBroadcastTargetMode mode = HonamiBroadcastTargetMode.AllLinked, HonamiTagID tag = null)
+        public int GetAllLinkedNonAlloc(System.Span<HonamiAnimatorBase> result, HonamiBroadcastTargetMode mode = HonamiBroadcastTargetMode.AllLinked, HonamiTagID tag = null)
         {
             int count = 0;
             foreach (var anim in _linkedAnimators)
@@ -594,9 +609,25 @@ namespace HonamiAnimationSystem.Runtime.Core
             return count;
         }
 
+        public int GetLinkedAnimatorsNonAlloc(System.Span<HonamiAnimator> result, HonamiBroadcastTargetMode mode = HonamiBroadcastTargetMode.AllLinked, HonamiTagID tag = null)
+        {
+            int count = 0;
+            foreach (var anim in _fullAnimators)
+            {
+                if (anim == null) continue;
+                if (count >= result.Length) break;
+
+                if (mode == HonamiBroadcastTargetMode.ChildrenOnly && !anim.transform.IsChildOf(transform)) continue;
+                if (mode == HonamiBroadcastTargetMode.ByTag && (tag == null || anim.linkingTag != tag)) continue;
+
+                result[count++] = anim;
+            }
+            return count;
+        }
+
         public bool TryGetAnimatorByTag(HonamiTagID tag, out HonamiAnimator animator)
         {
-            foreach (var anim in _linkedAnimators)
+            foreach (var anim in _fullAnimators)
             {
                 if (anim != null && anim.linkingTag == tag)
                 {
@@ -610,7 +641,7 @@ namespace HonamiAnimationSystem.Runtime.Core
 
         public bool AnyPlayingState(string stateName)
         {
-            foreach (var anim in _linkedAnimators)
+            foreach (var anim in _fullAnimators)
             {
                 if (anim == null) continue;
                 if (anim.GetActiveStateIndex(0) != -1) // Simplified check

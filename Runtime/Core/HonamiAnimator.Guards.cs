@@ -7,8 +7,6 @@ namespace HonamiAnimationSystem.Runtime.Core
     {
         private bool HasController => controller != null;
 
-        private bool HasPlayableGraph => _playableGraph.IsValid();
-
         private bool IsLayerInRange(int layer)
         {
             return _layerStates != null &&

@@ -41,7 +41,7 @@ namespace HonamiAnimationSystem.Runtime.Core
             BuildStateMetadata(anim);
             AllocateBlendCaches(anim, layerCount, portCount);
             BuildLayerPlayables(anim, layerCount, portCount);
-            InsertRigChain(anim);
+            anim.InsertRigChain();
             BakePortals(anim);
             BakeAnyStateLookup(anim, layerCount);
             BakeDefaultStateLookup(anim, layerCount);
@@ -552,30 +552,6 @@ namespace HonamiAnimationSystem.Runtime.Core
                 anim._globalMirrorPlayable.AddInput(currentSource, 0, 1f);
                 output.SetSourcePlayable(anim._globalMirrorPlayable);
             }
-        }
-
-        private static void InsertRigChain(HonamiAnimator anim)
-        {
-            if (!anim.TryGetComponent<HonamiRiggingProcessor>(out var rigProcessor))
-            {
-                return;
-            }
-
-            var output = anim._playableGraph.GetOutput(0);
-            if (!output.IsPlayableOutputOfType<AnimationPlayableOutput>())
-            {
-                return;
-            }
-
-            Playable currentSource = output.GetSourcePlayable();
-            Playable rigChainEnd = rigProcessor.InsertIntoGraph(anim._animator, anim._playableGraph, currentSource);
-
-            if (rigChainEnd.IsValid() && !rigChainEnd.Equals(currentSource))
-            {
-                output.SetSourcePlayable(rigChainEnd);
-            }
-
-            anim._riggingProcessor = rigProcessor;
         }
 
         private static void BakeAnyStateLookup(HonamiAnimator anim, int layerCount)

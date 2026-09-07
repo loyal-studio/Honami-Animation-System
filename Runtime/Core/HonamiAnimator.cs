@@ -10,15 +10,6 @@ using HonamiAnimationSystem.Runtime.Riggings;
 namespace HonamiAnimationSystem.Runtime.Core
 {
     /// <summary>
-    /// Defines when the animator should build and start its playable graph automatically.
-    /// </summary>
-    public enum HonamiAnimationStartup
-    {
-        Start,
-        Enable
-    }
-
-    /// <summary>
     /// Defines how the outgoing controller is evaluated while a controller transition is active.
     /// </summary>
     public enum HonamiControllerTransitionMode
@@ -28,96 +19,22 @@ namespace HonamiAnimationSystem.Runtime.Core
     }
 
     /// <summary>
-    /// Defines which Unity update loop drives the Honami playable graph.
-    /// </summary>
-    public enum HonamiUpdateMode
-    {
-        Normal,
-        AnimatePhysics,
-        UnscaledTime,
-        LateUpdate,
-        Manual
-    }
-
-    public enum HonamiGlobalWeightMode
-    {
-        Init,
-        Bind
-    }
-
-    /// <summary>
     /// Runtime component that replaces Unity Animator Controller playback with Honami's graph, parameter, event, avatar, and rigging pipeline.
     /// </summary>
     [RequireComponent(typeof(Animator))]
     [AddComponentMenu("Honami Animation/Honami Animator")]
-    public partial class HonamiAnimator : MonoBehaviour
+    public partial class HonamiAnimator : HonamiAnimatorBase
     {
-        /// <summary>
-        /// Converts a parameter, state, or event name into Honami's stable runtime hash.
-        /// </summary>
-        public static int StringToHash(string name)
-        {
-            if (string.IsNullOrEmpty(name))
-            {
-                return 0;
-            }
-
-            unchecked
-            {
-                int hash = 5381;
-                for (int i = 0; i < name.Length; i++)
-                {
-                    hash = ((hash << 5) + hash) + name[i];
-                }
-
-                return hash;
-            }
-        }
-
         [Header("Configuration")]
         [SerializeField] internal HonamiRuntimeController controller;
         internal HonamiRuntimeController _lastBuiltController;
-        
-        [SerializeField] private HonamiAnimationStartup startup = HonamiAnimationStartup.Enable;
 
         [Header("Initial Pose")]
-        [SerializeField, Tooltip("Captures the hierarchy pose before Honami starts evaluating. Used as a safe fallback when no state is active.")]
-        private bool captureInitialPoseOnAwake = true;
-        
         [SerializeField, Tooltip("If true, captures the initial pose from the final frame of the default state instead of the Awake pose.")]
         private bool captureFromDefaultStateEnd = false;
 
-        [SerializeField, Tooltip("When no state is active, restore the captured initial pose instead of keeping the last sampled animation frame.")]
-        private bool restoreInitialPoseWhenIdle = true;
-
         [SerializeField, Tooltip("When a non-loop state finishes on a layer without a default state, release it so Initial Pose becomes the fallback instead of freezing on the final frame.")]
         private bool releaseFinishedStatesWithoutDefault = true;
-
-        [SerializeField, Tooltip("Include this GameObject's transform in the initial pose snapshot. Disabled by default to avoid moving character roots.")]
-        private bool includeRootTransformInInitialPose = false;
-        
-        [Header("Time Settings")]
-        [SerializeField] private HonamiUpdateMode updateMode = HonamiUpdateMode.Normal;
-        
-        [SerializeField, Range(0, 10f)] private float timeScale = 1f;
-
-        [SerializeField] private bool fpsCap = false;
-
-        [SerializeField, Range(1, 120)] private int targetFPS = 30;
-
-        [SerializeField] private bool fpsCapInterpolate = true;
-
-        private double _fpsAccumulator = 0.0;
-
-        [Header("Animator Synchronization")]
-        [SerializeField] private bool applyRootMotion = false;
-        
-        [SerializeField] private AnimatorCullingMode cullingMode = AnimatorCullingMode.AlwaysAnimate;
-
-        [Header("Linked System")]
-        public bool preventLinking = false;
-        
-        public HonamiTagID linkingTag;
 
         [Header("Avatar")]
         [SerializeField] internal HonamiAvatar avatar;
@@ -129,31 +46,6 @@ namespace HonamiAnimationSystem.Runtime.Core
 
         public bool MirrorAvatar => _mirrorAvatar;
         public float MirrorBlendSpeed => _mirrorBlendSpeed;
-
-        [SerializeField] private HonamiGlobalWeightMode globalWeightMode = HonamiGlobalWeightMode.Init;
-        public HonamiGlobalWeightMode GlobalWeightMode
-        {
-            get => globalWeightMode;
-            set
-            {
-                if (globalWeightMode == value) return;
-                globalWeightMode = value;
-                if (_playableOutput.IsOutputValid())
-                    _playableOutput.SetWeight(globalWeightMode == HonamiGlobalWeightMode.Bind ? _globalWeight : 1f);
-            }
-        }
-
-        private float _globalWeight = 1f;
-        public float GlobalWeight
-        {
-            get => _globalWeight;
-            set
-            {
-                _globalWeight = Mathf.Clamp01(value);
-                if (globalWeightMode == HonamiGlobalWeightMode.Bind && _playableOutput.IsOutputValid())
-                    _playableOutput.SetWeight(_globalWeight);
-            }
-        }
 
         /// <summary>
         /// Enables or disables global avatar mirroring for all evaluated states.
@@ -167,12 +59,7 @@ namespace HonamiAnimationSystem.Runtime.Core
 
         internal float _currentGlobalMirrorWeight = 0f;
 
-        internal HonamiLinkedAnimator _linkedBrain;
-
-        internal Animator _animator;
-        internal PlayableGraph _playableGraph;
         internal AnimationLayerMixerPlayable _layerMixer;
-        internal AnimationPlayableOutput _playableOutput;
         internal AnimationScriptPlayable _globalMirrorPlayable;
 
         internal readonly List<AnimationMixerPlayable> _layerMixers = new();
@@ -198,14 +85,6 @@ namespace HonamiAnimationSystem.Runtime.Core
         internal NativeArray<float> _blendStateValues;
         internal int[] _blendParamIndices;
         internal int _pCountTotal;
-
-        private struct PendingAction
-        {
-            public HonamiActionID actionId;
-            public float transitionDuration;
-            public float remainingDelay;
-        }
-        private readonly List<PendingAction> _pendingActions = new();
 
         internal bool _constraintsEnabled;
 
@@ -239,41 +118,14 @@ namespace HonamiAnimationSystem.Runtime.Core
         internal readonly HonamiParameterStore _params = new();
         internal HonamiConstraintProcessor _constraints = new();
         internal HonamiAvatarProcessor _avatarProcessor = new();
-        internal HonamiRiggingProcessor _riggingProcessor;
 
         internal bool _avatarEnabled;
-
-        internal double _cachedDeltaTime;
-        private bool _isPaused;
-        private bool _keepPoseOnDisable;
 
         public event System.Action<string> OnStateEntered;
         public event System.Action<string> OnStateFinished;
         public event System.Action<HonamiStateExitInfo> OnStateExited;
 
         public HonamiRuntimeController CurrentController => controller;
-        public bool IsPaused => _isPaused;
-        public float TimeScale
-        {
-            get => timeScale;
-            set => timeScale = Mathf.Max(0f, value);
-        }
-
-        public bool FpsCap
-        {
-            get => fpsCap;
-            set
-            {
-                fpsCap = value;
-                ResetFpsCapState();
-            }
-        }
-
-        public int TargetFPS
-        {
-            get => targetFPS;
-            set => targetFPS = Mathf.Clamp(value, 1, 120);
-        }
         public HonamiParameterStore Parameters => _params;
 
         private void EnsureGraph()
@@ -282,24 +134,19 @@ namespace HonamiAnimationSystem.Runtime.Core
                 InitializeGraph();
         }
 
-        private void Awake()
+        protected override void Awake()
         {
-            TryGetComponent<Animator>(out _animator);
-            _animator.keepAnimatorStateOnDisable = true;
-            _animator.applyRootMotion = applyRootMotion;
-            _animator.cullingMode = cullingMode;
+            base.Awake();
             TryGetComponent<HonamiLocalEventReceiver>(out _localEventReceiver);
-            if (captureInitialPoseOnAwake) CaptureInitialPose();
             _params.Initialize(controller);
             InitializeGraph();
             RegisterLinkedActions();
-
         }
 
-        private void OnEnable()
+        protected override void OnEnable()
         {
-            if (_animator != null) _animator.enabled = true;
-            
+            base.OnEnable();
+
             EnsureGraph();
 
             if (!HasPlayableGraph) return;
@@ -337,10 +184,8 @@ namespace HonamiAnimationSystem.Runtime.Core
             _playableGraph.Play();
         }
 
-        private void OnDisable()
+        protected override void OnDisable()
         {
-            ResetFpsCapState();
-            
             if (!_keepPoseOnDisable)
             {
                 CleanAnimator();
@@ -349,7 +194,7 @@ namespace HonamiAnimationSystem.Runtime.Core
             if (_playableGraph.IsValid()) 
                 _playableGraph.Destroy();
 
-            HonamiLinkedAction.UnregisterAll(this);
+            base.OnDisable();
         }
 
         private bool CleanAnimator() 
@@ -362,7 +207,7 @@ namespace HonamiAnimationSystem.Runtime.Core
             return true;
         }
 
-        private void OnDestroy()
+        protected override void OnDestroy()
         {
             if (_isTransitioningController)
             {
@@ -370,32 +215,14 @@ namespace HonamiAnimationSystem.Runtime.Core
                 _oldConstraints?.Dispose();
                 if (_oldBlendStateValues.IsCreated) _oldBlendStateValues.Dispose();
             }
-            if (_playableGraph.IsValid()) _playableGraph.Destroy();
+            base.OnDestroy();
             _avatarProcessor?.Dispose();
             _constraints?.Dispose();
             _params?.Dispose();
             if (_blendStateValues.IsCreated) _blendStateValues.Dispose();
         }
 
-        private void Update()
-        {
-            if (updateMode == HonamiUpdateMode.Normal) TickWithFpsCap(Time.deltaTime);
-            else if (updateMode == HonamiUpdateMode.UnscaledTime) TickWithFpsCap(Time.unscaledDeltaTime);
-        }
-
-        private void LateUpdate()
-        {
-            if (updateMode == HonamiUpdateMode.LateUpdate) TickWithFpsCap(Time.deltaTime);
-        }
-
-        private void FixedUpdate()
-        {
-            if (updateMode == HonamiUpdateMode.AnimatePhysics) TickWithFpsCap(Time.fixedDeltaTime);
-        }
-
-
-
-        public void Tick(double deltaTime)
+        public override void Tick(double deltaTime)
         {
             if (_isPaused || !HasPlayableGraph) return;
             _cachedDeltaTime = deltaTime * timeScale;
@@ -500,6 +327,7 @@ namespace HonamiAnimationSystem.Runtime.Core
                 }
 
                 NotifyActiveStatesExited(HonamiStateExitReason.ControllerChanged);
+                CancelPendingActions();
                 HonamiLinkedAction.UnregisterAll(this);
 
                 Playable oldRoot = _playableOutput.GetSourcePlayable();
@@ -564,6 +392,7 @@ namespace HonamiAnimationSystem.Runtime.Core
                 }
 
                 NotifyActiveStatesExited(HonamiStateExitReason.ControllerChanged);
+                CancelPendingActions();
                 HonamiLinkedAction.UnregisterAll(this);
 
                 if (_playableGraph.IsValid())
@@ -626,18 +455,6 @@ namespace HonamiAnimationSystem.Runtime.Core
             }
         }
 
-        public void Pause() => _isPaused = true;
-        public void Resume() => _isPaused = false;
-        public void StopUpdates() => Pause();
-        public void ResumeUpdates() => Resume();
-
-        public void StopAndKeepPose()
-        {
-            _keepPoseOnDisable = true;
-            if (_animator != null) _animator.enabled = false;
-            enabled = false;
-        }
-
         public void PauseLayer(int layer, bool paused)
         {
             if (_layerStates != null && layer >= 0 && layer < _layerStates.Length) _layerStates[layer].IsLayerPaused = paused;
@@ -672,7 +489,7 @@ namespace HonamiAnimationSystem.Runtime.Core
             playable.SetSpeed(paused ? 0f : GetConfiguredStateSpeed(stateIndex));
         }
 
-        public void StopAll() => ResetAnimatorState();
+        public override void StopAll() => ResetAnimatorState();
 
         public void Stop(int layer)
         {
@@ -786,6 +603,10 @@ namespace HonamiAnimationSystem.Runtime.Core
             if (!_stateGuidToIndex.TryGetValue(guid.GetHashCode(), out int targetIndex)) return;
             PlayStateInternal(targetIndex, transitionDuration, layer, forceRestart, curve, destinationStartTime);
         }
+
+        public override void Play(string name, float transitionDuration) => PlayState(name, transitionDuration);
+
+        public override bool IsPlaying(string name) => IsStateActive(name);
 
         public bool IsStateActive(int stateHash, int layer = 0)
         {
@@ -909,19 +730,7 @@ namespace HonamiAnimationSystem.Runtime.Core
         }
 
 
-        public void ReactToAction(HonamiActionID actionId)
-        {
-            if (controller == null || actionId == null || _runtimeStates == null) return;
-
-            for (int i = 0; i < _activeStatesCount; i++)
-            {
-                var state = _runtimeStates[i];
-                if (state.linkedActionId == actionId)
-                    PlayStateInternal(i, 0.25f, state.layerIndex, true, null, 0f);
-            }
-        }
-
-        public void ReactToAction(HonamiActionID actionId, float transitionDuration)
+        public override void ReactToAction(HonamiActionID actionId, float transitionDuration)
         {
             if (controller == null || actionId == null || _runtimeStates == null) return;
 
@@ -930,43 +739,6 @@ namespace HonamiAnimationSystem.Runtime.Core
                 var state = _runtimeStates[i];
                 if (state.linkedActionId == actionId)
                     PlayStateInternal(i, transitionDuration, state.layerIndex, true, null, 0f);
-            }
-        }
-
-        public void ReactToAction(HonamiActionID actionId, float transitionDuration, float delay)
-        {
-            if (delay <= 0f)
-            {
-                ReactToAction(actionId, transitionDuration);
-                return;
-            }
-
-            _pendingActions.Add(new PendingAction 
-            { 
-                actionId = actionId, 
-                transitionDuration = transitionDuration, 
-                remainingDelay = delay 
-            });
-        }
-
-        private void UpdatePendingActions(float deltaTime)
-        {
-            if (_pendingActions.Count == 0) return;
-
-            for (int i = _pendingActions.Count - 1; i >= 0; i--)
-            {
-                var pending = _pendingActions[i];
-                pending.remainingDelay -= deltaTime;
-                
-                if (pending.remainingDelay <= 0f)
-                {
-                    ReactToAction(pending.actionId, pending.transitionDuration);
-                    _pendingActions.RemoveAt(i);
-                }
-                else
-                {
-                    _pendingActions[i] = pending;
-                }
             }
         }
 

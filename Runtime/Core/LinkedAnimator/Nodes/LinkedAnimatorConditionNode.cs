@@ -38,7 +38,9 @@ namespace HonamiAnimationSystem.Runtime.Core
         {
             if (string.IsNullOrEmpty(parameterName)) return false;
 
-            foreach (var anim in ctx.LinkedAnimators)
+            if (ctx.FullAnimators == null) return false;
+
+            foreach (var anim in ctx.FullAnimators)
             {
                 if (anim == null) continue;
 

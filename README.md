@@ -35,6 +35,7 @@ In practice the animator does the graph and the programmer writes gameplay code.
 - [The event system](#the-event-system)
 - [Reuse: override controllers & inheritance](#reuse-override-controllers--inheritance)
 - [The Linked Brain](#the-linked-brain)
+- [The Clip Player](#the-clip-player)
 - [Built-in rig system](#built-in-rig-system)
 - [Performance](#performance)
 - [Scripting API](#scripting-api)
@@ -173,6 +174,62 @@ For decentralized, world-space coordination there's also the static `HonamiLinke
 
 So you can drive a whole squad's reactions without looping over animators in gameplay code.
 
+## The Clip Player
+
+Not everything needs a state machine, and that has nothing to do with how important the object is. Most NPCs never needed one: their idle, walk, talk and two reactions are already chosen by a behaviour tree, a dialogue system or a spawner, so wrapping that in a controller graph just means authoring the same decision twice. The same goes for creatures, background crowds, machines and doors.
+
+`HonamiClipPlayer` is the Honami runtime with the graph taken out. Nodes, transitions, conditions, exit times, parameters, blend trees, sub-nodes and masks aren't missing from it - they were removed on purpose, because that machinery is something you author, debug and maintain in order to express a decision your code had already made. What's left is the part that actually produces the animation: clips, weights, crossfades, layers and wrap modes, on a list that lives on the object itself. It's what Unity's old `Animation` component was, rebuilt on the same `PlayableGraph` core:
+
+```csharp
+_player.CrossFade("Walk", 0.25f);      // blended
+_player.PlayClip("Flinch");            // snap, on its own layer
+_player.PlayQueued("Idle");            // after the one-shot ends
+_player.Blend("Breathe", 0.4f, 0.5f);  // layered on top
+_player.Sample("Aim", pitch01);        // pose one frame, no playback
+_player["Walk"].Speed = 1.5f;          // live handle, like the legacy AnimationState
+```
+
+Per clip you author a name, speed, layer and wrap mode, plus an optional **ActionID**. `PlayClip` deliberately does not rewind a clip that is already playing, so calling it every frame from movement code is safe.
+
+So the question isn't what the Clip Player is missing, it's what the graph would be buying you. It pays for itself when the behaviour genuinely lives inside it: a 1D locomotion blend between motions, a weighted upper-body mask, an override controller per variant, conditions and exit times an animator should tune without touching code. When none of that is true, every node and transition is ceremony around a call your code was going to make anyway.
+
+### Wrap modes decide what "finished" means
+
+| Mode | At the end of the clip |
+|---|---|
+| **Once** | Fires `OnClipFinished` and drops to weight 0 - the clip releases the hierarchy. |
+| **ClampForever** | Fires `OnClipFinished` and holds the last frame at full weight. |
+| **Loop** | Wraps back to the start. Never finishes. |
+| **PingPong** | Reverses direction at both ends. Never finishes. |
+
+That distinction does real work: a door that must stay open after its opening animation wants **ClampForever**, while a one-shot on **Once** hands the hierarchy back, so whatever sits underneath - or the captured initial pose - takes over on its own.
+
+### Layers, without masks
+
+All clips feed one mixer. Within a layer, weights normalize when they sum above 1; layers then resolve from the highest down, each consuming what the layers above left over, so a clip at full weight on layer 1 completely covers layer 0. `PlayClip` and `CrossFade` only fade out clips on the target's own layer - which means a **Once** reaction on layer 1 can cover a looping idle on layer 0 and release it at the end, with no transitions authored and no code to put the idle back. There are no avatar masks here: a layer overrides everything under it, not a selected set of bones.
+
+### Handles, state and events
+
+The indexer returns a live handle to one clip, the way the legacy `AnimationState` did - `Speed`, `Weight`, `CurrentTime`, `NormalizedTime`, `WrapMode`, `IsPlaying` and `Length`, all readable and writable while it plays. Alongside it the player answers `CurrentClip`, `ClipCount`, `IsPlayingAny`, `IsPlaying(name)`, `TryGetState`, `States` and `Rewind`, and raises `OnClipStarted` / `OnClipFinished` with the clip name. None of it allocates.
+
+### A clip you never play
+
+`Sample(name, normalizedTime)` pins one clip at a single frame, evaluates once, and stops advancing. Feed it a changing value every frame and an `AnimationClip` becomes a curve you drive by hand: an NPC's aim pose driven by where it's looking, a head turn tied to a look-at angle, a lever that follows the player's grip, a machine wired to a slider.
+
+### A library you can change at runtime
+
+`AddClip`, `RemoveClip` and `Rebuild` edit the clip list while the game runs, which suits objects that are assembled rather than authored - a machine whose animation set depends on the module bolted onto it, a creature that learns a new attack, a prop built from downloaded content. A rebuild replaces the graph, so handles taken before it are gone and nothing is playing until you say so.
+
+### Auditioning without Play Mode
+
+Every row in the inspector has a play button. In edit mode it poses the actual scene object, honouring that row's speed and wrap mode; Honami snapshots every local transform first and writes it back on stop, and it never enables Unity's global `AnimationMode`, so it won't fight an open Timeline or Animation window. In play mode the same button drives the real component through the **Preview Fade** slider, and the inspector grows a live panel: a weight/time bar per clip, the dominant clip's name, and Stop All / Pause.
+
+### A sibling, not a replacement
+
+The cut stopped at the authoring layer. Both components derive from `HonamiAnimatorBase`, so a Clip Player carries a full Honami rig stack, keeps the initial-pose safety net, evaluates at a capped 15 FPS in the distance, honours every update mode and global weight, and can be ticked by hand with `Tick(dt)` for deterministic and networked updates. Nothing that affects the animation itself was traded away - only states, transitions, parameters, blend trees and masks, which is the trade you came for. Reach for `HonamiAnimator` when you actually want one of those back.
+
+It is also a full citizen of the Linked system: a Brain in **Childs** mode picks up Clip Players alongside animators, and `PlayState`, ActionIDs, `StopAll` and `GlobalWeight` reach them. Parameter and state-machine broadcasts apply only to the controller-backed animators (`brain.FullAnimators`) and skip Clip Players, which have no parameters to set.
+
 ## Built-in rig system
 
 Standard Unity rigging needs the external **Animation Rigging** package - a separate dependency, decoupled from the Animator, with its own GameObject-based setup. Honami includes a rig-agnostic constraint pipeline out of the box. All constraints run as a **final correction pass after sampling**, so authored animation stays in charge while procedural adjustments handle contacts, aiming, secondary motion and physics.
@@ -192,7 +249,7 @@ The core evaluation loop produces **zero GC allocations per frame**. Parameters 
 
 ## Scripting API
 
-The full runtime API lives on `HonamiAnimator` in `HonamiAnimationSystem.Runtime.Core`. Every state/parameter method has name, `int`-hash and (for states) `...ByGuid` overloads. Highlights:
+The full runtime API lives on `HonamiAnimator` in `HonamiAnimationSystem.Runtime.Core` (`HonamiClipPlayer` shares everything on the common base - ticking, pausing, time scale, FPS cap, global weight, initial pose, ActionIDs). Every state/parameter method has name, `int`-hash and (for states) `...ByGuid` overloads. Highlights:
 
 - **Playback** - `PlayState`, `PlayStateByGuidWithPriority`, `IsStateActive`, `GetStateProgress`, `GetTransitionWeight`.
 - **Skipping** - `TrySkipState` / `TryAutoSkipState` conditionally interrupt a specific state, reusing the transition authored in the graph.
@@ -201,6 +258,7 @@ The full runtime API lives on `HonamiAnimator` in `HonamiAnimationSystem.Runtime
 - **Events** - `OnStateEntered`, `OnStateFinished`, `OnStateExited`.
 - **Controllers** - `SetController` with an optional cross-fade between old and new graphs.
 - **Mirroring & time** - `SetGlobalMirror`, `TimeScale`, `FpsCap`, and manual `Tick(dt)` for deterministic or networked updates.
+- **Clip Player** - `PlayClip`, `CrossFade`, `PlayQueued`, `Blend`, `Sample`, `Stop`, `Rewind`, `AddClip` / `RemoveClip` / `Rebuild`, the `player["Idle"]` handles, and `OnClipStarted` / `OnClipFinished`.
 
 ## Honami vs. the built-in Animator
 
@@ -218,6 +276,7 @@ Only the areas where the two genuinely diverge - where Mecanim already does the 
 | **Masks** | ⚠️ Binary - a bone is in or out. | ✅ **Weighted** per-bone masks (0-1 per bone). |
 | **Rigging** | ⚠️ External Animation Rigging package, complex setup. | ✅ Built-in rig-agnostic constraint pass, no extra package. |
 | **Many characters** | ❌ No cross-animator coordination. | ✅ Linked Brain broadcast by tag, radius, wave or closest-N. |
+| **Objects that don't need a graph** | ⚠️ A controller asset per NPC and per door, or the deprecated legacy `Animation` component. | ✅ Clip Player: a clip list on the object, played by name, on the same runtime and rig stack as everything else. |
 | **Debugging** | ❌ Basic active-state progress bar. | ✅ Live node highlighting, weights and transition values. |
 | **Blend trees** | ✅ 1D and 2D blend trees. | ⚠️ 1D only (2D on the roadmap). |
 | **Retargeting** | ✅ Humanoid muscle-space retargeting across skeletons. | ⚠️ No runtime retargeting - binds by transform path. The Humanoid Baker tool retargets Humanoid clips onto your skeleton offline and bakes them to Generic. |

@@ -164,7 +164,7 @@ namespace HonamiAnimationSystem.Runtime.Riggings
             while (p != null)
             {
                 if (p == transform) return true;
-                if (p.TryGetComponent<HonamiRiggingProcessor>(out _) || p.TryGetComponent<HonamiAnimator>(out _)) return false;
+                if (p.TryGetComponent<HonamiRiggingProcessor>(out _) || p.TryGetComponent<HonamiAnimatorBase>(out _)) return false;
                 p = p.parent;
             }
             return false;

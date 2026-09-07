@@ -5,7 +5,7 @@ namespace HonamiAnimationSystem.Runtime.Core
 {
     public static class HonamiLinkedAction
     {
-        private static readonly Dictionary<HonamiActionID, HashSet<HonamiAnimator>> _registry = new();
+        private static readonly Dictionary<HonamiActionID, HashSet<HonamiAnimatorBase>> _registry = new();
 
         public static void PlayGlobal(HonamiActionID actionId, float transitionDuration = 0.25f, int limit = int.MaxValue)
         {
@@ -111,7 +111,7 @@ namespace HonamiAnimationSystem.Runtime.Core
             }
         }
 
-        private static readonly List<(float dist, HonamiAnimator anim)> _sortBuffer = new();
+        private static readonly List<(float dist, HonamiAnimatorBase anim)> _sortBuffer = new();
 
         public static void PlayClosest(HonamiActionID actionId, Vector3 origin, float radius, int limit, float transitionDuration = 0.25f)
         {
@@ -140,19 +140,19 @@ namespace HonamiAnimationSystem.Runtime.Core
             }
         }
 
-        internal static void Register(HonamiAnimator animator, HonamiActionID actionId)
+        internal static void Register(HonamiAnimatorBase animator, HonamiActionID actionId)
         {
             if (animator == null || actionId == null) return;
 
             if (!_registry.TryGetValue(actionId, out var set))
             {
-                set = new HashSet<HonamiAnimator>();
+                set = new HashSet<HonamiAnimatorBase>();
                 _registry[actionId] = set;
             }
             set.Add(animator);
         }
 
-        internal static void Unregister(HonamiAnimator animator, HonamiActionID actionId)
+        internal static void Unregister(HonamiAnimatorBase animator, HonamiActionID actionId)
         {
             if (animator == null || actionId == null) return;
             if (!_registry.TryGetValue(actionId, out var set)) return;
@@ -164,7 +164,7 @@ namespace HonamiAnimationSystem.Runtime.Core
 
         private static readonly List<HonamiActionID> _emptyKeysScratch = new();
 
-        internal static void UnregisterAll(HonamiAnimator animator)
+        internal static void UnregisterAll(HonamiAnimatorBase animator)
         {
             if (animator == null) return;
 

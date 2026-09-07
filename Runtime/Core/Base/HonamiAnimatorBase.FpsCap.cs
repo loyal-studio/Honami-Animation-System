@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using UnityEngine;
 namespace HonamiAnimationSystem.Runtime.Core
 {
-    public partial class HonamiAnimator
+    public abstract partial class HonamiAnimatorBase
     {
         private struct FpsCapPose
         {
@@ -80,7 +80,7 @@ namespace HonamiAnimationSystem.Runtime.Core
             }
         }
 
-        private void TickWithFpsCap(double rawDeltaTime)
+        protected void TickWithFpsCap(double rawDeltaTime)
         {
             if (!fpsCap)
             {
@@ -126,7 +126,7 @@ namespace HonamiAnimationSystem.Runtime.Core
             }
         }
 
-        private void ResetFpsCapState()
+        protected void ResetFpsCapState()
         {
             _fpsAccumulator = 0.0;
             _fpsPoseReady = false;

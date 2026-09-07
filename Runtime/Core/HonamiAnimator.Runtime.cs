@@ -56,17 +56,5 @@ namespace HonamiAnimationSystem.Runtime.Core
             mirrorJob.weight = _currentGlobalMirrorWeight;
             _globalMirrorPlayable.SetJobData(mirrorJob);
         }
-
-        private void PrepareRigs()
-        {
-            if (_riggingProcessor != null)
-                _riggingProcessor.PrepareAllRigs((float)_cachedDeltaTime);
-        }
-
-        private void ProcessLegacyRigs()
-        {
-            if (_riggingProcessor != null)
-                _riggingProcessor.ProcessLegacyRigs((float)_cachedDeltaTime);
-        }
     }
 }
