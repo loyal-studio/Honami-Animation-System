@@ -187,6 +187,33 @@ namespace HonamiAnimationSystem.Runtime.Core
             _indicesToConsume.Clear();
         }
 
+        /// <summary>
+        /// Collects the hashes of triggers that are still raised, so they survive a store rebuild.
+        /// </summary>
+        public void CaptureActiveTriggers(List<int> hashes)
+        {
+            hashes.Clear();
+
+            foreach (var pair in _triggerHashToIndex)
+            {
+                if (_pendingIndices.Contains(pair.Value))
+                {
+                    hashes.Add(pair.Key);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Re-raises previously captured triggers that still exist in the current parameter set.
+        /// </summary>
+        public void RestoreTriggers(List<int> hashes)
+        {
+            for (int i = 0; i < hashes.Count; i++)
+            {
+                SetTrigger(hashes[i]);
+            }
+        }
+
         public void ApplyAssignment(HonamiParameterAssignment assignment, Dictionary<HonamiParameterAssignment, int> hashCache)
         {
             if (!hashCache.TryGetValue(assignment, out int parameterHash))

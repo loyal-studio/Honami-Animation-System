@@ -306,8 +306,20 @@ namespace HonamiAnimationSystem.Runtime.Core
             return state != null && state.tags != null && state.tags.Contains(tag);
         }
 
+        private readonly List<int> _carriedTriggers = new();
+
+        // A controller swap rebuilds the parameter store; without this a trigger raised earlier in the frame is dropped.
+        private void ReinitializeParameters(HonamiRuntimeController newController)
+        {
+            _params.CaptureActiveTriggers(_carriedTriggers);
+            _params.Initialize(newController);
+            _params.RestoreTriggers(_carriedTriggers);
+        }
+
         public void SetController(HonamiRuntimeController newController, float transitionDuration = 0f, AnimationCurve transitionCurve = null, HonamiControllerTransitionMode mode = HonamiControllerTransitionMode.ContinueEvaluating) 
         {
+            RequestCatchUpTick();
+
             if (transitionDuration > 0f && _playableGraph.IsValid()) 
             {
                 if (_isTransitioningController)
@@ -341,7 +353,7 @@ namespace HonamiAnimationSystem.Runtime.Core
                 _blendStateValues = default;
 
                 controller = newController;
-                _params.Initialize(controller);
+                ReinitializeParameters(controller);
                 
                 InitializeGraph(true, true);
                 
@@ -401,7 +413,7 @@ namespace HonamiAnimationSystem.Runtime.Core
                 }
 
                 controller = newController;
-                _params.Initialize(controller);
+                ReinitializeParameters(controller);
                 InitializeGraph(false, true);
                 
                 if (TryGetComponent<HonamiRiggingProcessor>(out var riggingProcessor))

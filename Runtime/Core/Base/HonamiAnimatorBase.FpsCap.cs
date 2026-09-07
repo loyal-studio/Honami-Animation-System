@@ -126,6 +126,8 @@ namespace HonamiAnimationSystem.Runtime.Core
             }
         }
 
+        protected void InvalidateFpsCapInterpolation() => _fpsPoseReady = false;
+
         protected void ResetFpsCapState()
         {
             _fpsAccumulator = 0.0;

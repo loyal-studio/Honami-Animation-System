@@ -104,6 +104,7 @@ namespace HonamiAnimationSystem.Runtime.Core
 
         internal double _cachedDeltaTime;
         protected bool _isPaused;
+        private bool _needsCatchUpTick;
         protected bool _keepPoseOnDisable;
 
         private float _globalWeight = 1f;
@@ -179,10 +180,12 @@ namespace HonamiAnimationSystem.Runtime.Core
         protected virtual void OnEnable()
         {
             if (_animator != null) _animator.enabled = true;
+            _needsCatchUpTick = true;
         }
 
         protected virtual void OnDisable()
         {
+            _needsCatchUpTick = false;
             ResetFpsCapState();
             CancelPendingActions();
             HonamiLinkedAction.UnregisterAll(this);
@@ -195,18 +198,56 @@ namespace HonamiAnimationSystem.Runtime.Core
 
         protected virtual void Update()
         {
-            if (updateMode == HonamiUpdateMode.Normal) TickWithFpsCap(Time.deltaTime);
-            else if (updateMode == HonamiUpdateMode.UnscaledTime) TickWithFpsCap(Time.unscaledDeltaTime);
+            if (updateMode == HonamiUpdateMode.Normal)
+            {
+                _needsCatchUpTick = false;
+                TickWithFpsCap(Time.deltaTime);
+            }
+            else if (updateMode == HonamiUpdateMode.UnscaledTime)
+            {
+                _needsCatchUpTick = false;
+                TickWithFpsCap(Time.unscaledDeltaTime);
+            }
         }
 
         protected virtual void LateUpdate()
         {
-            if (updateMode == HonamiUpdateMode.LateUpdate) TickWithFpsCap(Time.deltaTime);
+            if (updateMode == HonamiUpdateMode.LateUpdate)
+            {
+                _needsCatchUpTick = false;
+                TickWithFpsCap(Time.deltaTime);
+                return;
+            }
+
+            RunCatchUpTick();
         }
 
         protected virtual void FixedUpdate()
         {
-            if (updateMode == HonamiUpdateMode.AnimatePhysics) TickWithFpsCap(Time.fixedDeltaTime);
+            if (updateMode == HonamiUpdateMode.AnimatePhysics)
+            {
+                _needsCatchUpTick = false;
+                TickWithFpsCap(Time.fixedDeltaTime);
+            }
+        }
+
+        /// <summary>
+        /// Queues a zero-delta evaluation for the current frame's LateUpdate.
+        /// Used after the graph is rebuilt mid-frame so the animator does not hold a stale pose until the next Update.
+        /// </summary>
+        public void RequestCatchUpTick()
+        {
+            if (updateMode == HonamiUpdateMode.Manual) return;
+            _needsCatchUpTick = true;
+        }
+
+        private void RunCatchUpTick()
+        {
+            if (!_needsCatchUpTick || updateMode == HonamiUpdateMode.Manual) return;
+
+            _needsCatchUpTick = false;
+            Tick(0.0);
+            InvalidateFpsCapInterpolation();
         }
 
         public abstract void Tick(double deltaTime);
