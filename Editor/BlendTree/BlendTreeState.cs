@@ -21,6 +21,13 @@ namespace HonamiAnimationSystem.Editor.BlendTree
         public SerializedObject StateSO { get; private set; }
 
         public float PreviewValue;
+        public float PreviewValueX;
+        public float PreviewValueY;
+        public GameObject PreviewModel;
+        public float DirectionalPreviewPeriod { get; private set; }
+        public string DirectionalPreviewError { get; private set; }
+        public Vector2 PreviewInput => new(PreviewValueX, PreviewValueY);
+        public bool IsDirectional2D => Node != null && Node.blendType == HonamiBlendTreeType.FreeformDirectional2D;
         public Vector2 ViewPosition;
         public float ViewScale = 1f;
         public bool HasViewTransform;
@@ -47,6 +54,11 @@ namespace HonamiAnimationSystem.Editor.BlendTree
         public void ResetForNewTarget()
         {
             PreviewValue = 0f;
+            PreviewValueX = 0f;
+            PreviewValueY = 0f;
+            PreviewModel = null;
+            DirectionalPreviewPeriod = 0f;
+            DirectionalPreviewError = null;
             HasViewTransform = false;
             HasNodePositions = false;
             NodePositions.Clear();
@@ -94,8 +106,56 @@ namespace HonamiAnimationSystem.Editor.BlendTree
                 Sorted = new (float threshold, int index)[count];
             }
             System.Array.Clear(Weights, 0, Weights.Length);
+            DirectionalPreviewPeriod = 0f;
+            DirectionalPreviewError = null;
+            if (count == 0)
+                return;
+
+            if (IsDirectional2D)
+            {
+                if (State != null && !State.loop)
+                {
+                    DirectionalPreviewError = "Directional trees require a looping state.";
+                    return;
+                }
+                if (State != null && (State.isReversed || State.mirror))
+                {
+                    DirectionalPreviewError = "Directional trees do not support reversed or mirrored state playback.";
+                    return;
+                }
+                if (State != null && (float.IsNaN(State.speed) || float.IsInfinity(State.speed) || State.speed < 0f))
+                {
+                    DirectionalPreviewError = "Directional state speed must be finite and nonnegative.";
+                    return;
+                }
+                // The node caches the immutable solver and revalidates it against the authored motions.
+                if (!Node.TryGetDirectionalSolver(out HonamiDirectionalBlendSolver solver, out string solverError))
+                {
+                    DirectionalPreviewError = solverError;
+                    return;
+                }
+                if (!HonamiBlendTreeEvaluator.TryEvaluateDirectional(solver, PreviewInput, Weights,
+                        out float period, out string error))
+                {
+                    DirectionalPreviewError = error;
+                    return;
+                }
+                DirectionalPreviewPeriod = period;
+                return;
+            }
+
             if (count > 0)
                 HonamiBlendWeightUtility.CalculateWeights(Node.blendMotions, parameterValue, Weights, Sorted);
+        }
+
+        public float GetDirectionalPreviewDuration()
+        {
+            if (!IsDirectional2D || DirectionalPreviewPeriod <= 0f)
+                return 1f;
+            float speed = State != null ? State.speed : 1f;
+            if (float.IsNaN(speed) || float.IsInfinity(speed) || speed <= 0f)
+                return float.PositiveInfinity;
+            return DirectionalPreviewPeriod / speed;
         }
 
         public void GetSliderRange(out float min, out float max)
@@ -128,6 +188,7 @@ namespace HonamiAnimationSystem.Editor.BlendTree
         public int TopologySignature()
         {
             int hash = 17;
+            hash = hash * 31 + (Node != null ? (int)Node.blendType : 0);
             var motions = Node != null ? Node.blendMotions : null;
             if (motions == null) return hash;
 

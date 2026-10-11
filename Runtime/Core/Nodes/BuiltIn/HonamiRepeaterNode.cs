@@ -197,6 +197,13 @@ namespace HonamiAnimationSystem.Runtime.Core
             if (!playable.IsValid()) return false;
 
             var currentState = animator._runtimeStates[currentStateIndex];
+            if (animator.TryGetDirectionalPort(layer, currentStateIndex, currentStateIndex, out HonamiBlend2DPortRuntime directionalPort))
+            {
+                // Same 2D timing source as exit time: the port's unwrapped cycle position.
+                if (!HonamiBlendTreeEvaluator.TryGetDirectionalPeriod(directionalPort, out _)) return false;
+                return Mathf.Clamp01((float)directionalPort.CyclePosition) < cancelWindow;
+            }
+
             float unscaledDuration = HonamiStateEvaluator.GetUnscaledStateDuration(
                 animator.controller, currentState, currentStateIndex,
                 animator.GetNodeRuntime(currentStateIndex), animator.GetStateBlendParam(currentStateIndex));

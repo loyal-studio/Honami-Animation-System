@@ -18,14 +18,15 @@ namespace HonamiAnimationSystem.Editor.Documentation.Pages
             ));
 
             HonamiDocumentationBuilder.AddInfoBox(root, HonamiDocLocalization.Get(
-                "Honami Blend Trees are 1D only — there is no 2D blend space. For multi-directional movement, drive a 1D tree with a signed parameter (e.g. -1..1) or split the motion across layers and states.",
-                "Дерева змішування Honami лише 1D — 2D-простору змішування немає. Для багатонаправленого руху керуйте 1D-деревом знаковим параметром (напр. -1..1) або розділіть рух між шарами та станами."
+                "For multi-directional movement use a Freeform Directional 2D tree: two parameters (X / Y) and each clip placed at a 2D position. Freeform Cartesian and Direct blend spaces are not supported.",
+                "Для багатонаправленого руху використовуйте 2D-дерево Freeform Directional: два параметри (X / Y), і кожен кліп розміщено у 2D-позиції. Freeform Cartesian і Direct blend space не підтримуються."
             ));
 
             HonamiDocumentationBuilder.AddHeader(root, HonamiDocLocalization.Get("Blend Types", "Типи змішування"), HonamiEditorIcons.BlendTreeWhite);
             HonamiDocumentationBuilder.AddPropertyBox(root,
                 (HonamiDocLocalization.Get("Standard 1D", "Standard 1D"), HonamiDocLocalization.Get("Synchronizes clip playback speeds so the blended clips stay in phase (foot timing matches). Each clip's speed is derived from the interpolated duration of the blend.", "Синхронізує швидкості кліпів, щоб змішані кліпи лишалися у фазі (таймінг кроків збігається). Швидкість кожного кліпу виводиться з інтерпольованої тривалості змішування.")),
-                (HonamiDocLocalization.Get("Simple 1D", "Simple 1D"), HonamiDocLocalization.Get("Plays each clip at its own authored Speed, without any time synchronization.", "Відтворює кожен кліп на його власній заданій швидкості (Speed), без синхронізації часу."))
+                (HonamiDocLocalization.Get("Simple 1D", "Simple 1D"), HonamiDocLocalization.Get("Plays each clip at its own authored Speed, without any time synchronization.", "Відтворює кожен кліп на його власній заданій швидкості (Speed), без синхронізації часу.")),
+                (HonamiDocLocalization.Get("Freeform Directional 2D", "Freeform Directional 2D"), HonamiDocLocalization.Get("Blends clips placed at 2D positions by an X / Y parameter pair, for strafing locomotion. Needs exactly one clip at (0,0) and directions surrounding it; looping clips stay in phase, with an optional per-clip Cycle Offset.", "Змішує кліпи, розміщені у 2D-позиціях, за парою параметрів X / Y — для страйф-локомоції. Потрібен рівно один кліп у (0,0) і напрямки навколо нього; зациклені кліпи лишаються у фазі, з необов'язковим Cycle Offset для кожного кліпу."))
             );
 
             HonamiDocumentationBuilder.AddHeader(root, HonamiDocLocalization.Get("Properties", "Властивості"), HonamiEditorIcons.Controller);

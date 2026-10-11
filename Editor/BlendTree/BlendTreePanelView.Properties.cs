@@ -66,8 +66,18 @@ namespace HonamiAnimationSystem.Editor.BlendTree
             scroll.Add(generalBox);
 
             AddBoundField(generalBox, _state.NodeSO, "blendType", "Blend Mode");
-            AddParameterDropdown(generalBox);
-            AddBoundField(generalBox, _state.NodeSO, "blendParameterDampTime", "Damp Time");
+            if (_state.IsDirectional2D)
+            {
+                AddParameterDropdown(generalBox, "blendParameter", "X Parameter");
+                AddBoundField(generalBox, _state.NodeSO, "blendParameterDampTime", "X Damp Time");
+                AddParameterDropdown(generalBox, "blendParameterY", "Y Parameter");
+                AddBoundField(generalBox, _state.NodeSO, "blendParameterDampTimeY", "Y Damp Time");
+            }
+            else
+            {
+                AddParameterDropdown(generalBox, "blendParameter", "Parameter");
+                AddBoundField(generalBox, _state.NodeSO, "blendParameterDampTime", "Damp Time");
+            }
 
             if (_state.StateSO != null)
             {
@@ -77,12 +87,13 @@ namespace HonamiAnimationSystem.Editor.BlendTree
                 AddBoundField(generalBox, _state.StateSO, "mirror", "Mirror State");
             }
 
-            var motionsFoldout = HonamiGraphStyles.Foldout("Motions (1D)");
+            var motionsFoldout = HonamiGraphStyles.Foldout(_state.IsDirectional2D ? "Motions (2D)" : "Motions (1D)");
             scroll.Add(motionsFoldout);
 
             BuildMotionsList(motionsFoldout);
 
-            motionsFoldout.Add(HonamiGraphStyles.TallButton("Distribute Thresholds Evenly", DistributeThresholds));
+            if (!_state.IsDirectional2D)
+                motionsFoldout.Add(HonamiGraphStyles.TallButton("Distribute Thresholds Evenly", DistributeThresholds));
         }
 
         private void AddBoundField(VisualElement parent, SerializedObject so, string propName, string label)
@@ -94,9 +105,9 @@ namespace HonamiAnimationSystem.Editor.BlendTree
             parent.Add(field);
         }
 
-        private void AddParameterDropdown(VisualElement parent)
+        private void AddParameterDropdown(VisualElement parent, string propertyName, string label)
         {
-            var prop = _state.NodeSO.FindProperty("blendParameter");
+            var prop = _state.NodeSO.FindProperty(propertyName);
             if (prop == null || _state.Controller == null) return;
 
             var paramNames = _state.Controller.parameters
@@ -106,7 +117,7 @@ namespace HonamiAnimationSystem.Editor.BlendTree
             paramNames.Insert(0, "- None -");
 
             int index = string.IsNullOrEmpty(prop.stringValue) ? 0 : Mathf.Max(0, paramNames.IndexOf(prop.stringValue));
-            var dropdown = new DropdownField("Parameter", paramNames, index);
+            var dropdown = new DropdownField(label, paramNames, index);
             dropdown.RegisterValueChangedCallback(evt =>
             {
                 _state.NodeSO.Update();
@@ -135,8 +146,17 @@ namespace HonamiAnimationSystem.Editor.BlendTree
                     marginBottom = 2
                 }
             };
+            bool directional2D = _state.IsDirectional2D;
             header.Add(ColumnLabel("Clip", flexGrow: 1));
-            header.Add(ColumnLabel("Threshold", width: 66));
+            if (directional2D)
+            {
+                header.Add(ColumnLabel("X", width: 52));
+                header.Add(ColumnLabel("Y", width: 52));
+            }
+            else
+            {
+                header.Add(ColumnLabel("Threshold", width: 66));
+            }
             header.Add(ColumnLabel("Speed", width: 54));
             header.Add(ColumnLabel("Mirror", width: 42));
             header.Add(new VisualElement { style = { width = 24 } });
@@ -208,11 +228,28 @@ namespace HonamiAnimationSystem.Editor.BlendTree
             clip.style.marginRight = 2;
             row.Add(clip);
 
-            var threshold = new FloatField { name = "threshold" };
-            threshold.style.width = 66;
-            threshold.style.flexShrink = 0;
-            threshold.style.marginRight = 2;
-            row.Add(threshold);
+            if (_state.IsDirectional2D)
+            {
+                var positionX = new FloatField { name = "positionX" };
+                positionX.style.width = 52;
+                positionX.style.flexShrink = 0;
+                positionX.style.marginRight = 2;
+                row.Add(positionX);
+
+                var positionY = new FloatField { name = "positionY" };
+                positionY.style.width = 52;
+                positionY.style.flexShrink = 0;
+                positionY.style.marginRight = 2;
+                row.Add(positionY);
+            }
+            else
+            {
+                var threshold = new FloatField { name = "threshold" };
+                threshold.style.width = 66;
+                threshold.style.flexShrink = 0;
+                threshold.style.marginRight = 2;
+                row.Add(threshold);
+            }
 
             var speed = new FloatField { name = "speed" };
             speed.style.width = 54;
@@ -256,7 +293,16 @@ namespace HonamiAnimationSystem.Editor.BlendTree
             var motionProp = motionsProp.GetArrayElementAtIndex(index);
 
             element.Q<ObjectField>("clip").BindProperty(motionProp.FindPropertyRelative("clip"));
-            element.Q<FloatField>("threshold").BindProperty(motionProp.FindPropertyRelative("threshold"));
+            if (_state.IsDirectional2D)
+            {
+                SerializedProperty position = motionProp.FindPropertyRelative("position");
+                element.Q<FloatField>("positionX").BindProperty(position.FindPropertyRelative("x"));
+                element.Q<FloatField>("positionY").BindProperty(position.FindPropertyRelative("y"));
+            }
+            else
+            {
+                element.Q<FloatField>("threshold").BindProperty(motionProp.FindPropertyRelative("threshold"));
+            }
             element.Q<FloatField>("speed").BindProperty(motionProp.FindPropertyRelative("speed"));
             element.Q<Toggle>("mirror").BindProperty(motionProp.FindPropertyRelative("mirror"));
 

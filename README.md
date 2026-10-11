@@ -278,12 +278,12 @@ Only the areas where the two genuinely diverge - where Mecanim already does the 
 | **Many characters** | ❌ No cross-animator coordination. | ✅ Linked Brain broadcast by tag, radius, wave or closest-N. |
 | **Objects that don't need a graph** | ⚠️ A controller asset per NPC and per door, or the deprecated legacy `Animation` component. | ✅ Clip Player: a clip list on the object, played by name, on the same runtime and rig stack as everything else. |
 | **Debugging** | ❌ Basic active-state progress bar. | ✅ Live node highlighting, weights and transition values. |
-| **Blend trees** | ✅ 1D and 2D blend trees. | ⚠️ 1D only (2D on the roadmap). |
+| **Blend trees** | ✅ 1D and 2D blend trees. | ⚠️ 1D and Freeform Directional 2D (no Cartesian or Direct 2D). |
 | **Retargeting** | ✅ Humanoid muscle-space retargeting across skeletons. | ⚠️ No runtime retargeting - binds by transform path. The Humanoid Baker tool retargets Humanoid clips onto your skeleton offline and bakes them to Generic. |
 
 ## Honest scope
 
-Honami drives any Animator-based object, and it shines on fast, code-driven action games and on complex or exotic rigs. It is **not** a drop-in Mecanim replacement for every project, though: there's **no runtime Humanoid retargeting** (marketplace Humanoid clips are supported via the offline Humanoid Baker tool), blend trees are **1D only** (no 2D blend space), and overlays use masked layers (additive / aim-offset is on the roadmap). If your project leans on live cross-skeleton retargeting or 2D blendspace locomotion, Unity's built-in Animator is still the better fit.
+Honami drives any Animator-based object, and it shines on fast, code-driven action games and on complex or exotic rigs. It is **not** a drop-in Mecanim replacement for every project, though: there's **no runtime Humanoid retargeting** (marketplace Humanoid clips are supported via the offline Humanoid Baker tool), 2D blend trees are **Freeform Directional only** (no Cartesian or Direct), and overlays use masked layers (additive / aim-offset is on the roadmap). If your project leans on live cross-skeleton retargeting or Cartesian / Direct blend spaces, Unity's built-in Animator is still the better fit.
 
 ## Migrating from Mecanim
 
@@ -299,7 +299,7 @@ Your rig setup, whatever it is, stays as-is. A Humanoid character keeps its Huma
 
 Everything lives under **Window ▸ Honami ▸ Tools**:
 
-**Animator Converter** - right-click any `AnimatorController` and choose *Convert to Honami Controller* (or open the window and pick one). It generates a `HonamiController` with your parameters and their defaults, layers with weights, every state (speed, loop, graph positions preserved), sub-state machines (each gets its own Any State and Exit), and transitions with their conditions, exit times and interruption settings. Two things don't auto-port and the converter says so: **2D blend trees** are flattened into a 1D motion list (re-author them as 1D trees, states or layers), and **`StateMachineBehaviour`s** have no direct equivalent - recreate them as Sub-Nodes, which is usually less code.
+**Animator Converter** - right-click any `AnimatorController` and choose *Convert to Honami Controller* (or open the window and pick one). It generates a `HonamiController` with your parameters and their defaults, layers with weights, every state (speed, loop, graph positions preserved), sub-state machines (each gets its own Any State and Exit), and transitions with their conditions, exit times and interruption settings. Freeform and Simple Directional 2D blend trees convert to Honami 2D trees (positions, speeds and cycle offsets preserved). A 2D tree needs a centre motion at (0,0) with directions surrounding it; trees that don't convert with a warning and need fixing. Negative or reverse speeds and mirroring can't be represented and are dropped with a warning, and Simple Directional interpolation may differ slightly from Unity's. Two things don't auto-port and the converter says so: **Cartesian 2D and Direct blend trees** (and 2D trees with nested trees) are flattened into a 1D motion list (re-author them as 1D trees, states or layers), and **`StateMachineBehaviour`s** have no direct equivalent - recreate them as Sub-Nodes, which is usually less code.
 
 **Script API Converter** - scans a folder for C# scripts that use the Animator API, lists the affected files, and lets you convert the ones you tick. It finds your `Animator` fields and variables and rewrites them in place: type references (`Animator`, `GetComponent<Animator>`, `typeof(Animator)`) become `HonamiAnimator`, and `Play` / `CrossFade` / `CrossFadeInFixedTime` become `PlayState`. Parameter calls like `SetFloat`, `SetBool` and `SetTrigger` are left alone on purpose - `HonamiAnimator` uses the same method names, so they compile as-is. Converted files also get `using HonamiAnimationSystem.Runtime.Core;` inserted automatically. It's a source-code rewrite, so **commit first** and review the diff after.
 
@@ -311,7 +311,7 @@ Everything lives under **Window ▸ Honami ▸ Tools**:
 
 **A Humanoid character coming off Mecanim:**
 
-1. Convert its `AnimatorController` with the Animator Converter; re-author 2D trees and behaviours.
+1. Convert its `AnimatorController` with the Animator Converter; re-author Cartesian/Direct trees and behaviours.
 2. Add `HonamiAnimator` to the prefab, assign the new `HonamiController`, clear the Animator's Controller slot - Avatar stays.
 3. Bake the Humanoid clips with the Humanoid Baker and drop the baked clips into the converted states.
 4. Run the Script API Converter over that character's scripts.
@@ -326,7 +326,7 @@ Everything lives under **Window ▸ Honami ▸ Tools**:
 Honami is in active beta. In progress and planned:
 
 - **Cinematic Director** - clip-to-clip blending, camera tracks and full cutscene tooling on top of the current sequencer.
-- **2D blend trees** - a full 2D blend space alongside the current 1D trees.
+- **More 2D blend types** - Freeform Cartesian and Direct trees alongside Freeform Directional.
 - **Additive** - additive layers for recoil, lean and look/aim overlays.
 - **Inertialization** - velocity-preserving transition blending.
 

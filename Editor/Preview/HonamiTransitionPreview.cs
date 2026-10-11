@@ -2,6 +2,7 @@
 using System;
 using System.Collections.Generic;
 using UnityEditor;
+using UnityEditor.UIElements;
 using UnityEngine;
 using UnityEngine.UIElements;
 using HonamiAnimationSystem.Runtime.Core;
@@ -38,6 +39,8 @@ namespace HonamiAnimationSystem.Editor.Preview
         private readonly List<AnimationClip> _clipBuffer = new();
         private HonamiPreviewSkeleton.Pose _poseFrom;
         private HonamiPreviewSkeleton.Pose _poseTo;
+        private readonly Dictionary<HonamiState, Vector2> _directionalInputs = new();
+        private float[] _directionalWeightBuffer = Array.Empty<float>();
 
         private IMGUIContainer _viewport;
         private Slider _progressSlider;
@@ -198,24 +201,85 @@ namespace HonamiAnimationSystem.Editor.Preview
             var src = EffectiveSource;
             if (src?.node is HonamiBlendTreeNode sourceTree)
             {
-                if (_sourceBlendState != src)
+                if (sourceTree.blendType == HonamiBlendTreeType.FreeformDirectional2D)
                 {
-                    _sourceBlend = MidBlendValue(sourceTree);
-                    _sourceBlendState = src;
+                    _blendContainer.Add(BuildDirectionalControls(src, sourceTree));
                 }
-                GetBlendRange(sourceTree, out float min, out float max);
-                _sourceBlend = Mathf.Clamp(_sourceBlend, min, max);
-                _blendContainer.Add(BlendSliderRow($"{src.stateName} blend", min, max, _sourceBlend,
-                    v => { _sourceBlend = v; MarkDirty(); }));
+                else
+                {
+                    if (_sourceBlendState != src)
+                    {
+                        _sourceBlend = MidBlendValue(sourceTree);
+                        _sourceBlendState = src;
+                    }
+                    GetBlendRange(sourceTree, out float min, out float max);
+                    _sourceBlend = Mathf.Clamp(_sourceBlend, min, max);
+                    _blendContainer.Add(BlendSliderRow($"{src.stateName} blend", min, max, _sourceBlend,
+                        v => { _sourceBlend = v; MarkDirty(); }));
+                }
             }
 
             if (_target?.node is HonamiBlendTreeNode targetTree)
             {
-                GetBlendRange(targetTree, out float min, out float max);
-                _targetBlend = Mathf.Clamp(_targetBlend, min, max);
-                _blendContainer.Add(BlendSliderRow($"{_target.stateName} blend", min, max, _targetBlend,
-                    v => { _targetBlend = v; MarkDirty(); }));
+                if (targetTree.blendType == HonamiBlendTreeType.FreeformDirectional2D)
+                {
+                    _blendContainer.Add(BuildDirectionalControls(_target, targetTree));
+                }
+                else
+                {
+                    GetBlendRange(targetTree, out float min, out float max);
+                    _targetBlend = Mathf.Clamp(_targetBlend, min, max);
+                    _blendContainer.Add(BlendSliderRow($"{_target.stateName} blend", min, max, _targetBlend,
+                        v => { _targetBlend = v; MarkDirty(); }));
+                }
             }
+        }
+
+        private VisualElement BuildDirectionalControls(HonamiState state, HonamiBlendTreeNode node)
+        {
+            if (!_directionalInputs.TryGetValue(state, out Vector2 input))
+            {
+                input = Vector2.zero;
+                _directionalInputs[state] = input;
+            }
+
+            var container = new VisualElement { style = { marginBottom = 4 } };
+            container.Add(new Label($"{state.stateName} direction")
+            {
+                style = { fontSize = 9, unityFontStyleAndWeight = FontStyle.Bold, color = new Color(0.62f, 0.72f, 0.85f), marginBottom = 2 }
+            });
+            var row = new VisualElement { style = { flexDirection = FlexDirection.Row, alignItems = Align.Center } };
+            string xName = string.IsNullOrEmpty(node.blendParameter) ? "X" : node.blendParameter;
+            string yName = string.IsNullOrEmpty(node.blendParameterY) ? "Y" : node.blendParameterY;
+            AddDirectionalAxis(row, xName, input.x, value => SetDirectionalInput(state, new Vector2(value, CurrentDirectionalInput(state).y)));
+            AddDirectionalAxis(row, yName, input.y, value => SetDirectionalInput(state, new Vector2(CurrentDirectionalInput(state).x, value)));
+            container.Add(row);
+            return container;
+        }
+
+        private static void AddDirectionalAxis(VisualElement row, string axis, float value, Action<float> onChanged)
+        {
+            var caption = new Label(axis)
+            {
+                style = { fontSize = 9, unityFontStyleAndWeight = FontStyle.Bold, color = new Color(0.5f, 0.7f, 1f), marginRight = 3 }
+            };
+            row.Add(caption);
+            var field = new FloatField { value = value, tooltip = $"Preview {axis} parameter" };
+            field.style.width = 72;
+            field.style.marginRight = 8;
+            field.RegisterValueChangedCallback(evt => onChanged?.Invoke(evt.newValue));
+            row.Add(field);
+            new FieldMouseDragger<float>(field).SetDragZone(caption);
+        }
+
+        private Vector2 CurrentDirectionalInput(HonamiState state)
+            => _directionalInputs.TryGetValue(state, out Vector2 input) ? input : Vector2.zero;
+
+        private void SetDirectionalInput(HonamiState state, Vector2 input)
+        {
+            if (state == null || !IsFinite(input.x) || !IsFinite(input.y)) return;
+            _directionalInputs[state] = input;
+            MarkDirty();
         }
 
         private static VisualElement BlendSliderRow(string label, float min, float max, float value, Action<float> onChange)
@@ -299,7 +363,11 @@ namespace HonamiAnimationSystem.Editor.Preview
             _lastUpdate = EditorApplication.timeSinceStartup;
         }
 
-        public void MarkDirty() => _viewport?.MarkDirtyRepaint();
+        public void MarkDirty()
+        {
+            RefreshChrome();
+            _viewport?.MarkDirtyRepaint();
+        }
 
         private void OnEditorUpdate()
         {
@@ -426,24 +494,57 @@ namespace HonamiAnimationSystem.Editor.Preview
             switch (state?.node)
             {
                 case HonamiAnimationNode a when a.clip != null:
-                    _skeleton.SampleSingle(a.clip, normalizedTime, true, reversed);
+                    _skeleton.SampleSingle(a.clip, normalizedTime, state.loop, reversed);
                     return true;
                 case HonamiBlendTreeNode bt when bt.blendMotions != null && bt.blendMotions.Count > 0:
-                    _skeleton.SampleBlend(bt.blendMotions, blendValue, normalizedTime, true, reversed);
+                    if (bt.blendType == HonamiBlendTreeType.FreeformDirectional2D)
+                    {
+                        if (!TryGetDirectionalWeights(state, bt, out float[] weights, out _, out _))
+                            return false;
+                        _skeleton.SampleDirectionalBlend(bt.blendMotions, weights, normalizedTime, reversed);
+                        return true;
+                    }
+                    _skeleton.SampleBlend(bt.blendMotions, blendValue, normalizedTime, state.loop, reversed);
                     return true;
                 case HonamiRandomAnimationNode r when FirstClip(r) != null:
-                    _skeleton.SampleSingle(FirstClip(r), normalizedTime, true, reversed);
+                    _skeleton.SampleSingle(FirstClip(r), normalizedTime, state.loop, reversed);
                     return true;
                 default:
                     return false;
             }
         }
 
-        private static float SafeDuration(HonamiState state)
+        private float SafeDuration(HonamiState state)
         {
-            float d = HonamiStateInspector.GetStateDuration(state);
+            if (state?.node is HonamiBlendTreeNode directional &&
+                directional.blendType == HonamiBlendTreeType.FreeformDirectional2D &&
+                TryGetDirectionalWeights(state, directional, out _, out float period, out _) &&
+                period > 0f && state.speed > 0f)
+                return period / state.speed;
+
+            float d = HonamiStateInspector.GetStateDuration(state, _controller);
             return d > 0f ? d : 1f;
         }
+
+        private bool TryGetDirectionalWeights(HonamiState state, HonamiBlendTreeNode node,
+            out float[] weights, out float period, out string error)
+        {
+            int count = node?.blendMotions?.Count ?? 0;
+            if (_directionalWeightBuffer.Length != count) _directionalWeightBuffer = new float[count];
+            weights = _directionalWeightBuffer;
+            period = 0f;
+            error = null;
+            if (count == 0)
+            {
+                error = "The directional blend tree has no motions.";
+                return false;
+            }
+            if (!node.TryGetDirectionalSolver(out HonamiDirectionalBlendSolver solver, out error)) return false;
+            Vector2 input = _directionalInputs.TryGetValue(state, out Vector2 value) ? value : Vector2.zero;
+            return HonamiBlendTreeEvaluator.TryEvaluateDirectional(solver, input, weights, out period, out error);
+        }
+
+        private static bool IsFinite(float value) => !float.IsNaN(value) && !float.IsInfinity(value);
 
         private static float MidBlendValue(HonamiBlendTreeNode node)
         {
@@ -492,16 +593,19 @@ namespace HonamiAnimationSystem.Editor.Preview
             switch (e.type)
             {
                 case EventType.MouseDown:
+                    if (e.button != 1 && e.button != 2) break;
                     _dragging = true;
                     _dragButton = e.button;
                     e.Use();
                     break;
                 case EventType.MouseUp:
+                    if (!_dragging || e.button != _dragButton) break;
                     _dragging = false;
+                    e.Use();
                     break;
                 case EventType.MouseDrag:
                     if (!_dragging) break;
-                    if (_dragButton == 0) _stage.Orbit(e.delta);
+                    if (_dragButton == 1) _stage.Orbit(e.delta);
                     else _stage.Pan(e.delta);
                     MarkDirty();
                     e.Use();

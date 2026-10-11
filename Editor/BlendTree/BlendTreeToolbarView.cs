@@ -21,6 +21,7 @@ namespace HonamiAnimationSystem.Editor.BlendTree
         private ObjectField _controllerField;
         private DropdownField _stateDropdown;
         private Label _blendTypeLabel;
+        private Button _distributeButton;
         private Toggle _propsToggle;
         private Toggle _previewToggle;
         private readonly List<string> _stateChoices = new();
@@ -53,6 +54,7 @@ namespace HonamiAnimationSystem.Editor.BlendTree
             _previewToggle?.SetValueWithoutNotify(_state.ShowPreview);
             RefreshStateDropdown();
             RefreshBlendTypeLabel();
+            _distributeButton?.SetEnabled(!_state.IsDirectional2D);
         }
 
         private void Build()
@@ -110,7 +112,8 @@ namespace HonamiAnimationSystem.Editor.BlendTree
             scroll.Add(FlexibleSpace());
 
             scroll.Add(HonamiToolbarControls.ToolbarButton("Frame All", () => _getPanel()?.FrameAll()));
-            scroll.Add(HonamiToolbarControls.ToolbarButton("Distribute Evenly", () => _getPanel()?.DistributeThresholds()));
+            _distributeButton = HonamiToolbarControls.ToolbarButton("Distribute Evenly", () => _getPanel()?.DistributeThresholds());
+            scroll.Add(_distributeButton);
             scroll.Add(Separator());
 
             _propsToggle = HonamiToolbarControls.ToolbarToggle("Props", _state.ShowProperties, value =>

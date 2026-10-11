@@ -99,9 +99,15 @@ namespace HonamiAnimationSystem.Editor
         }
 
         [UnityEditor.Callbacks.OnOpenAsset(1)]
+#if UNITY_6000_6_OR_NEWER
+        public static bool OnOpenAsset(EntityId entityId, int line)
+        {
+            var obj = EditorUtility.EntityIdToObject(entityId);
+#else
         public static bool OnOpenAsset(int instanceID, int line)
         {
-            var obj = EditorUtility.EntityIdToObject(instanceID);
+            var obj = EditorUtility.InstanceIDToObject(instanceID);
+#endif
             if (obj is Runtime.Core.HonamiRuntimeController || obj is Runtime.Core.HonamiLinkedAnimatorGraph || obj is Runtime.Core.HonamiControllerProfileGraph)
             {
                 var w = GetWindow<HonamiGraphWindow>();

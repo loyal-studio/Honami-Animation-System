@@ -15,6 +15,14 @@ namespace HonamiAnimationSystem.Editor
         private bool convertStates = true;
         private bool convertTransitions = true;
 
+        // Messages collected during the last conversion (blend tree fallbacks, dropped features).
+        internal readonly List<string> conversionWarnings = new();
+        // Informational notes (not counted as problems in the result dialog).
+        internal readonly List<string> conversionInfo = new();
+
+        // "layer 'X', sub-state machine 'A/B'" for the state machine currently being converted.
+        private string currentContext = "";
+
         [MenuItem("Window/Honami/Tools/Honami Animator Converter")]
         public static void ShowWindow()
         {
@@ -84,6 +92,24 @@ namespace HonamiAnimationSystem.Editor
                 return;
             }
 
+            RunConversion(source, path);
+
+            string message = "Conversion to Honami Controller complete!\nNote: Some elements (e.g. Cartesian/Direct BlendTrees, Behaviours) may require manual adjustments.";
+            if (conversionWarnings.Count > 0)
+            {
+                message += "\n\n" + conversionWarnings.Count + " blend tree warning(s) were written to the Console.";
+            }
+            EditorUtility.DisplayDialog("Success", message, "OK");
+        }
+
+        /// <summary>
+        /// Converts <paramref name="source"/> into a new HonamiController asset at <paramref name="path"/>.
+        /// Blend tree notes are collected in <see cref="conversionWarnings"/> and logged as warnings.
+        /// </summary>
+        internal HonamiController RunConversion(AnimatorController source, string path)
+        {
+            conversionWarnings.Clear();
+            conversionInfo.Clear();
 
             HonamiController target = ScriptableObject.CreateInstance<HonamiController>();
             AssetDatabase.CreateAsset(target, path);
@@ -109,8 +135,19 @@ namespace HonamiAnimationSystem.Editor
             EditorUtility.SetDirty(target);
             AssetDatabase.SaveAssets();
             AssetDatabase.Refresh();
+            return target;
+        }
 
-            EditorUtility.DisplayDialog("Success", "Conversion to Honami Controller complete!\nNote: Some elements (e.g. 2D BlendTrees, Behaviours) may require manual adjustments.", "OK");
+        private void AddInfo(string message)
+        {
+            conversionInfo.Add(message);
+            Debug.Log("[Honami Converter] " + message);
+        }
+
+        private void AddWarning(string message)
+        {
+            conversionWarnings.Add(message);
+            Debug.LogWarning("[Honami Converter] " + message);
         }
 
         private void ConvertParameters(AnimatorController source, HonamiController target)
@@ -159,6 +196,7 @@ namespace HonamiAnimationSystem.Editor
 
                 if (convertStates)
                 {
+                    currentContext = $"layer '{l.name}'";
                     ConvertStateMachine(l.stateMachine, target, i, stateMap, anyStateMap, exitStateMap, stateMachineDefaultStates);
                 }
             }
@@ -234,9 +272,7 @@ namespace HonamiAnimationSystem.Editor
                 {
                     HonamiBlendTreeNode btNode = ScriptableObject.CreateInstance<HonamiBlendTreeNode>();
                     btNode.name = aState.name + "_Node";
-                    btNode.blendParameter = blendTree.blendParameter;
-
-                    ExtractBlendTreeMotionsFlat(blendTree, btNode.blendMotions);
+                    ConvertBlendTree(blendTree, aState, btNode);
 
                     AssetDatabase.AddObjectToAsset(btNode, target);
                     hState.node = btNode;
@@ -255,8 +291,10 @@ namespace HonamiAnimationSystem.Editor
                 stateMap[aState] = hState;
             }
 
+            string stateMachineContext = currentContext;
             foreach (var childSm in sm.stateMachines)
             {
+                currentContext = stateMachineContext + $", sub-state machine '{childSm.stateMachine.name}'";
                 ConvertStateMachine(childSm.stateMachine, target, layerIndex, stateMap, anyStateMap, exitStateMap, stateMachineDefaultStates);
 
                 // Inherit default state for the top-level parent if necessary
@@ -267,7 +305,114 @@ namespace HonamiAnimationSystem.Editor
             }
         }
 
-        private void ExtractBlendTreeMotionsFlat(UBlendTree tree, List<HonamiBlendTreeMotion> motions)
+        private void ConvertBlendTree(UBlendTree tree, AnimatorState state, HonamiBlendTreeNode node)
+        {
+            node.blendParameter = tree.blendParameter;
+            string label = $"Blend tree '{tree.name}' in state '{state.name}' ({currentContext})";
+
+            switch (tree.blendType)
+            {
+                case BlendTreeType.FreeformDirectional2D:
+                case BlendTreeType.SimpleDirectional2D:
+                    if (TryConvertDirectional2D(tree, state, label, node)) return;
+                    break;
+                case BlendTreeType.FreeformCartesian2D:
+                case BlendTreeType.Direct:
+                    AddWarning($"{label} is {tree.blendType}, which Honami does not support. "
+                        + "It was flattened into a 1D motion list; re-author it as 1D trees, states or layers.");
+                    break;
+            }
+
+            ExtractBlendTreeMotionsFlat(tree, node.blendMotions, label);
+        }
+
+        // Returns false when the tree cannot be represented as a flat Honami 2D tree (caller falls back to flattening).
+        private bool TryConvertDirectional2D(UBlendTree tree, AnimatorState state, string label, HonamiBlendTreeNode node)
+        {
+            var children = tree.children;
+            for (int i = 0; i < children.Length; i++)
+            {
+                if (children[i].motion is UBlendTree)
+                {
+                    AddWarning($"{label} is {tree.blendType} with a nested blend tree, which Honami's flat 2D tree cannot hold. "
+                        + "It was flattened into a 1D motion list; re-author it manually.");
+                    return false;
+                }
+            }
+
+            node.blendType = HonamiBlendTreeType.FreeformDirectional2D;
+            node.blendParameterY = tree.blendParameterY;
+            // Unity blend trees do not damp their parameters; match that instead of Honami's 0.1 default.
+            node.blendParameterDampTime = 0f;
+            node.blendParameterDampTimeY = 0f;
+
+            if (float.IsNaN(state.speed) || float.IsInfinity(state.speed) || state.speed < 0f)
+            {
+                AddWarning($"{label} is in a state with speed {state.speed}; Honami rejects negative or non-finite state speed for 2D trees, so it will play as an empty mixer until fixed.");
+            }
+            if (state.mirror || state.mirrorParameterActive)
+            {
+                AddWarning($"{label} is in a mirrored state (mirror / mirror parameter), which Honami's 2D tree does not support; mirroring was dropped.");
+            }
+            if (state.speedParameterActive)
+            {
+                AddWarning($"{label} is in a state with a speed multiplier parameter ('{state.speedParameter}'), which was dropped.");
+            }
+            if (state.cycleOffset != 0f || state.cycleOffsetParameterActive)
+            {
+                AddWarning($"{label} is in a state with a state-level cycle offset, which was dropped.");
+            }
+
+            bool droppedMirror = false;
+            for (int i = 0; i < children.Length; i++)
+            {
+                var child = children[i];
+                if (!(child.motion is AnimationClip clip))
+                {
+                    AddWarning($"{label} has an empty motion slot at index {i}; it was skipped. "
+                        + "Unity still weights a null child, so skipping it changes the blend layout (a null child at the origin leaves no origin motion).");
+                    continue;
+                }
+
+                if (float.IsNaN(child.timeScale) || float.IsInfinity(child.timeScale) || child.timeScale <= 0f)
+                {
+                    AddWarning($"{label}: child {i} ('{clip.name}') has timeScale {child.timeScale}. Unity reverse playback (timeScale <= 0) has no Honami equivalent; the tree will not evaluate until it is positive.");
+                }
+
+                node.blendMotions.Add(new HonamiBlendTreeMotion
+                {
+                    clip = clip,
+                    position = child.position,
+                    threshold = child.threshold,
+                    speed = child.timeScale,
+                    cycleOffset = HonamiBlendTreeNode.WrapCycleOffset(child.cycleOffset),
+                    // Honami's flat 2D profile rejects mirrored motions, so the flag is not carried over.
+                    mirror = false
+                });
+                droppedMirror |= child.mirror;
+            }
+
+            if (droppedMirror)
+            {
+                AddWarning($"{label} uses mirrored motions, which Honami's 2D tree does not support; mirroring was dropped.");
+            }
+
+            if (tree.blendType == BlendTreeType.SimpleDirectional2D)
+            {
+                AddInfo($"{label} is SimpleDirectional2D; it was converted to FreeformDirectional2D. Honami uses its own directional interpolation, so intermediate blends may differ slightly from Unity.");
+            }
+
+            if (!node.TryGetDirectionalSolver(out _, out string error))
+            {
+                AddWarning($"{label} was converted but will not evaluate until fixed: {error} "
+                    + "(Honami needs one motion at (0,0), distinct positions surrounding the origin, positive speeds, positive clip lengths and at most "
+                    + HonamiDirectionalBlendSolver.MaximumMotionCount + " motions).");
+            }
+
+            return true;
+        }
+
+        private void ExtractBlendTreeMotionsFlat(UBlendTree tree, List<HonamiBlendTreeMotion> motions, string label)
         {
             foreach (var child in tree.children)
             {
@@ -281,7 +426,10 @@ namespace HonamiAnimationSystem.Editor
                 }
                 else if (child.motion is UBlendTree nestedTree)
                 {
-                    ExtractBlendTreeMotionsFlat(nestedTree, motions);
+                    bool is2D = nestedTree.blendType != BlendTreeType.Simple1D;
+                    AddWarning($"{label} contains a nested {nestedTree.blendType} blend tree '{nestedTree.name}' that was flattened into the parent's motion list; Honami has no nested blend trees."
+                        + (is2D ? " Thresholds of the 2D tree's motions are meaningless in a 1D list." : ""));
+                    ExtractBlendTreeMotionsFlat(nestedTree, motions, label);
                 }
             }
         }
@@ -300,14 +448,14 @@ namespace HonamiAnimationSystem.Editor
 
                 foreach (var trans in aState.transitions)
                 {
-                    ProcessTransition(trans, aState, hState, stateMap, exitStateMap, stateMachineDefaultStates);
+                    ProcessTransition(source, trans, aState, hState, stateMap, exitStateMap, stateMachineDefaultStates);
                 }
             }
 
             // Convert AnyState transitions
             foreach (var layer in source.layers)
             {
-                ProcessStateMachineTransitions(layer.stateMachine, sourceAnimator, stateMap, anyStateMap, exitStateMap, stateMachineDefaultStates);
+                ProcessStateMachineTransitions(layer.stateMachine, source, stateMap, anyStateMap, exitStateMap, stateMachineDefaultStates);
             }
         }
 
@@ -321,7 +469,7 @@ namespace HonamiAnimationSystem.Editor
             {
                 foreach (var trans in sm.anyStateTransitions)
                 {
-                    ProcessTransition(trans, null, hAnyState, stateMap, exitStateMap, stateMachineDefaultStates);
+                    ProcessTransition(ac, trans, null, hAnyState, stateMap, exitStateMap, stateMachineDefaultStates);
                 }
             }
 
@@ -331,7 +479,7 @@ namespace HonamiAnimationSystem.Editor
             }
         }
 
-        private void ProcessTransition(AnimatorStateTransition trans, AnimatorState sourceState, HonamiState sourceHState,
+        private void ProcessTransition(AnimatorController ac, AnimatorStateTransition trans, AnimatorState sourceState, HonamiState sourceHState,
             Dictionary<AnimatorState, HonamiState> stateMap,
             Dictionary<AnimatorStateMachine, HonamiState> exitStateMap,
             Dictionary<AnimatorStateMachine, HonamiState> stateMachineDefaultStates)
@@ -340,7 +488,7 @@ namespace HonamiAnimationSystem.Editor
 
             if (trans.isExit)
             {
-                AnimatorStateMachine parentSm = FindParentStateMachine(sourceAnimator, sourceState);
+                AnimatorStateMachine parentSm = FindParentStateMachine(ac, sourceState);
                 if (parentSm != null && exitStateMap.TryGetValue(parentSm, out HonamiState exitState))
                 {
                     destHState = exitState;

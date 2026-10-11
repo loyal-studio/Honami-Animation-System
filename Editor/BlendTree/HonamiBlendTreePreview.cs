@@ -158,6 +158,9 @@ namespace HonamiAnimationSystem.Editor.BlendTree
 
         private float CurrentDuration()
         {
+            if (_state.IsDirectional2D)
+                return _state.GetDirectionalPreviewDuration();
+
             var node = _state.Node;
             if (node == null || node.blendMotions == null || node.blendMotions.Count == 0) return 1f;
             return HonamiBlendTreeEvaluator.GetDurationFromMotions(node.blendMotions, _state.PreviewValue);
@@ -194,11 +197,25 @@ namespace HonamiAnimationSystem.Editor.BlendTree
 
             bool ready = EnsureSkeleton();
             _emptyHint.style.display = ready ? DisplayStyle.None : DisplayStyle.Flex;
-            if (!ready) return;
+            if (!ready)
+            {
+                _emptyHint.text = "No clips with transform curves.";
+                return;
+            }
 
             var node = _state.Node;
+            if (_state.IsDirectional2D && !string.IsNullOrEmpty(_state.DirectionalPreviewError))
+            {
+                _emptyHint.text = _state.DirectionalPreviewError;
+                _emptyHint.style.display = DisplayStyle.Flex;
+                return;
+            }
+            _emptyHint.text = "No clips with transform curves.";
             bool reversed = _state.State != null && _state.State.isReversed;
-            _skeleton.SampleBlend(node.blendMotions, _state.PreviewValue, _time, _loop, reversed);
+            if (_state.IsDirectional2D)
+                _skeleton.SampleDirectionalBlend(node.blendMotions, _state.Weights, _time, reversed);
+            else
+                _skeleton.SampleBlend(node.blendMotions, _state.PreviewValue, _time, _loop, reversed);
 
             if (_needsReframe)
             {
@@ -217,16 +234,19 @@ namespace HonamiAnimationSystem.Editor.BlendTree
             switch (e.type)
             {
                 case EventType.MouseDown:
+                    if (e.button != 1 && e.button != 2) break;
                     _dragging = true;
                     _dragButton = e.button;
                     e.Use();
                     break;
                 case EventType.MouseUp:
+                    if (!_dragging || e.button != _dragButton) break;
                     _dragging = false;
+                    e.Use();
                     break;
                 case EventType.MouseDrag:
                     if (!_dragging) break;
-                    if (_dragButton == 0) _stage.Orbit(e.delta);
+                    if (_dragButton == 1) _stage.Orbit(e.delta);
                     else _stage.Pan(e.delta);
                     MarkDirty();
                     e.Use();

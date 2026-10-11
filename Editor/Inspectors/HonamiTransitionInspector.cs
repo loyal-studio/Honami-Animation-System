@@ -205,7 +205,7 @@ namespace HonamiAnimationSystem.Editor
                 infoHdr.Add(new Label($"{(target.node != null ? target.node.GetType().Name : "State")} Info") { style = { unityFontStyleAndWeight = FontStyle.Bold, flexGrow = 1 } });
                 infoBox.Add(infoHdr);
 
-                float dur = HonamiStateInspector.GetStateDuration(target);
+                float dur = HonamiStateInspector.GetStateDuration(target, controller);
                 if (dur > 0)
                 {
                     infoBox.Add(HonamiGraphStyles.MiniLabel($"Duration: {dur:F2}s"));
@@ -216,11 +216,13 @@ namespace HonamiAnimationSystem.Editor
                 root.Add(new VisualElement { style = { height = 5 } });
             }
 
+            HonamiTransitionPreview transitionPreview = null;
             if (HonamiTransitionPreview.CanPreviewTransition(owner, target))
             {
                 var previewBox = HonamiGraphStyles.Box();
                 previewBox.Add(HonamiGraphStyles.SubTitle("Transition Preview"));
-                previewBox.Add(new HonamiTransitionPreview(owner, target, transition, controller));
+                transitionPreview = new HonamiTransitionPreview(owner, target, transition, controller);
+                previewBox.Add(transitionPreview);
                 root.Add(previewBox);
                 root.Add(new VisualElement { style = { height = 6 } });
             }
@@ -311,11 +313,12 @@ namespace HonamiAnimationSystem.Editor
             typeField.RegisterCallback<SerializedPropertyChangeEvent>(evt =>
             {
                 smartContainer.style.display = typeProp.enumValueIndex == (int)HonamiTransitionType.Smart ? DisplayStyle.Flex : DisplayStyle.None;
+                transitionPreview?.MarkDirty();
             });
 
             if (target != null && target.node is not HonamiExitNode)
             {
-                float targetDur = HonamiStateInspector.GetStateDuration(target);
+                float targetDur = HonamiStateInspector.GetStateDuration(target, controller);
                 var dstProp = tp.FindPropertyRelative("destinationStartTime");
 
                 if (targetDur > 0)
@@ -478,6 +481,7 @@ namespace HonamiAnimationSystem.Editor
             {
                 victimContainer.style.display = typeProp.enumValueIndex == (int)HonamiTransitionType.Victim ? DisplayStyle.Flex : DisplayStyle.None;
                 smartContainer.style.display = typeProp.enumValueIndex == (int)HonamiTransitionType.Smart ? DisplayStyle.Flex : DisplayStyle.None;
+                transitionPreview?.MarkDirty();
             });
             root.Add(curveBox);
 
