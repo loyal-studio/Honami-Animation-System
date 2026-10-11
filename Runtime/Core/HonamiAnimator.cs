@@ -84,6 +84,8 @@ namespace HonamiAnimationSystem.Runtime.Core
         internal readonly List<int> _exitTentativeBuffer = new();
         internal NativeArray<float> _blendStateValues;
         internal int[] _blendParamIndices;
+        internal int[] _blendParamYIndices;
+        internal HonamiBlend2DPortRuntime[][] _blend2DPorts;
         internal int _pCountTotal;
 
         internal bool _constraintsEnabled;
@@ -343,6 +345,7 @@ namespace HonamiAnimationSystem.Runtime.Core
                 HonamiLinkedAction.UnregisterAll(this);
 
                 Playable oldRoot = _playableOutput.GetSourcePlayable();
+                HonamiPlaybackEngine.ReleaseDirectionalPortsToFreeRunning(this);
 
                 _oldAvatarProcessor = _avatarProcessor;
                 _oldConstraints = _constraints;
@@ -666,7 +669,13 @@ namespace HonamiAnimationSystem.Runtime.Core
             if (!ignoreExitTime && t.hasExitTime)
             {
                 var playable = _layerMixers[layer].GetInput(stateIndex);
-                if (playable.IsValid())
+                if (playable.IsValid() && TryGetDirectionalPort(layer, stateIndex, stateIndex, out HonamiBlend2DPortRuntime directionalPort))
+                {
+                    if (HonamiBlendTreeEvaluator.TryGetDirectionalPeriod(directionalPort, out _) &&
+                        Mathf.Max(0f, (float)directionalPort.CyclePosition) < t.exitTime)
+                        return false;
+                }
+                else if (playable.IsValid())
                 {
                     float unscaledDuration = HonamiStateEvaluator.GetUnscaledStateDuration(
                         controller, state, stateIndex, GetNodeRuntime(stateIndex), GetStateBlendParam(stateIndex));
@@ -711,7 +720,13 @@ namespace HonamiAnimationSystem.Runtime.Core
             if (!ignoreExitTime && t.hasExitTime)
             {
                 var playable = _layerMixers[layer].GetInput(stateIndex);
-                if (playable.IsValid())
+                if (playable.IsValid() && TryGetDirectionalPort(layer, stateIndex, stateIndex, out HonamiBlend2DPortRuntime directionalPort))
+                {
+                    if (HonamiBlendTreeEvaluator.TryGetDirectionalPeriod(directionalPort, out _) &&
+                        Mathf.Max(0f, (float)directionalPort.CyclePosition) < t.exitTime)
+                        return false;
+                }
+                else if (playable.IsValid())
                 {
                     float unscaledDuration = HonamiStateEvaluator.GetUnscaledStateDuration(
                         controller, state, stateIndex, GetNodeRuntime(stateIndex), GetStateBlendParam(stateIndex));
@@ -808,6 +823,42 @@ namespace HonamiAnimationSystem.Runtime.Core
         }
         public float GetTransitionWeight(int layer) => (_layerStates != null && layer >= 0 && layer < _layerStates.Length) ? _layerStates[layer].TransitionWeight : 0f;
 
+        private readonly HashSet<HonamiState> _directionalFaultsLogged = new();
+
+        /// <summary>
+        /// Reports an unplayable FreeformDirectional2D state once per graph build. The state stays
+        /// in the graph as a silent mixer instead of throwing out of Awake, SetController or Tick.
+        /// </summary>
+        internal void LogDirectionalFaultOnce(HonamiState state, string reason)
+        {
+            if (state == null || !_directionalFaultsLogged.Add(state)) return;
+            Debug.LogError($"[Honami] Directional blend tree state '{state.stateName}' is disabled: {reason}", this);
+        }
+
+        internal void ClearDirectionalFaultLog() => _directionalFaultsLogged.Clear();
+
+        /// <summary>
+        /// Resolves the actor-owned port of a FreeformDirectional2D state. Returns false for every
+        /// other node type so 1D and clip states keep their existing duration path. A true result
+        /// means the state is directional; its canonical period comes from
+        /// <see cref="HonamiBlendTreeEvaluator.TryGetDirectionalPeriod"/> and its unwrapped
+        /// normalized time from <see cref="HonamiBlend2DPortRuntime.CyclePosition"/>.
+        /// </summary>
+        internal bool TryGetDirectionalPort(int layer, int portIdx, int stateIdx, out HonamiBlend2DPortRuntime port)
+        {
+            port = null;
+            if (_blend2DPorts == null || (uint)layer >= (uint)_blend2DPorts.Length) return false;
+            HonamiBlend2DPortRuntime[] layerPorts = _blend2DPorts[layer];
+            if (layerPorts == null || (uint)portIdx >= (uint)layerPorts.Length) return false;
+            HonamiBlend2DPortRuntime candidate = layerPorts[portIdx];
+            if (candidate == null || (uint)stateIdx >= (uint)_activeStatesCount) return false;
+            if (controller.GetActiveNode(_runtimeStates[stateIdx]) is not HonamiBlendTreeNode node ||
+                node.blendType != HonamiBlendTreeType.FreeformDirectional2D)
+                return false;
+            port = candidate;
+            return true;
+        }
+
         public float GetStateProgress(int layer, int statePortIdx)
         {
             if (!TryGetLayerMixer(layer, out AnimationMixerPlayable mixer) || statePortIdx < 0) return 0f;
@@ -818,6 +869,13 @@ namespace HonamiAnimationSystem.Runtime.Core
 
             int realIdx = (statePortIdx == TransientPortIndex) ? _layerStates[layer].TransientStateIndex : statePortIdx;
             if (realIdx < 0 || realIdx >= _activeStatesCount) return 0f;
+
+            if (TryGetDirectionalPort(layer, statePortIdx, realIdx, out HonamiBlend2DPortRuntime directionalPort))
+            {
+                if (!HonamiBlendTreeEvaluator.TryGetDirectionalPeriod(directionalPort, out _))
+                    return 0f;
+                return Mathf.Clamp01((float)directionalPort.Phase);
+            }
 
             float dur = HonamiStateEvaluator.GetUnscaledStateDuration(controller, _runtimeStates[realIdx], realIdx, GetNodeRuntime(realIdx), GetStateBlendParam(realIdx));
             if (dur <= 0) return 0f;

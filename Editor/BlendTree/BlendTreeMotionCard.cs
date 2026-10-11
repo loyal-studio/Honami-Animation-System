@@ -9,8 +9,8 @@ using System;
 namespace HonamiAnimationSystem.Editor.BlendTree
 {
     /// <summary>
-    /// Draggable node card for a single blend motion: exposes the clip, threshold, speed
-    /// and mirror fields, and visualizes its live blend weight as a radial arc.
+    /// Draggable node card for a single blend motion: exposes the clip, blend coordinates, speed,
+    /// mirror and (directional only) cycle offset fields, and visualizes its live blend weight as a radial arc.
     /// </summary>
     internal sealed class BlendTreeMotionCard : VisualElement
     {
@@ -189,10 +189,34 @@ namespace HonamiAnimationSystem.Editor.BlendTree
             GuardInput(clipField);
             topRow.Add(clipField);
 
-            var thresholdField = new FloatField();
-            thresholdField.AddToClassList("honami-bt-node-field");
-            thresholdField.BindProperty(motionProp.FindPropertyRelative("threshold"));
-            GuardInput(thresholdField);
+            var valuesRow = new VisualElement
+            {
+                style = { flexDirection = FlexDirection.Row, alignItems = Align.FlexStart }
+            };
+
+            if (_state.IsDirectional2D)
+            {
+                SerializedProperty position = motionProp.FindPropertyRelative("position");
+                var positionXField = new FloatField();
+                positionXField.AddToClassList("honami-bt-node-field");
+                positionXField.BindProperty(position.FindPropertyRelative("x"));
+                GuardInput(positionXField);
+                valuesRow.Add(FieldColumn("X", positionXField, flexGrow: 1, minWidth: 42));
+
+                var positionYField = new FloatField();
+                positionYField.AddToClassList("honami-bt-node-field");
+                positionYField.BindProperty(position.FindPropertyRelative("y"));
+                GuardInput(positionYField);
+                valuesRow.Add(FieldColumn("Y", positionYField, flexGrow: 1, minWidth: 42));
+            }
+            else
+            {
+                var thresholdField = new FloatField();
+                thresholdField.AddToClassList("honami-bt-node-field");
+                thresholdField.BindProperty(motionProp.FindPropertyRelative("threshold"));
+                GuardInput(thresholdField);
+                valuesRow.Add(FieldColumn("Threshold", thresholdField, flexGrow: 1, minWidth: 48));
+            }
 
             var speedField = new FloatField();
             speedField.AddToClassList("honami-bt-node-field");
@@ -203,14 +227,50 @@ namespace HonamiAnimationSystem.Editor.BlendTree
             mirrorToggle.BindProperty(motionProp.FindPropertyRelative("mirror"));
             GuardInput(mirrorToggle);
 
-            var valuesRow = new VisualElement
-            {
-                style = { flexDirection = FlexDirection.Row, alignItems = Align.FlexStart }
-            };
-            valuesRow.Add(FieldColumn("Threshold", thresholdField, flexGrow: 1, minWidth: 48));
             valuesRow.Add(FieldColumn("Speed", speedField, flexGrow: 1, minWidth: 44));
             valuesRow.Add(FieldColumn("Mirror", mirrorToggle, flexGrow: 0, minWidth: 0, marginRight: 0));
             body.Add(valuesRow);
+
+            if (_state.IsDirectional2D)
+            {
+                var cycleOffsetRow = new VisualElement
+                {
+                    style = { flexDirection = FlexDirection.Row, alignItems = Align.FlexStart, marginTop = 8 }
+                };
+                var cycleOffsetField = new FloatField
+                {
+                    tooltip = "Normalized cycle offset in [0, 1) added to this motion's sample phase, like Unity's Cycle Offset. Weights, period and the shared phase are unchanged."
+                };
+                cycleOffsetField.AddToClassList("honami-bt-node-field");
+                // Not bound directly: typed values are clamped before they are written, so an out-of-range
+                // entry never reaches the asset and each edit is a single undo step. Stored values are shown
+                // wrapped, matching what the runtime plays when a script sets an out-of-range offset.
+                SerializedProperty cycleOffsetProp = motionProp.FindPropertyRelative("cycleOffset");
+                cycleOffsetField.SetValueWithoutNotify(HonamiBlendTreeNode.WrapCycleOffset(cycleOffsetProp.floatValue));
+                cycleOffsetField.RegisterValueChangedCallback(evt =>
+                {
+                    float clamped = ClampCycleOffset(evt.newValue);
+                    if (clamped != evt.newValue) cycleOffsetField.SetValueWithoutNotify(clamped);
+                    SerializedObject owner = cycleOffsetProp.serializedObject;
+                    owner.Update();
+                    if (cycleOffsetProp.floatValue == clamped) return;
+                    cycleOffsetProp.floatValue = clamped;
+                    owner.ApplyModifiedProperties();
+                });
+                cycleOffsetField.TrackPropertyValue(cycleOffsetProp,
+                    property => cycleOffsetField.SetValueWithoutNotify(HonamiBlendTreeNode.WrapCycleOffset(property.floatValue)));
+                GuardInput(cycleOffsetField);
+                cycleOffsetRow.Add(FieldColumn("Cycle Offset", cycleOffsetField, flexGrow: 1, minWidth: 44, marginRight: 0));
+                body.Add(cycleOffsetRow);
+            }
+        }
+
+        private const float MaxCycleOffset = 0.9999f;
+
+        private static float ClampCycleOffset(float value)
+        {
+            if (float.IsNaN(value) || float.IsInfinity(value)) return 0f;
+            return Mathf.Clamp(value, 0f, MaxCycleOffset);
         }
 
 

@@ -13,7 +13,7 @@ namespace HonamiAnimationSystem.Editor.Preview
     /// poses onto it without touching the scene or the global AnimationMode. Blend weights reuse the
     /// same solver as the runtime blend tree so the preview matches playback.
     /// </summary>
-    internal sealed class HonamiPreviewSkeleton : IDisposable
+    internal sealed partial class HonamiPreviewSkeleton : IDisposable
     {
         private GameObject _root;
         private Transform[] _bones = Array.Empty<Transform>();
@@ -171,12 +171,36 @@ namespace HonamiAnimationSystem.Editor.Preview
             weights.Clear();
             HonamiBlendWeightUtility.CalculateWeights(motions, parameterValue, weights, _sorted.AsSpan(0, motionCount));
 
+            float avgDur = HonamiBlendTreeEvaluator.GetDurationFromMotions(AsList(motions), parameterValue);
+            SampleWeightedMotions(motions, weights, normalizedTime, avgDur, reversed, false);
+        }
+
+        /// <summary>
+        /// Samples a directional tree from the caller's weights and canonical normalized phase.
+        /// The caller supplies weights from the shared runtime solver; each child uses
+        /// frac(phase + cycleOffset) * clip length, matching the runtime port.
+        /// </summary>
+        public void SampleDirectionalBlend(IReadOnlyList<HonamiBlendTreeMotion> motions,
+            ReadOnlySpan<float> weights, float normalizedPhase, bool reversed)
+        {
+            if (_root == null || motions == null || motions.Count == 0 || weights.Length < motions.Count)
+                return;
+            SampleWeightedMotions(motions, weights, normalizedPhase, 0f, reversed, true);
+        }
+
+        internal static float DirectionalSamplePhase(float phase, float cycleOffset)
+            => cycleOffset == 0f ? phase : Mathf.Repeat(phase + cycleOffset, 1f);
+
+        private void SampleWeightedMotions(IReadOnlyList<HonamiBlendTreeMotion> motions,
+            ReadOnlySpan<float> weights, float normalizedTime, float avgDur, bool reversed,
+            bool useCanonicalChildPhase)
+        {
+            int motionCount = motions.Count;
             int boneCount = _bones.Length;
             Array.Clear(_blendPos, 0, boneCount);
             Array.Clear(_blendScale, 0, boneCount);
             Array.Clear(_hasRot, 0, boneCount);
 
-            float avgDur = HonamiBlendTreeEvaluator.GetDurationFromMotions(AsList(motions), parameterValue);
             float total = 0f;
 
             for (int m = 0; m < motionCount; m++)
@@ -190,7 +214,9 @@ namespace HonamiAnimationSystem.Editor.Preview
                     ? clipLength / avgDur
                     : (motion.speed != 0f ? Mathf.Abs(motion.speed) : 1f);
 
-                float sampleTime = normalizedTime * avgDur * speed;
+                float sampleTime = useCanonicalChildPhase
+                    ? DirectionalSamplePhase(normalizedTime, HonamiBlendTreeNode.WrapCycleOffset(motion.cycleOffset)) * clipLength
+                    : normalizedTime * avgDur * speed;
                 if (reversed) sampleTime = clipLength - sampleTime;
                 sampleTime = clipLength > 0f
                     ? Mathf.Clamp(sampleTime, 0f, Mathf.Max(0f, clipLength - EndEpsilon))
@@ -334,6 +360,7 @@ namespace HonamiAnimationSystem.Editor.Preview
 
         public void Dispose()
         {
+            DisposeHumanoid();
             if (_root != null)
             {
                 UnityEngine.Object.DestroyImmediate(_root);

@@ -400,7 +400,8 @@ namespace HonamiAnimationSystem.Editor.Core
                 clip = source.clip,
                 threshold = source.threshold,
                 speed = source.speed,
-                mirror = source.mirror
+                mirror = source.mirror,
+                cycleOffset = source.cycleOffset
             });
             EditorUtility.SetDirty(node);
         }

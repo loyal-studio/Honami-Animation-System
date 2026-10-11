@@ -34,7 +34,12 @@ namespace HonamiAnimationSystem.Runtime.Core
                 PlayStateInternal(defaultIndex, 0f, defaultLayer, true, null, 0f);
 
                 // Fast forward to end
-                float dur = HonamiStateEvaluator.GetUnscaledStateDuration(controller, defaultState, defaultIndex, GetNodeRuntime(defaultIndex), GetStateBlendParam(defaultIndex));
+                // A directional default state is loop-only, so the end of its cycle is the same pose
+                // as phase 0, which is what the port holds after PlayStateInternal; its period is
+                // only used to keep the outer state clock consistent.
+                float dur = TryGetDirectionalPort(defaultLayer, defaultIndex, defaultIndex, out HonamiBlend2DPortRuntime directionalPort)
+                    ? (HonamiBlendTreeEvaluator.TryGetDirectionalPeriod(directionalPort, out float directionalPeriod) ? directionalPeriod : 0f)
+                    : HonamiStateEvaluator.GetUnscaledStateDuration(controller, defaultState, defaultIndex, GetNodeRuntime(defaultIndex), GetStateBlendParam(defaultIndex));
                 if (dur <= 0f) dur = 1f; // Fallback
                 _playableGraph.Evaluate(dur);
 

@@ -154,6 +154,13 @@ namespace HonamiAnimationSystem.Editor
         public override string GetSubtitle(HonamiState state)
         {
             HonamiBlendTreeNode n = state.node as HonamiBlendTreeNode;
+            if (n?.blendType == HonamiBlendTreeType.FreeformDirectional2D)
+            {
+                string xParameter = string.IsNullOrEmpty(n.blendParameter) ? "-" : n.blendParameter;
+                string yParameter = string.IsNullOrEmpty(n.blendParameterY) ? "-" : n.blendParameterY;
+                return $"BLEND 2D  {xParameter} / {yParameter}";
+            }
+
             return "BLEND  " + (string.IsNullOrEmpty(n?.blendParameter) ? "-" : n.blendParameter);
         }
 
@@ -174,8 +181,35 @@ namespace HonamiAnimationSystem.Editor
             VisualElement box = HonamiGraphStyles.Box();
             box.Add(HonamiGraphStyles.SubTitle("Blend Tree Node"));
             AddNodeField(box, nodeSO, "blendType", "Blend Mode");
-            AddParameterPopup(box, nodeSO, controller, "blendParameter", "Blend Parameter");
-            AddNodeField(box, nodeSO, "blendParameterDampTime", "Damp Time");
+
+            VisualElement xParameterControls = new VisualElement();
+            AddParameterPopup(xParameterControls, nodeSO, controller, "blendParameter", "Blend Parameter");
+            DropdownField xParameterPopup = xParameterControls.Q<DropdownField>();
+            AddNodeField(xParameterControls, nodeSO, "blendParameterDampTime", "Damp Time");
+            PropertyField xDampTimeField = xParameterControls.Q<PropertyField>();
+
+            VisualElement yParameterControls = new VisualElement();
+            AddParameterPopup(yParameterControls, nodeSO, controller, "blendParameterY", "Y Parameter");
+            AddNodeField(yParameterControls, nodeSO, "blendParameterDampTimeY", "Y Damp Time");
+
+            SerializedProperty blendType = nodeSO.FindProperty("blendType");
+            void UpdateParameterVisibility(SerializedProperty property)
+            {
+                bool isDirectional2D = property != null &&
+                    property.intValue == (int)HonamiBlendTreeType.FreeformDirectional2D;
+                if (xParameterPopup != null)
+                    xParameterPopup.label = isDirectional2D ? "X Parameter" : "Blend Parameter";
+                if (xDampTimeField != null)
+                    xDampTimeField.label = isDirectional2D ? "X Damp Time" : "Damp Time";
+                yParameterControls.style.display = isDirectional2D ? DisplayStyle.Flex : DisplayStyle.None;
+            }
+
+            UpdateParameterVisibility(blendType);
+            if (blendType != null)
+                box.TrackPropertyValue(blendType, UpdateParameterVisibility);
+
+            box.Add(xParameterControls);
+            box.Add(yParameterControls);
             AddStateField(box, state, "loop", "Loop");
             AddStateField(box, state, "speed", "Speed");
             AddStateField(box, state, "isReversed", "Reverse");

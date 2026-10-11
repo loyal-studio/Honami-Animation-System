@@ -7,6 +7,240 @@ namespace HonamiAnimationSystem.Runtime.Core
 {
     public static class HonamiBlendTreeEvaluator
     {
+        /// <summary>Evaluates directional weights using the node's shared immutable solver.</summary>
+        public static bool TryEvaluateDirectional(HonamiBlendTreeNode node, Vector2 input,
+            float[] destinationWeights, out float period, out string error)
+        {
+            period = 0f;
+            if (node == null)
+            {
+                error = "A directional blend tree node is required.";
+                return false;
+            }
+            if (!node.TryGetDirectionalSolver(out HonamiDirectionalBlendSolver solver, out error))
+                return false;
+            return solver.TryEvaluate(input, destinationWeights, out period, out error);
+        }
+
+        public static bool TryEvaluateDirectional(HonamiDirectionalBlendSolver solver, Vector2 input,
+            float[] destinationWeights, out float period, out string error)
+        {
+            if (solver == null)
+            {
+                period = 0f;
+                error = "A prepared directional solver is required.";
+                return false;
+            }
+            return solver.TryEvaluate(input, destinationWeights, out period, out error);
+        }
+
+        /// <summary>
+        /// Initializes an actor-owned directional port and applies its exact start weights/times
+        /// without advancing its phase. The port must have been created from this node's cached solver.
+        /// </summary>
+        public static bool InitializeDirectional(HonamiBlendTreeNode node, HonamiState state,
+            AnimationMixerPlayable mixer, HonamiBlend2DPortRuntime port, Vector2 initialInput,
+            double startSeconds, out string error)
+        {
+            error = null;
+            if (!TryValidateDirectionalState(node, state, out HonamiDirectionalBlendSolver solver, out error))
+                return false;
+            if (port == null || !object.ReferenceEquals(port.Solver, solver))
+            {
+                error = "The directional port must use the solver prepared for this authored tree.";
+                return false;
+            }
+            if (!mixer.IsValid() || mixer.GetInputCount() != node.blendMotions.Count)
+            {
+                error = "The directional playable mixer must have one input per authored motion.";
+                return false;
+            }
+            if (!port.Initialize(initialInput, startSeconds, out error))
+                return false;
+
+            ApplyDirectionalState(mixer, port);
+            return true;
+        }
+
+        /// <summary>Restarts a self-transition at the current damped input, preserving its velocity.</summary>
+        public static bool RestartDirectionalAtCurrentInput(HonamiBlendTreeNode node, HonamiState state,
+            AnimationMixerPlayable mixer, HonamiBlend2DPortRuntime port, double startSeconds, out string error)
+        {
+            error = null;
+            if (!TryValidateDirectionalState(node, state, out HonamiDirectionalBlendSolver solver, out error))
+                return false;
+            if (port == null || !object.ReferenceEquals(port.Solver, solver))
+            {
+                error = "The directional port must use the solver prepared for this authored tree.";
+                return false;
+            }
+            if (!mixer.IsValid() || mixer.GetInputCount() != node.blendMotions.Count)
+            {
+                error = "The directional playable mixer must have one input per authored motion.";
+                return false;
+            }
+            if (!port.RestartAtCurrentInput(startSeconds, out error))
+                return false;
+
+            ApplyDirectionalState(mixer, port);
+            return true;
+        }
+
+        /// <summary>
+        /// Smooths both parameters and advances the shared canonical phase once, then applies each
+        /// child weight/time with child speeds stopped to prevent independent Playable clocks drifting.
+        /// </summary>
+        public static bool UpdateDirectional(HonamiBlendTreeNode node, HonamiState state,
+            AnimationMixerPlayable mixer, HonamiBlend2DPortRuntime port, Vector2 targetInput,
+            double deltaTime, float dampingTimeX, float dampingTimeY, out string error)
+        {
+            error = null;
+            if (node == null || state == null || node.blendType != HonamiBlendTreeType.FreeformDirectional2D)
+            {
+                error = "A FreeformDirectional2D node and owning state are required.";
+                return false;
+            }
+            if (!state.loop)
+            {
+                error = "Directional trees require a looping state; non-looping directional clips are unsupported.";
+                return false;
+            }
+            if (state.isReversed)
+            {
+                error = "Reversed playback is unsupported for directional blend trees.";
+                return false;
+            }
+            if (state.mirror)
+            {
+                error = "State mirroring is unsupported for directional blend trees.";
+                return false;
+            }
+            if (!IsFinite(dampingTimeX) || dampingTimeX < 0f || !IsFinite(dampingTimeY) || dampingTimeY < 0f)
+            {
+                error = "Directional X/Y damping times must be finite and nonnegative.";
+                return false;
+            }
+            if (port == null || !port.IsInitialized || node.blendMotions == null ||
+                port.Solver.MotionCount != node.blendMotions.Count)
+            {
+                error = "Initialize an actor-owned directional port for this tree before updating it.";
+                return false;
+            }
+            if (!mixer.IsValid() || mixer.GetInputCount() != node.blendMotions.Count)
+            {
+                error = "The directional playable mixer must have one input per authored motion.";
+                return false;
+            }
+
+            float stateSpeed = state.speed;
+            if (!IsFinite(stateSpeed) || stateSpeed < 0f)
+            {
+                error = "Directional tree state speed must be finite and nonnegative.";
+                return false;
+            }
+            if (!port.Advance(targetInput, deltaTime, stateSpeed, dampingTimeX, dampingTimeY, out error))
+                return false;
+
+            ApplyDirectionalState(mixer, port);
+            return true;
+        }
+
+        /// <summary>Reads a prepared actor port's canonical cycle period for 2D duration callers.</summary>
+        public static bool TryGetDirectionalPeriod(HonamiBlend2DPortRuntime port, out float period)
+        {
+            period = 0f;
+            if (port == null || !port.IsInitialized || !IsFinite(port.Period) || port.Period <= 0f)
+                return false;
+            period = port.Period;
+            return true;
+        }
+
+        /// <summary>Applies an already-initialized actor port without advancing or smoothing it.</summary>
+        internal static bool ApplyDirectionalPort(AnimationMixerPlayable mixer,
+            HonamiBlend2DPortRuntime port, out string error)
+        {
+            error = null;
+            if (port == null || !port.IsInitialized)
+            {
+                error = "Initialize the directional port before applying it to a mixer.";
+                return false;
+            }
+            if (!mixer.IsValid() || mixer.GetInputCount() != port.Solver.MotionCount)
+            {
+                error = "The directional playable mixer must have one input per authored motion.";
+                return false;
+            }
+
+            ApplyDirectionalState(mixer, port);
+            return true;
+        }
+
+        private static bool TryValidateDirectionalState(HonamiBlendTreeNode node, HonamiState state,
+            out HonamiDirectionalBlendSolver solver, out string error)
+        {
+            solver = null;
+            error = null;
+            if (node == null || state == null || node.blendType != HonamiBlendTreeType.FreeformDirectional2D)
+            {
+                error = "A FreeformDirectional2D node and owning state are required.";
+                return false;
+            }
+            if (!state.loop)
+            {
+                error = "Directional trees require a looping state; non-looping directional clips are unsupported.";
+                return false;
+            }
+            if (state.isReversed)
+            {
+                error = "Reversed playback is unsupported for directional blend trees.";
+                return false;
+            }
+            if (state.mirror)
+            {
+                error = "State mirroring is unsupported for directional blend trees.";
+                return false;
+            }
+            if (!IsFinite(state.speed) || state.speed < 0f)
+            {
+                error = "Directional tree state speed must be finite and nonnegative.";
+                return false;
+            }
+            if (!IsFinite(node.blendParameterDampTime) || node.blendParameterDampTime < 0f ||
+                !IsFinite(node.blendParameterDampTimeY) || node.blendParameterDampTimeY < 0f)
+            {
+                error = "Directional X/Y damping times must be finite and nonnegative.";
+                return false;
+            }
+            if (!node.TryGetDirectionalSolver(out solver, out error))
+                return false;
+            return true;
+        }
+
+        private static void ApplyDirectionalState(AnimationMixerPlayable mixer, HonamiBlend2DPortRuntime port)
+        {
+            for (int i = 0; i < port.Solver.MotionCount; i++)
+            {
+                Playable child = mixer.GetInput(i);
+                mixer.SetInputWeight(i, port.GetWeight(i));
+                if (!child.IsValid()) continue;
+
+                Playable clipPlayable = GetClipPlayable(child);
+                if (clipPlayable.IsValid())
+                    clipPlayable.SetTime(port.GetChildTime(i));
+                child.SetSpeed(0d);
+            }
+        }
+
+        private static Playable GetClipPlayable(Playable child)
+        {
+            while (child.IsValid() && child.GetPlayableType() == typeof(AnimationScriptPlayable) &&
+                   child.GetInputCount() > 0)
+                child = child.GetInput(0);
+            return child;
+        }
+
+        private static bool IsFinite(float value) => !float.IsNaN(value) && !float.IsInfinity(value);
+
         public static void Update(HonamiRuntimeController controller, HonamiState state, AnimationMixerPlayable mixer, float paramValue)
         {
             if (controller.GetActiveNode(state) is not HonamiBlendTreeNode btNode) return;

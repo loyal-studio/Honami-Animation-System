@@ -131,7 +131,18 @@ namespace HonamiAnimationSystem.Runtime.Core
                 if (tr.hasExitTime && currentIdx >= 0)
                 {
                     var playable = anim._layerMixers[layer].GetInput(currentIdx);
-                    if (playable.IsValid())
+                    if (playable.IsValid() &&
+                        anim.TryGetDirectionalPort(layer, currentIdx, currentIdx, out HonamiBlend2DPortRuntime directionalPort))
+                    {
+                        // Directional trees advance a canonical phase over a period that changes with
+                        // input, so rawTime / period would jump. Use the port's unwrapped cycle position.
+                        if (HonamiBlendTreeEvaluator.TryGetDirectionalPeriod(directionalPort, out _))
+                        {
+                            float progress = Mathf.Max(0f, (float)directionalPort.CyclePosition);
+                            if (progress < tr.exitTime) continue;
+                        }
+                    }
+                    else if (playable.IsValid())
                     {
                         float unscaledDuration = HonamiStateEvaluator.GetUnscaledStateDuration(
                             anim.controller, anim._runtimeStates[currentIdx], currentIdx,
@@ -155,7 +166,16 @@ namespace HonamiAnimationSystem.Runtime.Core
                 if (tr.adaptiveDuration && currentIdx >= 0)
                 {
                     var playable = anim._layerMixers[layer].GetInput(currentIdx);
-                    if (playable.IsValid())
+                    if (playable.IsValid() &&
+                        anim.TryGetDirectionalPort(layer, currentIdx, currentIdx, out HonamiBlend2DPortRuntime directionalPort))
+                    {
+                        if (HonamiBlendTreeEvaluator.TryGetDirectionalPeriod(directionalPort, out _))
+                        {
+                            float remaining = Mathf.Clamp01(1f - (float)directionalPort.CyclePosition);
+                            finalDuration = tr.duration * remaining * tr.smartScaleFactor;
+                        }
+                    }
+                    else if (playable.IsValid())
                     {
                         float unscaledDuration = HonamiStateEvaluator.GetUnscaledStateDuration(
                             anim.controller, anim._runtimeStates[currentIdx], currentIdx,

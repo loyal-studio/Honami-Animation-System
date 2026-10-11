@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.Rendering;
+using UnityEngine.SceneManagement;
 
 namespace HonamiAnimationSystem.Editor.Preview
 {
@@ -18,6 +19,7 @@ namespace HonamiAnimationSystem.Editor.Preview
         private Mesh _sphereMesh;
         private Mesh _cubeMesh;
         private Mesh _gridMesh;
+        private GameObject _modelRoot;
         private Material _jointMat;
         private Material _boneMat;
         private Material _gridMat;
@@ -98,6 +100,41 @@ namespace HonamiAnimationSystem.Editor.Preview
             _groundY = bounds.min.y;
         }
 
+        /// <summary>
+        /// Shows a copied Humanoid model instead of the joint/bone skeleton. The model is moved into the
+        /// preview scene so only this stage's camera sees it. Pass null to go back to the skeleton.
+        /// </summary>
+        public void SetModelRoot(GameObject modelRoot)
+        {
+            _modelRoot = modelRoot;
+            if (_modelRoot == null) return;
+
+            EnsureResources();
+            Scene previewScene = _preview.camera.gameObject.scene;
+            if (_modelRoot.scene != previewScene)
+                SceneManager.MoveGameObjectToScene(_modelRoot, previewScene);
+        }
+
+        public bool FrameModel()
+        {
+            if (_modelRoot == null) return false;
+
+            bool hasBounds = false;
+            Bounds bounds = default;
+            foreach (Renderer renderer in _modelRoot.GetComponentsInChildren<Renderer>())
+            {
+                if (!renderer.enabled) continue;
+                if (hasBounds) bounds.Encapsulate(renderer.bounds);
+                else bounds = renderer.bounds;
+                hasBounds = true;
+            }
+
+            if (!hasBounds) return false;
+            if (bounds.size.sqrMagnitude < 1e-6f) bounds.size = Vector3.one * 0.25f;
+            Frame(bounds);
+            return true;
+        }
+
         public Texture Render(Rect rect, IReadOnlyList<Transform> bones, int[] parentIndex)
         {
             if (rect.width < 4f || rect.height < 4f) return null;
@@ -112,9 +149,12 @@ namespace HonamiAnimationSystem.Editor.Preview
             cam.backgroundColor = _background;
 
             DrawGrid();
-            DrawSkeleton(bones, parentIndex);
+            if (_modelRoot == null) DrawSkeleton(bones, parentIndex);
 
-            cam.Render();
+            // PreviewRenderUtility.Render applies the preview lights and the active render pipeline to the
+            // model; the skeleton path keeps its plain camera render.
+            if (_modelRoot == null) cam.Render();
+            else _preview.Render(true);
             return _preview.EndPreview();
         }
 
@@ -208,6 +248,7 @@ namespace HonamiAnimationSystem.Editor.Preview
                 LiveStages.Remove(this);
             }
             _preview = null;
+            _modelRoot = null;
 
             if (_gridMesh != null) UnityEngine.Object.DestroyImmediate(_gridMesh);
             if (_jointMat != null) UnityEngine.Object.DestroyImmediate(_jointMat);
