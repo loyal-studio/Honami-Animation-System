@@ -13,9 +13,14 @@ namespace HonamiAnimationSystem.Editor.BlendTree
         private Label _minLabel;
         private Label _maxLabel;
         private Slider _zoomSlider;
+        private FloatField _valueFieldX;
+        private FloatField _valueFieldY;
 
         private VisualElement BuildTransportBar()
         {
+            if (_state.IsDirectional2D)
+                return BuildDirectionalTransportBar();
+
             var bar = new VisualElement
             {
                 style =
@@ -161,8 +166,102 @@ namespace HonamiAnimationSystem.Editor.BlendTree
             return bar;
         }
 
+        private VisualElement BuildDirectionalTransportBar()
+        {
+            var bar = new VisualElement
+            {
+                style =
+                {
+                    height = BlendTreeTheme.TransportBarHeight,
+                    flexShrink = 0,
+                    flexDirection = FlexDirection.Row,
+                    alignItems = Align.Center,
+                    paddingLeft = 10,
+                    paddingRight = 10,
+                    backgroundColor = BlendTreeTheme.ToolbarBg,
+                    borderTopWidth = 1,
+                    borderTopColor = BlendTreeTheme.Divider
+                }
+            };
+
+            var captionX = ParameterCaption(_state.Node.blendParameter);
+            captionX.AddToClassList("unity-base-field__label--with-dragger");
+            bar.Add(captionX);
+            _valueFieldX = new FloatField { value = _state.PreviewValueX, tooltip = "Preview X parameter" };
+            _valueFieldX.style.width = 68;
+            _valueFieldX.style.marginRight = 8;
+            _valueFieldX.RegisterValueChangedCallback(evt => SetPreviewValueX(evt.newValue));
+            bar.Add(_valueFieldX);
+            new FieldMouseDragger<float>(_valueFieldX).SetDragZone(captionX);
+
+            var captionY = ParameterCaption(_state.Node.blendParameterY);
+            captionY.AddToClassList("unity-base-field__label--with-dragger");
+            bar.Add(captionY);
+            _valueFieldY = new FloatField { value = _state.PreviewValueY, tooltip = "Preview Y parameter" };
+            _valueFieldY.style.width = 68;
+            _valueFieldY.style.marginRight = 8;
+            _valueFieldY.RegisterValueChangedCallback(evt => SetPreviewValueY(evt.newValue));
+            bar.Add(_valueFieldY);
+            new FieldMouseDragger<float>(_valueFieldY).SetDragZone(captionY);
+
+            bar.Add(HonamiToolbarControls.ToolbarButton("Center", () =>
+            {
+                SetPreviewValueX(0f);
+                SetPreviewValueY(0f);
+                _valueFieldX?.SetValueWithoutNotify(0f);
+                _valueFieldY?.SetValueWithoutNotify(0f);
+            }));
+
+            bar.Add(new VisualElement { style = { flexGrow = 1 } });
+            AddZoomControls(bar);
+            return bar;
+        }
+
+        private static Label ParameterCaption(string text)
+        {
+            return new Label(string.IsNullOrEmpty(text) ? "—" : text)
+            {
+                style =
+                {
+                    fontSize = 10,
+                    unityFontStyleAndWeight = FontStyle.Bold,
+                    color = BlendTreeTheme.Accent,
+                    marginRight = 4
+                }
+            };
+        }
+
+        private void AddZoomControls(VisualElement bar)
+        {
+            var zoomCaption = new Label("Zoom")
+            {
+                style =
+                {
+                    fontSize = 9,
+                    color = BlendTreeTheme.MutedText,
+                    marginRight = 3,
+                    flexShrink = 0
+                }
+            };
+            bar.Add(zoomCaption);
+
+            _zoomSlider = new Slider(BlendTreeTheme.ZoomMin, BlendTreeTheme.ZoomMax) { value = _state.ViewScale };
+            _zoomSlider.style.width = 80;
+            _zoomSlider.style.flexShrink = 0;
+            _zoomSlider.style.marginRight = 4;
+            _zoomSlider.RegisterValueChangedCallback(evt => _canvas?.SetZoom(evt.newValue));
+            bar.Add(_zoomSlider);
+            bar.Add(HonamiToolbarControls.ToolbarButton("Fit", FrameAll));
+        }
+
         private void UpdateSliderRange()
         {
+            if (_state.IsDirectional2D)
+            {
+                _valueFieldX?.SetValueWithoutNotify(_state.PreviewValueX);
+                _valueFieldY?.SetValueWithoutNotify(_state.PreviewValueY);
+                return;
+            }
             if (_slider == null) return;
 
             _state.GetSliderRange(out float min, out float max);
@@ -180,6 +279,12 @@ namespace HonamiAnimationSystem.Editor.BlendTree
         private void UpdateParamLabel()
         {
             if (_paramLabel == null) return;
+            if (_state.IsDirectional2D)
+            {
+                _paramLabel.text = $"{_state.Node.blendParameter} / {_state.Node.blendParameterY}";
+                _paramLabel.style.color = BlendTreeTheme.Accent;
+                return;
+            }
             string param = _state.Node != null ? _state.Node.blendParameter : null;
             if (string.IsNullOrEmpty(param))
             {

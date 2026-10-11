@@ -205,7 +205,7 @@ namespace HonamiAnimationSystem.Editor
                 infoHdr.Add(new Label($"{(target.node != null ? target.node.GetType().Name : "State")} Info") { style = { unityFontStyleAndWeight = FontStyle.Bold, flexGrow = 1 } });
                 infoBox.Add(infoHdr);
 
-                float dur = HonamiStateInspector.GetStateDuration(target);
+                float dur = HonamiStateInspector.GetStateDuration(target, controller);
                 if (dur > 0)
                 {
                     infoBox.Add(HonamiGraphStyles.MiniLabel($"Duration: {dur:F2}s"));
@@ -216,11 +216,13 @@ namespace HonamiAnimationSystem.Editor
                 root.Add(new VisualElement { style = { height = 5 } });
             }
 
+            HonamiTransitionPreview transitionPreview = null;
             if (HonamiTransitionPreview.CanPreviewTransition(owner, target))
             {
                 var previewBox = HonamiGraphStyles.Box();
                 previewBox.Add(HonamiGraphStyles.SubTitle("Transition Preview"));
-                previewBox.Add(new HonamiTransitionPreview(owner, target, transition, controller));
+                transitionPreview = new HonamiTransitionPreview(owner, target, transition, controller);
+                previewBox.Add(transitionPreview);
                 root.Add(previewBox);
                 root.Add(new VisualElement { style = { height = 6 } });
             }
@@ -277,10 +279,20 @@ namespace HonamiAnimationSystem.Editor
             typeField.BindProperty(typeProp);
             timingBox.Add(typeField);
 
+            var inertialHelp = new HelpBox(
+                "The target starts immediately while the source pose and velocity decay over the duration. Easing, Freeze Mode and Victim settings are ignored. Interrupt rules still apply (Can Interrupt Transition).",
+                HelpBoxMessageType.Info);
+            inertialHelp.style.marginTop = 2;
+            inertialHelp.style.marginBottom = 4;
+            inertialHelp.style.display = typeProp.enumValueIndex == (int)HonamiTransitionType.Inertial
+                ? DisplayStyle.Flex
+                : DisplayStyle.None;
+            timingBox.Add(inertialHelp);
+
             var durProp = tp.FindPropertyRelative("duration");
             var durField = new PropertyField(durProp, "Transition Duration (s)");
             durField.style.marginTop = durField.style.marginBottom = 3;
-            durField.tooltip = "Time (in seconds) to fade between the source and target states.";
+            durField.tooltip = "Transition duration in seconds. For Inertial, this is the residual decay time.";
             HonamiStateInspector.SetupPropertyContextMenu(durField, durProp);
             durField.BindProperty(durProp);
             timingBox.Add(durField);
@@ -290,6 +302,9 @@ namespace HonamiAnimationSystem.Editor
             freezeField.style.marginTop = freezeField.style.marginBottom = 3;
             freezeField.tooltip = "Destination: the target holds its first frame during the blend and starts playing when the transition completes — keeps fast attacks crisp. Source: the state being left freezes on its current pose and fades out static.";
             freezeField.BindProperty(freezeProp);
+            freezeField.style.display = typeProp.enumValueIndex == (int)HonamiTransitionType.Inertial
+                ? DisplayStyle.None
+                : DisplayStyle.Flex;
             timingBox.Add(freezeField);
 
             var smartContainer = new VisualElement();
@@ -311,11 +326,12 @@ namespace HonamiAnimationSystem.Editor
             typeField.RegisterCallback<SerializedPropertyChangeEvent>(evt =>
             {
                 smartContainer.style.display = typeProp.enumValueIndex == (int)HonamiTransitionType.Smart ? DisplayStyle.Flex : DisplayStyle.None;
+                transitionPreview?.MarkDirty();
             });
 
             if (target != null && target.node is not HonamiExitNode)
             {
-                float targetDur = HonamiStateInspector.GetStateDuration(target);
+                float targetDur = HonamiStateInspector.GetStateDuration(target, controller);
                 var dstProp = tp.FindPropertyRelative("destinationStartTime");
 
                 if (targetDur > 0)
@@ -361,6 +377,11 @@ namespace HonamiAnimationSystem.Editor
             var curveBox = HonamiGraphStyles.Box();
             curveBox.Add(HonamiGraphStyles.SubTitle("Blending & Interruption"));
 
+            var easingContainer = new VisualElement();
+            easingContainer.style.display = typeProp.enumValueIndex == (int)HonamiTransitionType.Inertial
+                ? DisplayStyle.None
+                : DisplayStyle.Flex;
+
             var useCurveProp = tp.FindPropertyRelative("useCurve");
             var easeProp = tp.FindPropertyRelative("ease");
 
@@ -372,7 +393,7 @@ namespace HonamiAnimationSystem.Editor
             var easeField = new DropdownField("Easing", easeOptions, easeIndex);
             easeField.tooltip = "Shapes the blend weight over the transition. Presets need no setup; Custom Curve exposes a hand-editable curve.";
             easeField.style.marginTop = easeField.style.marginBottom = 3;
-            curveBox.Add(easeField);
+            easingContainer.Add(easeField);
 
             var curveContainer = new VisualElement();
             curveContainer.style.paddingLeft = 12;
@@ -381,7 +402,8 @@ namespace HonamiAnimationSystem.Editor
             var curveField = new PropertyField(curveProp, "Curve"); curveField.BindProperty(curveProp);
             curveField.style.marginTop = curveField.style.marginBottom = 3;
             curveContainer.Add(curveField);
-            curveBox.Add(curveContainer);
+            easingContainer.Add(curveContainer);
+            curveBox.Add(easingContainer);
 
             easeField.RegisterValueChangedCallback(ev =>
             {
@@ -476,8 +498,13 @@ namespace HonamiAnimationSystem.Editor
 
             typeField.RegisterCallback<SerializedPropertyChangeEvent>(evt =>
             {
+                bool inertial = typeProp.enumValueIndex == (int)HonamiTransitionType.Inertial;
+                inertialHelp.style.display = inertial ? DisplayStyle.Flex : DisplayStyle.None;
+                freezeField.style.display = inertial ? DisplayStyle.None : DisplayStyle.Flex;
+                easingContainer.style.display = inertial ? DisplayStyle.None : DisplayStyle.Flex;
                 victimContainer.style.display = typeProp.enumValueIndex == (int)HonamiTransitionType.Victim ? DisplayStyle.Flex : DisplayStyle.None;
                 smartContainer.style.display = typeProp.enumValueIndex == (int)HonamiTransitionType.Smart ? DisplayStyle.Flex : DisplayStyle.None;
+                transitionPreview?.MarkDirty();
             });
             root.Add(curveBox);
 

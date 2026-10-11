@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.UIElements;
+using UnityEditor.UIElements;
 using HonamiAnimationSystem.Runtime.Core;
 using HonamiAnimationSystem.Editor.Preview;
 
@@ -22,11 +23,15 @@ namespace HonamiAnimationSystem.Editor.BlendTree
         private readonly HonamiPreviewStage _stage = new();
         private readonly HonamiPreviewSkeleton _skeleton = new();
         private readonly List<AnimationClip> _clipBuffer = new();
+        private readonly List<AnimationClip> _slotClips = new();
+        private readonly HonamiHumanoidPreviewBinder _humanoid = new();
+        private string _buildHint;
 
         private IMGUIContainer _viewport;
         private Slider _timeSlider;
         private Button _playButton;
         private Label _emptyHint;
+        private ObjectField _modelField;
 
         private bool _playing;
         private float _time;
@@ -58,6 +63,26 @@ namespace HonamiAnimationSystem.Editor.BlendTree
 
         private void Build()
         {
+            // Humanoid clips have no transform curves, so they are posed on a copy of a real model.
+            _modelField = new ObjectField("Preview Model")
+            {
+                objectType = typeof(GameObject),
+                allowSceneObjects = false,
+                value = _state.PreviewModel != null ? _state.PreviewModel : HonamiHumanoidPreviewBinder.LoadModel(_state.Controller),
+                tooltip = "Humanoid model (prefab or model asset with an Animator) used to show Humanoid clips. " +
+                          "When empty, the Animator of a scene object using this controller is used.",
+                style = { display = DisplayStyle.None, marginBottom = 4 }
+            };
+            _state.PreviewModel = _modelField.value as GameObject;
+            _modelField.RegisterValueChangedCallback(evt =>
+            {
+                _state.PreviewModel = evt.newValue as GameObject;
+                HonamiHumanoidPreviewBinder.SaveModel(_state.Controller, _state.PreviewModel);
+                _humanoid.Reset();
+                MarkDirty();
+            });
+            Add(_modelField);
+
             _viewport = new IMGUIContainer(OnViewportGUI)
             {
                 style =
@@ -126,6 +151,11 @@ namespace HonamiAnimationSystem.Editor.BlendTree
 
         public void Refresh()
         {
+            _humanoid.Reset();
+            // The state forgets its model when it is retargeted; the remembered one is the source of truth.
+            if (_state.PreviewModel == null)
+                _state.PreviewModel = HonamiHumanoidPreviewBinder.LoadModel(_state.Controller);
+            _modelField?.SetValueWithoutNotify(_state.PreviewModel);
             _needsReframe = true;
             MarkDirty();
         }
@@ -158,6 +188,9 @@ namespace HonamiAnimationSystem.Editor.BlendTree
 
         private float CurrentDuration()
         {
+            if (_state.IsDirectional2D)
+                return _state.GetDirectionalPreviewDuration();
+
             var node = _state.Node;
             if (node == null || node.blendMotions == null || node.blendMotions.Count == 0) return 1f;
             return HonamiBlendTreeEvaluator.GetDurationFromMotions(node.blendMotions, _state.PreviewValue);
@@ -165,6 +198,7 @@ namespace HonamiAnimationSystem.Editor.BlendTree
 
         private bool EnsureSkeleton()
         {
+            _buildHint = null;
             var node = _state.Node;
             _clipBuffer.Clear();
             if (node?.blendMotions != null)
@@ -178,12 +212,46 @@ namespace HonamiAnimationSystem.Editor.BlendTree
 
             if (_clipBuffer.Count == 0) return false;
 
-            if (!_skeleton.IsBuilt || _skeleton.NeedsRebuild(_clipBuffer))
+            HonamiPreviewRigKind rig = HonamiPreviewSkeleton.Classify(_clipBuffer);
+            _modelField.style.display = rig == HonamiPreviewRigKind.Humanoid ? DisplayStyle.Flex : DisplayStyle.None;
+            if (rig == HonamiPreviewRigKind.Mixed)
+            {
+                ReleaseHumanoid();
+                _buildHint = HonamiHumanoidPreviewBinder.MixedRigHint;
+                return false;
+            }
+            if (rig == HonamiPreviewRigKind.Humanoid)
+                return EnsureHumanoidSkeleton(node);
+
+            if (!_skeleton.IsBuilt || _skeleton.IsHumanoid || _skeleton.NeedsRebuild(_clipBuffer))
             {
                 _skeleton.Build(_clipBuffer);
                 _needsReframe = true;
             }
             return _skeleton.IsBuilt;
+        }
+
+        private bool EnsureHumanoidSkeleton(HonamiBlendTreeNode node)
+        {
+            // One graph slot per motion keeps repeated clips independent (they may run at different speeds).
+            _slotClips.Clear();
+            for (int i = 0; i < node.blendMotions.Count; i++)
+                _slotClips.Add(node.blendMotions[i]?.clip);
+
+            bool ok = _humanoid.Ensure(_skeleton, _stage, _slotClips, _state.PreviewModel, _state.Controller,
+                out bool rebuilt);
+            if (rebuilt) _needsReframe = true;
+            _buildHint = ok ? null : _humanoid.Error;
+            return ok;
+        }
+
+        // Drops a previously built Humanoid rig (and its model copy) once the clips stop being Humanoid.
+        private void ReleaseHumanoid()
+        {
+            if (!_skeleton.IsHumanoid) return;
+            _stage.SetModelRoot(null);
+            _skeleton.Dispose();
+            _humanoid.Reset();
         }
 
         private void OnViewportGUI()
@@ -194,15 +262,36 @@ namespace HonamiAnimationSystem.Editor.BlendTree
 
             bool ready = EnsureSkeleton();
             _emptyHint.style.display = ready ? DisplayStyle.None : DisplayStyle.Flex;
-            if (!ready) return;
+            if (!ready)
+            {
+                _emptyHint.text = string.IsNullOrEmpty(_buildHint) ? "No clips with transform curves." : _buildHint;
+                return;
+            }
 
             var node = _state.Node;
+            if (_state.IsDirectional2D && !string.IsNullOrEmpty(_state.DirectionalPreviewError))
+            {
+                _emptyHint.text = _state.DirectionalPreviewError;
+                _emptyHint.style.display = DisplayStyle.Flex;
+                return;
+            }
+            _emptyHint.text = "No clips with transform curves.";
             bool reversed = _state.State != null && _state.State.isReversed;
-            _skeleton.SampleBlend(node.blendMotions, _state.PreviewValue, _time, _loop, reversed);
+            if (_skeleton.IsHumanoid)
+            {
+                if (_state.IsDirectional2D)
+                    _skeleton.SampleHumanoidDirectional(node.blendMotions, _state.Weights, _time, reversed, false);
+                else
+                    _skeleton.SampleHumanoidBlend(node.blendMotions, _state.PreviewValue, _time, reversed, false);
+            }
+            else if (_state.IsDirectional2D)
+                _skeleton.SampleDirectionalBlend(node.blendMotions, _state.Weights, _time, reversed);
+            else
+                _skeleton.SampleBlend(node.blendMotions, _state.PreviewValue, _time, _loop, reversed);
 
             if (_needsReframe)
             {
-                _stage.Frame(_skeleton.ComputeBounds());
+                if (!_stage.FrameModel()) _stage.Frame(_skeleton.ComputeBounds());
                 _needsReframe = false;
             }
 
@@ -217,16 +306,19 @@ namespace HonamiAnimationSystem.Editor.BlendTree
             switch (e.type)
             {
                 case EventType.MouseDown:
+                    if (e.button != 1 && e.button != 2) break;
                     _dragging = true;
                     _dragButton = e.button;
                     e.Use();
                     break;
                 case EventType.MouseUp:
+                    if (!_dragging || e.button != _dragButton) break;
                     _dragging = false;
+                    e.Use();
                     break;
                 case EventType.MouseDrag:
                     if (!_dragging) break;
-                    if (_dragButton == 0) _stage.Orbit(e.delta);
+                    if (_dragButton == 1) _stage.Orbit(e.delta);
                     else _stage.Pan(e.delta);
                     MarkDirty();
                     e.Use();
@@ -242,8 +334,11 @@ namespace HonamiAnimationSystem.Editor.BlendTree
         public void Dispose()
         {
             EditorApplication.update -= OnEditorUpdate;
-            _stage?.Dispose();
+            _stage?.SetModelRoot(null);
+            // Skeleton first: the stage's PreviewRenderUtility cleanup destroys the model copy, after which
+            // the skeleton could no longer unregister itself from its live list.
             _skeleton?.Dispose();
+            _stage?.Dispose();
         }
     }
 }

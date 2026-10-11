@@ -23,6 +23,10 @@ namespace HonamiAnimationSystem.Runtime.Core
         public bool AcceleratedWeightDrop;
         public bool DestinationFrozen;
         public bool SourceFrozen;
+
+        // Inertial transitions switch the layer instantly; these track how long the shared residual decays.
+        public double InertialDuration;
+        public double InertialTime;
     }
 
     /// <summary>

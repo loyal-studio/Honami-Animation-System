@@ -134,6 +134,7 @@ Transitions are more than a duration and a condition. Each one has a **type**, a
 - **Standard** - classic cross-fade, linear, eased or curve-driven.
 - **Victim** - one side of the blend is the "victim": its speed can be multiplied and its weight can drop on a custom or quadratic curve. Perfect for snappy attack cancels that don't pop.
 - **Smart** - adaptive duration that scales with the time left in the current state (short remainder, short blend).
+- **Inertial** - velocity-preserving: the target starts instantly while the source pose and velocity decay away over the duration, so motion never pops or stalls. Easing, Freeze Mode and Victim settings are ignored; Can Interrupt rules still apply.
 
 Every cross-fade can be shaped with an **Easing** preset - the full Penner set familiar from tweening libraries like PrimeTween or DOTween (Sine, Quad, Cubic, Quart, Quint, Expo, Circ, Back, Elastic, Bounce, each as In / Out / In-Out), with Back and Elastic genuinely overshooting past the target pose - or with a hand-drawn **custom curve**. **Freeze Mode** keeps fast transitions readable: *Destination* holds the target on its first frame during the blend and starts playing only when the transition completes (crisp attack wind-ups), *Source* freezes the state being left on its current pose so it fades out static.
 
@@ -328,7 +329,6 @@ Honami is in active beta. In progress and planned:
 - **Cinematic Director** - clip-to-clip blending, camera tracks and full cutscene tooling on top of the current sequencer.
 - **2D blend trees** - a full 2D blend space alongside the current 1D trees.
 - **Additive** - additive layers for recoil, lean and look/aim overlays.
-- **Inertialization** - velocity-preserving transition blending.
 
 ## Used in production
 

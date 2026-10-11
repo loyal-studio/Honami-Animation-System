@@ -62,9 +62,21 @@ namespace HonamiAnimationSystem.Editor
             VisualElement exitTimeContainer = null;
             VisualElement smartContainer = null;
             VisualElement victimContainer = null;
+            VisualElement inertialHelp = null;
+            VisualElement freezeElement = null;
+            VisualElement easingElement = null;
+            System.Action refreshCurveVisibility = null;
 
             void RefreshConditionalVisibility()
             {
+                bool allInertial = All(entries, t => t.type == HonamiTransitionType.Inertial);
+                if (inertialHelp != null)
+                    inertialHelp.style.display = allInertial ? DisplayStyle.Flex : DisplayStyle.None;
+                if (freezeElement != null)
+                    freezeElement.style.display = allInertial ? DisplayStyle.None : DisplayStyle.Flex;
+                if (easingElement != null)
+                    easingElement.style.display = allInertial ? DisplayStyle.None : DisplayStyle.Flex;
+                refreshCurveVisibility?.Invoke();
                 if (exitTimeContainer != null)
                     exitTimeContainer.style.display = All(entries, t => t.hasExitTime) ? DisplayStyle.Flex : DisplayStyle.None;
                 if (smartContainer != null)
@@ -94,15 +106,23 @@ namespace HonamiAnimationSystem.Editor
                 t => (Enum)t.type, (t, v) => t.type = (HonamiTransitionType)v, RefreshConditionalVisibility);
             timingBox.Add(typeField);
 
+            inertialHelp = new HelpBox(
+                "The target starts immediately while the source pose and velocity decay over the duration. Easing, Freeze Mode and Victim settings are ignored.",
+                HelpBoxMessageType.Info);
+            inertialHelp.style.marginTop = 2;
+            inertialHelp.style.marginBottom = 4;
+            timingBox.Add(inertialHelp);
+
             var durationField = BindField(new FloatField("Transition Duration (s)"), entries, "Edit Transitions Duration",
                 t => t.duration, (t, v) => t.duration = Mathf.Max(0f, v));
-            durationField.tooltip = "Time (in seconds) to fade between the source and target states.";
+            durationField.tooltip = "Time (in seconds) to fade between the source and target states. For Inertial, this is the residual decay time.";
             timingBox.Add(durationField);
 
             var freezeField = BindField(new EnumField("Freeze Mode", entries[0].Transition.freezeMode), entries, "Edit Transitions Freeze Mode",
                 t => (Enum)t.freezeMode, (t, v) => t.freezeMode = (HonamiTransitionFreezeMode)v);
             freezeField.tooltip = "Destination: the target holds its first frame during the blend and starts playing when the transition completes — keeps fast attacks crisp. Source: the state being left freezes on its current pose and fades out static.";
             timingBox.Add(freezeField);
+            freezeElement = freezeField;
 
             smartContainer = new VisualElement();
             smartContainer.style.paddingLeft = 12;
@@ -131,22 +151,26 @@ namespace HonamiAnimationSystem.Editor
 
             void RefreshCurveVisibility()
             {
-                curveContainer.style.display = All(entries, t => t.useCurve) ? DisplayStyle.Flex : DisplayStyle.None;
+                curveContainer.style.display = All(entries, t => t.useCurve) && !All(entries, t => t.type == HonamiTransitionType.Inertial)
+                    ? DisplayStyle.Flex
+                    : DisplayStyle.None;
             }
+            refreshCurveVisibility = RefreshCurveVisibility;
 
             var easeOptions = new List<string>(HonamiTransitionInspector.EaseOptionNames);
             string GetEaseOption(HonamiTransition t) => t.useCurve
                 ? easeOptions[easeOptions.Count - 1]
                 : easeOptions[Mathf.Clamp((int)t.ease, 0, easeOptions.Count - 2)];
 
-            curveBox.Add(BindField(new DropdownField("Easing", easeOptions, easeOptions.IndexOf(GetEaseOption(entries[0].Transition))), entries, "Edit Transitions Easing",
+            easingElement = BindField(new DropdownField("Easing", easeOptions, easeOptions.IndexOf(GetEaseOption(entries[0].Transition))), entries, "Edit Transitions Easing",
                 GetEaseOption, (t, v) =>
                 {
                     int ni = easeOptions.IndexOf(v);
                     if (ni < 0) return;
                     t.useCurve = ni == easeOptions.Count - 1;
                     if (!t.useCurve) t.ease = (HonamiTransitionEase)ni;
-                }, RefreshCurveVisibility));
+                }, RefreshCurveVisibility);
+            curveBox.Add(easingElement);
 
             var curveField = new CurveField("Curve") { value = entries[0].Transition.curve };
             curveField.style.marginTop = curveField.style.marginBottom = 3;
@@ -157,7 +181,7 @@ namespace HonamiAnimationSystem.Editor
             });
             curveContainer.Add(curveField);
             curveBox.Add(curveContainer);
-            RefreshCurveVisibility();
+            RefreshConditionalVisibility();
 
             if (allValidTargets)
             {

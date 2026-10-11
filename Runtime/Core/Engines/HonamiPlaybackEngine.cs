@@ -41,7 +41,8 @@ namespace HonamiAnimationSystem.Runtime.Core
             HonamiVictimMode victimMode = HonamiVictimMode.None,
             float victimSpeedMultiplier = 1f,
             bool acceleratedWeightDrop = false,
-            AnimationCurve victimCurve = null)
+            AnimationCurve victimCurve = null,
+            bool inertial = false)
         {
             int intendedLayer = anim._runtimeStates[targetIndex].layerIndex;
 
@@ -62,13 +63,26 @@ namespace HonamiAnimationSystem.Runtime.Core
 
             int prevIdx = anim._layerStates[layer].CurrentStateIndex;
 
+            if (targetIndex == prevIdx && !forceRestart)
+            {
+                return;
+            }
+
+            // A nested play (e.g. from a StateExited callback fired during the switch) bumps this serial, and
+            // the inertial bookkeeping of the outer play must then stand down.
+            int playSerial = ++anim._playSerial;
+
+            // Inertial reuses the instant (duration 0) switch and lets the inertializer decay the residual.
+            // Without a processor (controller has no Inertial transitions) it falls back to a crossfade.
+            float inertialDuration = 0f;
+            if (inertial && transitionDuration > 0f && anim._inertializer != null && anim._inertializer.IsCreated)
+            {
+                inertialDuration = transitionDuration;
+                transitionDuration = 0f;
+            }
+
             if (targetIndex == prevIdx)
             {
-                if (!forceRestart)
-                {
-                    return;
-                }
-
                 HandleSelfTransition(
                     anim,
                     targetIndex,
@@ -97,6 +111,65 @@ namespace HonamiAnimationSystem.Runtime.Core
                     victimSpeedMultiplier,
                     acceleratedWeightDrop,
                     victimCurve);
+            }
+
+            if (anim._playSerial != playSerial) return;
+            UpdateInertialState(anim, layer, transitionDuration, inertialDuration, priority);
+        }
+
+        /// <summary>Drops the shared residual when <paramref name="layer"/> owns it, and clears that layer's gate.</summary>
+        internal static void CancelInertialIfOwner(HonamiAnimator anim, int layer)
+        {
+            if (anim._inertializer == null || anim._layerStates == null || layer < 0 || layer >= anim._layerStates.Length) return;
+
+            if (anim._inertialOwnerLayer == layer)
+            {
+                anim._inertializer.Cancel();
+                anim._inertialOwnerLayer = -1;
+            }
+
+            anim._layerStates[layer].InertialDuration = 0.0;
+            anim._layerStates[layer].InertialTime = 0.0;
+        }
+
+        /// <summary>Drops the shared residual and every layer's gate.</summary>
+        internal static void CancelInertialAll(HonamiAnimator anim)
+        {
+            if (anim._inertializer == null) return;
+
+            anim._inertializer.Cancel();
+            anim._inertialOwnerLayer = -1;
+            if (anim._layerStates == null) return;
+            for (int i = 0; i < anim._layerStates.Length; i++)
+            {
+                anim._layerStates[i].InertialDuration = 0.0;
+                anim._layerStates[i].InertialTime = 0.0;
+            }
+        }
+
+        private static void UpdateInertialState(HonamiAnimator anim, int layer, float transitionDuration, float inertialDuration, int priority)
+        {
+            if (anim._inertializer == null) return;
+
+            if (inertialDuration > 0f)
+            {
+                anim._inertializer.Begin(inertialDuration);
+                anim._inertialOwnerLayer = layer;
+                anim._layerStates[layer].InertialDuration = inertialDuration;
+                anim._layerStates[layer].InertialTime = 0.0;
+                anim._layerStates[layer].CurrentTransitionPriority = priority;
+            }
+            else if (transitionDuration <= 0f)
+            {
+                // The residual is shared, but only a cut on the layer that owns it may drop it: a cut elsewhere
+                // would pop the bones that are still decaying.
+                CancelInertialIfOwner(anim, layer);
+            }
+            else
+            {
+                // A crossfade starts from the pre-residual graph pose and the residual keeps decaying on top of it.
+                anim._layerStates[layer].InertialDuration = 0.0;
+                anim._layerStates[layer].InertialTime = 0.0;
             }
         }
 
@@ -141,7 +214,7 @@ namespace HonamiAnimationSystem.Runtime.Core
                 anim._layerStates[layer].SourceFrozen = false;
                 anim._activeVictimCurve[layer] = victimCurve;
 
-                PlayClip(anim, targetIndex, layer, destinationStartTime, true);
+                PlayClip(anim, targetIndex, layer, destinationStartTime, true, true);
             }
             else
             {
@@ -162,7 +235,7 @@ namespace HonamiAnimationSystem.Runtime.Core
                 anim._layerStates[layer].TransitionDuration = 0.0;
                 anim._layerStates[layer].TransitionWeight = 1.0f;
                 anim._activeTransitionCurve[layer] = null;
-                PlayClip(anim, targetIndex, layer, destinationStartTime, true);
+                PlayClip(anim, targetIndex, layer, destinationStartTime, true, true);
                 anim._layerMixers[layer].SetInputWeight(targetIndex, anim._runtimeStates[targetIndex].weight);
             }
         }
@@ -347,6 +420,12 @@ namespace HonamiAnimationSystem.Runtime.Core
             {
                 anim._layerStates[layer].TransientStateIndex = -1;
             }
+
+            if (anim._blend2DPorts != null && layer >= 0 && layer < anim._blend2DPorts.Length &&
+                anim._blend2DPorts[layer] != null && anim.TransientPortIndex < anim._blend2DPorts[layer].Length)
+            {
+                anim._blend2DPorts[layer][anim.TransientPortIndex]?.Reset();
+            }
         }
 
         private static void SetupTransientPort(HonamiAnimator anim, int layer, int sourceIndex)
@@ -358,6 +437,18 @@ namespace HonamiAnimationSystem.Runtime.Core
             anim._layerStates[layer].TransientStateIndex = sourceIndex;
 
             anim._blendParamIndices[layer * anim._pCountTotal + transPort] = anim._blendParamIndices[layer * anim._pCountTotal + sourceIndex];
+
+            HonamiBlend2DPortRuntime sourceDirectional = GetDirectionalPortOrNull(anim, layer, sourceIndex);
+            if (sourceDirectional != null)
+            {
+                HonamiBlend2DPortRuntime transientDirectional = GetDirectionalPortOrNull(anim, layer, transPort);
+                if (transientDirectional == null || !object.ReferenceEquals(transientDirectional.Solver, sourceDirectional.Solver))
+                {
+                    anim._blend2DPorts[layer][transPort] = new HonamiBlend2DPortRuntime(sourceDirectional.Solver);
+                    transientDirectional = anim._blend2DPorts[layer][transPort];
+                }
+                transientDirectional.CopyFrom(sourceDirectional);
+            }
 
             var state = anim._runtimeStates[sourceIndex];
             var srcPlayable = layerMixer.GetInput(sourceIndex);
@@ -397,6 +488,32 @@ namespace HonamiAnimationSystem.Runtime.Core
                 anim._portStates[layer][transPort].CurrentLoopCount = 0;
                 anim._portStates[layer][transPort].StateFinishedFired = true;
                 anim._portStates[layer][transPort].StateExitedFired = true;
+            }
+
+            if (sourceDirectional != null)
+            {
+                Playable directionalPlayable = newPlayable;
+                while (directionalPlayable.IsValid() &&
+                       directionalPlayable.GetPlayableType() == typeof(AnimationScriptPlayable) &&
+                       directionalPlayable.GetInputCount() > 0)
+                {
+                    directionalPlayable = directionalPlayable.GetInput(0);
+                }
+
+                string directionalError = null;
+                bool appliedDirectionalPort = directionalPlayable.GetPlayableType() == typeof(AnimationMixerPlayable) &&
+                    HonamiBlendTreeEvaluator.ApplyDirectionalPort(
+                        (AnimationMixerPlayable)directionalPlayable,
+                        anim._blend2DPorts[layer][transPort],
+                        out directionalError);
+                if (!appliedDirectionalPort)
+                {
+                    FaultDirectional(anim, state, anim._blend2DPorts[layer][transPort],
+                        directionalPlayable.GetPlayableType() == typeof(AnimationMixerPlayable)
+                            ? (AnimationMixerPlayable)directionalPlayable
+                            : AnimationMixerPlayable.Null,
+                        $"its transient copy could not be applied: {directionalError}");
+                }
             }
 
             newPlayable.Play();
@@ -443,24 +560,25 @@ namespace HonamiAnimationSystem.Runtime.Core
 
                     var state = anim._runtimeStates[stateIdx];
                     var playable = mixer.GetInput(i);
+                    bool frozen = false;
 
                     if (playable.IsValid())
                     {
                         bool isTransitioning = anim._layerStates[layer].PreviousStateIndex != -1
                             || anim._layerStates[layer].TransitionDuration > 0.0;
-                        bool frozen = isTransitioning
+                        frozen = isTransitioning
                             && ((anim._layerStates[layer].DestinationFrozen && i == anim._layerStates[layer].CurrentStateIndex)
                                 || (anim._layerStates[layer].SourceFrozen && i == anim._layerStates[layer].PreviousStateIndex));
                         float speed = frozen ? 0f : (state.isReversed ? -state.speed : state.speed);
                         playable.SetSpeed(speed);
                     }
 
-                    UpdateStateOnPort(anim, layer, i, stateIdx);
+                    UpdateStateOnPort(anim, layer, i, stateIdx, frozen);
                 }
             }
         }
 
-        private static void UpdateStateOnPort(HonamiAnimator anim, int layer, int portIdx, int stateIdx)
+        private static void UpdateStateOnPort(HonamiAnimator anim, int layer, int portIdx, int stateIdx, bool frozen)
         {
             if (portIdx < 0 || stateIdx < 0 || stateIdx >= anim._activeStatesCount)
             {
@@ -508,34 +626,64 @@ namespace HonamiAnimationSystem.Runtime.Core
 
                 if (activeNode is HonamiBlendTreeNode btNode)
                 {
-                    int cacheBase = (layer * anim._pCountTotal + portIdx) * 2;
-                    int pIdx = anim._blendParamIndices[layer * anim._pCountTotal + portIdx];
-                    float targetValue = pIdx >= 0 ? anim._params.GetFloatByIndex(pIdx) : 0f;
-
-                    var span = anim._blendStateValues.AsSpan().Slice(cacheBase, 2);
-                    float lastVal = span[0];
-                    float dampRef = span[1];
-
-                    float paramValue;
-                    if (btNode.blendParameterDampTime > 0f)
+                    if (btNode.blendType == HonamiBlendTreeType.FreeformDirectional2D)
                     {
-                        paramValue = Mathf.SmoothDamp(lastVal, targetValue, ref dampRef,
-                            btNode.blendParameterDampTime, float.PositiveInfinity, (float)anim._cachedDeltaTime);
+                        if (TryGetPlayableDirectionalPort(anim, state, layer, portIdx, actualPlayable,
+                                out HonamiBlend2DPortRuntime directionalPort, out AnimationMixerPlayable directionalMixer))
+                        {
+                            Vector2 targetInput = GetDirectionalInput(anim, stateIdx, portIdx, layer);
+                            string directionalError;
+                            bool updated = frozen
+                                ? HonamiBlendTreeEvaluator.ApplyDirectionalPort(
+                                    directionalMixer, directionalPort, out directionalError)
+                                : HonamiBlendTreeEvaluator.UpdateDirectional(
+                                    btNode,
+                                    state,
+                                    directionalMixer,
+                                    directionalPort,
+                                    targetInput,
+                                    anim._cachedDeltaTime,
+                                    btNode.blendParameterDampTime,
+                                    btNode.blendParameterDampTimeY,
+                                    out directionalError);
+                            if (!updated)
+                            {
+                                FaultDirectional(anim, state, directionalPort, directionalMixer,
+                                    $"it could not update: {directionalError}");
+                            }
+                        }
                     }
                     else
                     {
-                        paramValue = targetValue;
-                        dampRef = 0f;
-                    }
+                        int cacheBase = (layer * anim._pCountTotal + portIdx) * 2;
+                        int pIdx = anim._blendParamIndices[layer * anim._pCountTotal + portIdx];
+                        float targetValue = pIdx >= 0 ? anim._params.GetFloatByIndex(pIdx) : 0f;
 
-                    span[0] = paramValue;
-                    span[1] = dampRef;
+                        var span = anim._blendStateValues.AsSpan().Slice(cacheBase, 2);
+                        float lastVal = span[0];
+                        float dampRef = span[1];
 
-                    if (actualPlayable.GetPlayableType() == typeof(AnimationMixerPlayable))
-                    {
-                        var btMixer = (AnimationMixerPlayable)actualPlayable;
-                        HonamiBlendTreeEvaluator.UpdateWeightsFromMotions(btNode.blendMotions, btMixer, paramValue);
-                        HonamiBlendTreeEvaluator.UpdateChildSpeedsFromMotions(state, btNode.blendMotions, btMixer, paramValue, btNode.blendType);
+                        float paramValue;
+                        if (btNode.blendParameterDampTime > 0f)
+                        {
+                            paramValue = Mathf.SmoothDamp(lastVal, targetValue, ref dampRef,
+                                btNode.blendParameterDampTime, float.PositiveInfinity, (float)anim._cachedDeltaTime);
+                        }
+                        else
+                        {
+                            paramValue = targetValue;
+                            dampRef = 0f;
+                        }
+
+                        span[0] = paramValue;
+                        span[1] = dampRef;
+
+                        if (actualPlayable.GetPlayableType() == typeof(AnimationMixerPlayable))
+                        {
+                            var btMixer = (AnimationMixerPlayable)actualPlayable;
+                            HonamiBlendTreeEvaluator.UpdateWeightsFromMotions(btNode.blendMotions, btMixer, paramValue);
+                            HonamiBlendTreeEvaluator.UpdateChildSpeedsFromMotions(state, btNode.blendMotions, btMixer, paramValue, btNode.blendType);
+                        }
                     }
                 }
                 else
@@ -559,7 +707,106 @@ namespace HonamiAnimationSystem.Runtime.Core
             }
         }
 
-        private static void PlayClip(HonamiAnimator anim, int stateIndex, int layer, float startTime = 0f, bool resetTime = true)
+        private static Vector2 GetDirectionalInput(HonamiAnimator anim, int stateIndex, int portIndex, int layer)
+        {
+            int xCacheIndex = layer * anim._pCountTotal + portIndex;
+            int xParameterIndex = anim._blendParamIndices[xCacheIndex];
+            float x = xParameterIndex >= 0 ? anim._params.GetFloatByIndex(xParameterIndex) : 0f;
+            int yParameterIndex = anim._blendParamYIndices != null && (uint)stateIndex < (uint)anim._blendParamYIndices.Length
+                ? anim._blendParamYIndices[stateIndex]
+                : -1;
+            float y = yParameterIndex >= 0 ? anim._params.GetFloatByIndex(yParameterIndex) : 0f;
+            return new Vector2(x, y);
+        }
+
+        /// <summary>
+        /// Resolves the mixer and actor port of a directional state. A missing port (invalid content
+        /// at graph build, or a blend type switched to 2D after the build) is reported once and the
+        /// state is silenced instead of throwing every frame.
+        /// </summary>
+        private static bool TryGetPlayableDirectionalPort(HonamiAnimator anim, HonamiState state, int layer,
+            int portIndex, Playable actualPlayable, out HonamiBlend2DPortRuntime port, out AnimationMixerPlayable mixer)
+        {
+            port = GetDirectionalPortOrNull(anim, layer, portIndex);
+            mixer = AnimationMixerPlayable.Null;
+            if (actualPlayable.GetPlayableType() != typeof(AnimationMixerPlayable))
+            {
+                FaultDirectional(anim, state, port, mixer, "its playable is not an AnimationMixerPlayable.");
+                port = null;
+                return false;
+            }
+
+            mixer = (AnimationMixerPlayable)actualPlayable;
+            if (port == null)
+            {
+                FaultDirectional(anim, state, null, mixer,
+                    "no directional port was built for it (see the earlier validation error, or the blend type was switched to 2D after the graph was built; rebuild the graph).");
+                return false;
+            }
+            return true;
+        }
+
+        private static void FaultDirectional(HonamiAnimator anim, HonamiState state, HonamiBlend2DPortRuntime port,
+            AnimationMixerPlayable mixer, string reason)
+        {
+            anim.LogDirectionalFaultOnce(state, reason);
+            port?.Reset();
+            if (!mixer.IsValid()) return;
+            int count = mixer.GetInputCount();
+            for (int i = 0; i < count; i++)
+                mixer.SetInputWeight(i, 0f);
+        }
+
+        /// <summary>
+        /// Called before a timed controller swap replaces the directional ports. The outgoing graph
+        /// keeps evaluating but nothing advances its ports any more, so hand each initialized 2D
+        /// state over to free-running child clips at the rates the port was driving (clip length /
+        /// period; the state playable already carries state.speed). Weights stay frozen, which
+        /// matches how outgoing 1D trees behave. Freeze mode still freezes via the root speed.
+        /// </summary>
+        public static void ReleaseDirectionalPortsToFreeRunning(HonamiAnimator anim)
+        {
+            if (anim._blend2DPorts == null || anim._layerMixers == null) return;
+            for (int layer = 0; layer < anim._blend2DPorts.Length && layer < anim._layerMixers.Count; layer++)
+            {
+                HonamiBlend2DPortRuntime[] ports = anim._blend2DPorts[layer];
+                AnimationMixerPlayable layerMixer = anim._layerMixers[layer];
+                if (ports == null || !layerMixer.IsValid()) continue;
+                int inputCount = layerMixer.GetInputCount();
+                for (int portIndex = 0; portIndex < ports.Length && portIndex < inputCount; portIndex++)
+                {
+                    HonamiBlend2DPortRuntime port = ports[portIndex];
+                    if (port == null || !HonamiBlendTreeEvaluator.TryGetDirectionalPeriod(port, out float period))
+                        continue;
+
+                    Playable statePlayable = layerMixer.GetInput(portIndex);
+                    while (statePlayable.IsValid() && statePlayable.GetPlayableType() == typeof(AnimationScriptPlayable) &&
+                           statePlayable.GetInputCount() > 0)
+                        statePlayable = statePlayable.GetInput(0);
+                    if (!statePlayable.IsValid() || statePlayable.GetPlayableType() != typeof(AnimationMixerPlayable))
+                        continue;
+
+                    int childCount = Mathf.Min(statePlayable.GetInputCount(), port.Solver.MotionCount);
+                    for (int i = 0; i < childCount; i++)
+                    {
+                        Playable child = statePlayable.GetInput(i);
+                        if (child.IsValid())
+                            child.SetSpeed(port.Solver.GetClipLength(i) / period);
+                    }
+                }
+            }
+        }
+
+        private static HonamiBlend2DPortRuntime GetDirectionalPortOrNull(HonamiAnimator anim, int layer, int portIndex)
+        {
+            if (anim._blend2DPorts == null || layer < 0 || layer >= anim._blend2DPorts.Length ||
+                anim._blend2DPorts[layer] == null || portIndex < 0 || portIndex >= anim._blend2DPorts[layer].Length)
+                return null;
+            return anim._blend2DPorts[layer][portIndex];
+        }
+
+        private static void PlayClip(HonamiAnimator anim, int stateIndex, int layer, float startTime = 0f,
+            bool resetTime = true, bool preserveDirectionalState = false)
         {
             if (stateIndex < 0 || stateIndex >= anim._activeStatesCount)
             {
@@ -620,12 +867,48 @@ namespace HonamiAnimationSystem.Runtime.Core
                 return;
             }
 
-            float duration = HonamiStateEvaluator.GetUnscaledStateDuration(
-                anim.controller,
-                state,
-                stateIndex,
-                anim.GetNodeRuntime(stateIndex),
-                anim.GetStateBlendParam(stateIndex));
+            HonamiBlendTreeNode directionalNode = activeNode as HonamiBlendTreeNode;
+            bool isDirectional = directionalNode != null &&
+                                 directionalNode.blendType == HonamiBlendTreeType.FreeformDirectional2D;
+            float duration;
+            if (isDirectional)
+            {
+                duration = 0f;
+                if (TryGetPlayableDirectionalPort(anim, state, layer, stateIndex, actualPlayable,
+                        out HonamiBlend2DPortRuntime directionalPort, out AnimationMixerPlayable directionalMixer))
+                {
+                    Vector2 initialInput = GetDirectionalInput(anim, stateIndex, stateIndex, layer);
+                    bool restartingCurrentState = preserveDirectionalState && directionalPort.IsInitialized;
+                    string directionalError;
+                    bool initialized;
+                    if (restartingCurrentState)
+                    {
+                        initialized = HonamiBlendTreeEvaluator.RestartDirectionalAtCurrentInput(
+                            directionalNode, state, directionalMixer,
+                            directionalPort, startTime, out directionalError);
+                    }
+                    else
+                    {
+                        initialized = HonamiBlendTreeEvaluator.InitializeDirectional(
+                            directionalNode, state, directionalMixer,
+                            directionalPort, initialInput, startTime, out directionalError);
+                    }
+                    if (initialized)
+                        duration = directionalPort.Period;
+                    else
+                        FaultDirectional(anim, state, directionalPort, directionalMixer,
+                            $"it could not initialize: {directionalError}");
+                }
+            }
+            else
+            {
+                duration = HonamiStateEvaluator.GetUnscaledStateDuration(
+                    anim.controller,
+                    state,
+                    stateIndex,
+                    anim.GetNodeRuntime(stateIndex),
+                    anim.GetStateBlendParam(stateIndex));
+            }
 
             if (resetTime)
             {
@@ -670,7 +953,7 @@ namespace HonamiAnimationSystem.Runtime.Core
                         mixer.SetInputWeight(i, i == pickedIdx ? 1f : 0f);
                     }
 
-                    if (resetTime)
+                    if (resetTime && !isDirectional)
                     {
                         if (isSeq && activeNode is HonamiSequencerNode seqNode)
                         {
@@ -697,7 +980,8 @@ namespace HonamiAnimationSystem.Runtime.Core
                     inputPlayable.Play();
                 }
 
-                if (activeNode is HonamiBlendTreeNode btNode2)
+                if (activeNode is HonamiBlendTreeNode btNode2 &&
+                    btNode2.blendType != HonamiBlendTreeType.FreeformDirectional2D)
                 {
                     int ph = anim._blendTreeParamHashes[stateIndex];
                     float paramValue = ph != -1 ? anim._params.GetFloat(ph) : 0f;
@@ -1014,6 +1298,31 @@ namespace HonamiAnimationSystem.Runtime.Core
             if (actualPlayable.GetPlayableType() == typeof(AnimationMixerPlayable))
             {
                 anim.ResetPlayableTreeTime(actualPlayable);
+            }
+
+            if (activeNode is HonamiBlendTreeNode directionalNode &&
+                directionalNode.blendType == HonamiBlendTreeType.FreeformDirectional2D)
+            {
+                if (TryGetPlayableDirectionalPort(anim, state, layer, portIndex, actualPlayable,
+                        out HonamiBlend2DPortRuntime directionalPort, out AnimationMixerPlayable directionalMixer))
+                {
+                    Vector2 initialInput = GetDirectionalInput(anim, stateIdx, portIndex, layer);
+                    if (!HonamiBlendTreeEvaluator.InitializeDirectional(
+                            directionalNode,
+                            state,
+                            directionalMixer,
+                            directionalPort,
+                            initialInput,
+                            0d,
+                            out string directionalError))
+                    {
+                        FaultDirectional(anim, state, directionalPort, directionalMixer,
+                            $"it could not reset: {directionalError}");
+                    }
+                }
+
+                playable.SetTime(0d);
+                return;
             }
 
             float duration = HonamiStateEvaluator.GetUnscaledStateDuration(

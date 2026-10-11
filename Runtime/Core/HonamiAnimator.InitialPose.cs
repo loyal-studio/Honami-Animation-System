@@ -34,7 +34,12 @@ namespace HonamiAnimationSystem.Runtime.Core
                 PlayStateInternal(defaultIndex, 0f, defaultLayer, true, null, 0f);
 
                 // Fast forward to end
-                float dur = HonamiStateEvaluator.GetUnscaledStateDuration(controller, defaultState, defaultIndex, GetNodeRuntime(defaultIndex), GetStateBlendParam(defaultIndex));
+                // A directional default state is loop-only, so the end of its cycle is the same pose
+                // as phase 0, which is what the port holds after PlayStateInternal; its period is
+                // only used to keep the outer state clock consistent.
+                float dur = TryGetDirectionalPort(defaultLayer, defaultIndex, defaultIndex, out HonamiBlend2DPortRuntime directionalPort)
+                    ? (HonamiBlendTreeEvaluator.TryGetDirectionalPeriod(directionalPort, out float directionalPeriod) ? directionalPeriod : 0f)
+                    : HonamiStateEvaluator.GetUnscaledStateDuration(controller, defaultState, defaultIndex, GetNodeRuntime(defaultIndex), GetStateBlendParam(defaultIndex));
                 if (dur <= 0f) dur = 1f; // Fallback
                 _playableGraph.Evaluate(dur);
 
@@ -48,6 +53,9 @@ namespace HonamiAnimationSystem.Runtime.Core
                 PlayStateInternal(defaultIndex, 0f, defaultLayer, true, null, 0f);
                 _playableGraph.Evaluate(0f);
                 if (_animator != null) _animator.Update(0f);
+
+                // These evaluations are not part of the visible timeline.
+                _inertializer?.InvalidateHistory();
             }
         }
 
@@ -83,6 +91,9 @@ namespace HonamiAnimationSystem.Runtime.Core
 
         protected override bool IsGraphIdle()
         {
+            // A decaying residual still drives the pose, so the initial pose must not replace it.
+            if (_inertializer != null && _inertializer.IsActive) return false;
+
             if (_layerStates == null || _layerStates.Length == 0) return true;
 
             for (int i = 0; i < _layerStates.Length; i++)

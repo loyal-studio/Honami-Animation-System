@@ -3,6 +3,7 @@
     "rootNamespace": "HonamiAnimationSystem.Editor",
     "references": [
         "HonamiAnimationSystem.Runtime",
+        "Unity.Mathematics",
         "Unity.Timeline",
         "Unity.Timeline.Editor"
     ],
