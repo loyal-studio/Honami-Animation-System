@@ -18,13 +18,16 @@ namespace HonamiAnimationSystem.Editor.BlendTree
         private Label _blendTypeBadge;
         private VisualElement _liveFill;
         private HonamiBlendTreePreview _preview;
+        private BlendTreeDirectionalMap _directionalMap;
 
         private Action _onPositionChanged;
+        private readonly Action<Vector2> _onDirectionalInputChanged;
 
-        public BlendTreeOutputCard(BlendTreeState state, Action onPositionChanged)
+        public BlendTreeOutputCard(BlendTreeState state, Action onPositionChanged, Action<Vector2> onDirectionalInputChanged)
         {
             _state = state;
             _onPositionChanged = onPositionChanged;
+            _onDirectionalInputChanged = onDirectionalInputChanged;
 
             name = "output-card";
             AddToClassList("honami-node-blend");
@@ -126,60 +129,63 @@ namespace HonamiAnimationSystem.Editor.BlendTree
             paramRow.Add(_paramLabel);
             body.Add(paramRow);
 
-            var previewRow = new VisualElement
+            if (!_state.IsDirectional2D)
             {
-                style = { flexDirection = FlexDirection.Row, alignItems = Align.Center }
-            };
-            previewRow.Add(Caption("Preview"));
-
-            var liveBar = new VisualElement
-            {
-                pickingMode = PickingMode.Ignore,
-                style =
+                var previewRow = new VisualElement
                 {
-                    flexGrow = 1,
-                    height = 6,
-                    backgroundColor = BlendTreeTheme.ArcTrack,
-                    borderTopLeftRadius = 3,
-                    borderTopRightRadius = 3,
-                    borderBottomLeftRadius = 3,
-                    borderBottomRightRadius = 3,
-                    overflow = Overflow.Hidden
-                }
-            };
-            _liveFill = new VisualElement
-            {
-                pickingMode = PickingMode.Ignore,
-                style =
-                {
-                    height = Length.Percent(100),
-                    width = Length.Percent(0),
-                    backgroundColor = BlendTreeTheme.Accent,
-                    borderTopLeftRadius = 3,
-                    borderTopRightRadius = 3,
-                    borderBottomLeftRadius = 3,
-                    borderBottomRightRadius = 3
-                }
-            };
-            liveBar.Add(_liveFill);
-            previewRow.Add(liveBar);
+                    style = { flexDirection = FlexDirection.Row, alignItems = Align.Center }
+                };
+                previewRow.Add(Caption("Preview"));
 
-            _previewValueLabel = new Label("0.00")
-            {
-                style =
+                var liveBar = new VisualElement
                 {
-                    fontSize = 10,
-                    unityFontStyleAndWeight = FontStyle.Bold,
-                    color = BlendTreeTheme.Accent,
-                    marginLeft = 8,
-                    flexShrink = 0,
-                    unityTextAlign = TextAnchor.MiddleRight,
-                    minWidth = 36
-                }
-            };
-            previewRow.Add(_previewValueLabel);
+                    pickingMode = PickingMode.Ignore,
+                    style =
+                    {
+                        flexGrow = 1,
+                        height = 6,
+                        backgroundColor = BlendTreeTheme.ArcTrack,
+                        borderTopLeftRadius = 3,
+                        borderTopRightRadius = 3,
+                        borderBottomLeftRadius = 3,
+                        borderBottomRightRadius = 3,
+                        overflow = Overflow.Hidden
+                    }
+                };
+                _liveFill = new VisualElement
+                {
+                    pickingMode = PickingMode.Ignore,
+                    style =
+                    {
+                        height = Length.Percent(100),
+                        width = Length.Percent(0),
+                        backgroundColor = BlendTreeTheme.Accent,
+                        borderTopLeftRadius = 3,
+                        borderTopRightRadius = 3,
+                        borderBottomLeftRadius = 3,
+                        borderBottomRightRadius = 3
+                    }
+                };
+                liveBar.Add(_liveFill);
+                previewRow.Add(liveBar);
 
-            body.Add(previewRow);
+                _previewValueLabel = new Label("0.00")
+                {
+                    style =
+                    {
+                        fontSize = 10,
+                        unityFontStyleAndWeight = FontStyle.Bold,
+                        color = BlendTreeTheme.Accent,
+                        marginLeft = 8,
+                        flexShrink = 0,
+                        unityTextAlign = TextAnchor.MiddleRight,
+                        minWidth = 36
+                    }
+                };
+                previewRow.Add(_previewValueLabel);
+
+                body.Add(previewRow);
+            }
 
             if (_state.ShowPreview)
             {
@@ -196,6 +202,12 @@ namespace HonamiAnimationSystem.Editor.BlendTree
                     }
                 };
                 body.Add(previewSeparator);
+
+                if (_state.IsDirectional2D)
+                {
+                    _directionalMap = new BlendTreeDirectionalMap(_state, _onDirectionalInputChanged);
+                    body.Add(_directionalMap);
+                }
 
                 _preview = new HonamiBlendTreePreview(_state);
                 body.Add(_preview);
@@ -217,6 +229,12 @@ namespace HonamiAnimationSystem.Editor.BlendTree
         public void RefreshInfo(BlendTreeState state)
         {
             string param = state.Node != null ? state.Node.blendParameter : null;
+            if (state.IsDirectional2D && state.Node != null)
+            {
+                string x = string.IsNullOrEmpty(state.Node.blendParameter) ? "None" : state.Node.blendParameter;
+                string y = string.IsNullOrEmpty(state.Node.blendParameterY) ? "None" : state.Node.blendParameterY;
+                param = $"{x} / {y}";
+            }
             bool hasParam = !string.IsNullOrEmpty(param);
             _paramLabel.text = hasParam ? param : "None";
             _paramLabel.style.color = hasParam ? BlendTreeTheme.Accent : BlendTreeTheme.MutedText;
@@ -237,6 +255,19 @@ namespace HonamiAnimationSystem.Editor.BlendTree
             float t = range > 0.0001f ? Mathf.Clamp01((paramValue - min) / range) : 0f;
             _liveFill.style.width = Length.Percent(t * 100f);
 
+            _preview?.MarkDirty();
+        }
+
+        public void UpdatePreviewInput(Vector2 input)
+        {
+            _directionalMap?.SetPreviewInput(input);
+
+            string label = $"{input.x:0.##}, {input.y:0.##}";
+            if (_previewValueLabel != null && label != _previewValueLabel.text)
+                _previewValueLabel.text = label;
+
+            if (_liveFill != null)
+                _liveFill.style.width = Length.Percent(Mathf.Clamp01(input.magnitude / 1.25f) * 100f);
             _preview?.MarkDirty();
         }
 

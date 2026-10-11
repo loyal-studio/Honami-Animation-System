@@ -170,9 +170,11 @@ namespace HonamiAnimationSystem.Runtime.Core
             }
 
             anim._blendTreeParamHashes = new int[anim._activeStatesCount];
+            anim._blendParamYIndices = new int[anim._activeStatesCount];
             for (int i = 0; i < anim._activeStatesCount; i++)
             {
                 anim._blendTreeParamHashes[i] = -1;
+                anim._blendParamYIndices[i] = -1;
             }
 
             anim._nodeRuntimes = new HonamiNodeRuntime[anim._activeStatesCount];
@@ -192,8 +194,74 @@ namespace HonamiAnimationSystem.Runtime.Core
 
         private static void AllocateLayerState(HonamiAnimator anim, int layerCount, int portCount, bool isSameController)
         {
-            if (CanReuseLayerState(anim, layerCount, portCount, isSameController))
+            bool reuseLayerState = CanReuseLayerState(anim, layerCount, portCount, isSameController);
+            HonamiBlend2DPortRuntime[][] previousDirectionalPorts = anim._blend2DPorts;
+
+            // A graph rebuild may be a candidate controller while the previous graph is still
+            // retained for rollback or a controller cross-fade. Never mutate that graph's actor-
+            // owned directional ports; allocate fresh layer/port storage for this graph.
+            anim.ClearDirectionalFaultLog();
+            anim._blend2DPorts = new HonamiBlend2DPortRuntime[layerCount][];
+            for (int layer = 0; layer < layerCount; layer++)
             {
+                anim._blend2DPorts[layer] = new HonamiBlend2DPortRuntime[portCount];
+            }
+
+            for (int stateIndex = 0; stateIndex < anim._activeStatesCount; stateIndex++)
+            {
+                HonamiState state = anim._runtimeStates[stateIndex];
+                if (state == null ||
+                    anim.controller.GetActiveNode(state) is not HonamiBlendTreeNode node ||
+                    node.blendType != HonamiBlendTreeType.FreeformDirectional2D)
+                {
+                    continue;
+                }
+
+                // Invalid directional content must not abort the whole graph build. Leave the port
+                // null: the state then plays as a silent mixer and the fault is reported once.
+                if (state.layerIndex < 0 || state.layerIndex >= layerCount)
+                {
+                    anim.LogDirectionalFaultOnce(state, $"it has invalid layer {state.layerIndex}.");
+                    continue;
+                }
+                if (!state.loop || state.isReversed || state.mirror)
+                {
+                    anim.LogDirectionalFaultOnce(state,
+                        "it must loop forward without state mirroring; non-looping, reversed, and mirrored playback are unsupported.");
+                    continue;
+                }
+                if (!node.TryGetDirectionalSolver(out HonamiDirectionalBlendSolver solver, out string error))
+                {
+                    anim.LogDirectionalFaultOnce(state, error);
+                    continue;
+                }
+
+                anim._blend2DPorts[state.layerIndex][stateIndex] = new HonamiBlend2DPortRuntime(solver);
+            }
+
+            if (reuseLayerState)
+            {
+                // OnDisable destroys the Playables graph after resetting its default state, but
+                // the actor-owned layer/port state survives. Carry initialized 2D ports into the
+                // fresh graph without mutating the old snapshot or sharing mutable weight arrays.
+                if (previousDirectionalPorts != null)
+                {
+                    for (int layer = 0; layer < layerCount && layer < previousDirectionalPorts.Length; layer++)
+                    {
+                        HonamiBlend2DPortRuntime[] oldLayerPorts = previousDirectionalPorts[layer];
+                        HonamiBlend2DPortRuntime[] newLayerPorts = anim._blend2DPorts[layer];
+                        if (oldLayerPorts == null) continue;
+                        int copyCount = Mathf.Min(oldLayerPorts.Length, newLayerPorts.Length);
+                        for (int port = 0; port < copyCount; port++)
+                        {
+                            HonamiBlend2DPortRuntime oldPort = oldLayerPorts[port];
+                            HonamiBlend2DPortRuntime newPort = newLayerPorts[port];
+                            if (oldPort != null && oldPort.IsInitialized && newPort != null &&
+                                ReferenceEquals(oldPort.Solver, newPort.Solver))
+                                newPort.CopyFrom(oldPort);
+                        }
+                    }
+                }
                 return;
             }
 
@@ -436,13 +504,79 @@ namespace HonamiAnimationSystem.Runtime.Core
                     : null;
 
                 var playable = HonamiPlayableFactory.CreateAndConnect(anim._playableGraph, anim.controller, state, layerMixer, i, mirrorFactory);
+
+                if (playable.IsValid() && anim.controller.GetActiveNode(state) is HonamiBlendTreeNode directionalNode &&
+                    directionalNode.blendType == HonamiBlendTreeType.FreeformDirectional2D &&
+                    anim._blend2DPorts != null && layer < anim._blend2DPorts.Length &&
+                    anim._blend2DPorts[layer] != null && i < anim._blend2DPorts[layer].Length)
+                {
+                    HonamiBlend2DPortRuntime port = anim._blend2DPorts[layer][i];
+                    if (port != null)
+                    {
+                        if (!port.IsInitialized && anim._layerStates != null && layer < anim._layerStates.Length &&
+                            anim._layerStates[layer].CurrentStateIndex == i)
+                        {
+                            int xCacheIndex = layer * portCount + i;
+                            int xParameterIndex = xCacheIndex < anim._blendParamIndices.Length
+                                ? anim._blendParamIndices[xCacheIndex]
+                                : -1;
+                            float x = xParameterIndex >= 0 ? anim._params.GetFloatByIndex(xParameterIndex) : 0f;
+                            int yParameterIndex = anim._blendParamYIndices != null && i < anim._blendParamYIndices.Length
+                                ? anim._blendParamYIndices[i]
+                                : -1;
+                            float y = yParameterIndex >= 0 ? anim._params.GetFloatByIndex(yParameterIndex) : 0f;
+
+                            string initError = null;
+                            bool initialized = playable.GetPlayableType() == typeof(AnimationMixerPlayable) &&
+                                HonamiBlendTreeEvaluator.InitializeDirectional(directionalNode, state,
+                                    (AnimationMixerPlayable)playable, port, new Vector2(x, y), 0d, out initError);
+                            if (!initialized)
+                            {
+                                anim.LogDirectionalFaultOnce(state, $"its rebuilt graph could not initialize: {initError}");
+                                port.Reset();
+                            }
+                        }
+                        else if (port.IsInitialized)
+                        {
+                            string applyError = null;
+                            bool applied = playable.GetPlayableType() == typeof(AnimationMixerPlayable) &&
+                                HonamiBlendTreeEvaluator.ApplyDirectionalPort((AnimationMixerPlayable)playable,
+                                    port, out applyError);
+                            if (!applied)
+                            {
+                                anim.LogDirectionalFaultOnce(state, $"its rebuilt graph could not be restored: {applyError}");
+                                port.Reset();
+                            }
+                        }
+                    }
+                }
+
                 WrapStateMirrorIfNeeded(anim, state, layerMixer, playable, i);
+            }
+
+            // CreateAndConnect zeros each state port while constructing the new graph. The earlier
+            // RestoreLayerMixerWeights call therefore cannot keep a retained directional default
+            // state active. Restore this 2D state only; legacy 1D graph-rebuild behavior is left
+            // untouched.
+            if (anim._layerStates != null && layer < anim._layerStates.Length)
+            {
+                int currentState = anim._layerStates[layer].CurrentStateIndex;
+                if (currentState >= 0 && currentState < anim._runtimeStates.Length &&
+                    anim.controller.GetActiveNode(anim._runtimeStates[currentState]) is HonamiBlendTreeNode currentNode &&
+                    currentNode.blendType == HonamiBlendTreeType.FreeformDirectional2D &&
+                    anim._blend2DPorts != null && layer < anim._blend2DPorts.Length &&
+                    anim._blend2DPorts[layer] != null && currentState < anim._blend2DPorts[layer].Length &&
+                    anim._blend2DPorts[layer][currentState] != null &&
+                    anim._blend2DPorts[layer][currentState].IsInitialized)
+                {
+                    layerMixer.SetInputWeight(currentState, 1f);
+                }
             }
         }
 
         private static void CacheBlendParameterIndex(HonamiAnimator anim, HonamiState state, int layer, int stateIndex, int portCount)
         {
-            if (state.node is not HonamiBlendTreeNode blendTreeNode)
+            if (anim.controller.GetActiveNode(state) is not HonamiBlendTreeNode blendTreeNode)
             {
                 return;
             }
@@ -453,6 +587,15 @@ namespace HonamiAnimationSystem.Runtime.Core
             if (anim._params.TryGetFloatIndex(parameterHash, out int parameterIndex))
             {
                 anim._blendParamIndices[cacheIndex] = parameterIndex;
+            }
+
+            // Directional Y is cached per state like X is per port: an index, not a per-frame hash lookup.
+            if (blendTreeNode.blendType == HonamiBlendTreeType.FreeformDirectional2D &&
+                !string.IsNullOrEmpty(blendTreeNode.blendParameterY) &&
+                anim._blendParamYIndices != null && (uint)stateIndex < (uint)anim._blendParamYIndices.Length &&
+                anim._params.TryGetFloatIndex(HonamiAnimator.StringToHash(blendTreeNode.blendParameterY), out int yParameterIndex))
+            {
+                anim._blendParamYIndices[stateIndex] = yParameterIndex;
             }
         }
 

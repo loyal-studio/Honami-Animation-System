@@ -171,7 +171,7 @@ namespace HonamiAnimationSystem.Editor
 
             propsBox.Add(HonamiGraphStyles.Separator());
 
-            float dur = GetStateDuration(state);
+            float dur = GetStateDuration(state, controller);
             VisualElement infoRow = HonamiGraphStyles.ListBox();
             infoRow.style.flexDirection = FlexDirection.Row;
             infoRow.style.marginTop = 2;
@@ -484,10 +484,39 @@ namespace HonamiAnimationSystem.Editor
 
         private static bool _handlingNameChange = false;
 
-        public static float GetStateDuration(HonamiState state)
+        /// <summary>
+        /// Authoring-time state duration. For a FreeformDirectional2D tree this is the solver period
+        /// at the X/Y parameters' default float values from <paramref name="controller"/> (or the
+        /// origin when no controller is known) divided by the state speed, matching the runtime
+        /// period at that input.
+        /// </summary>
+        public static float GetStateDuration(HonamiState state, HonamiRuntimeController controller = null)
         {
             if (state?.node == null) return 0f;
+            if (state.node is HonamiBlendTreeNode directional &&
+                directional.blendType == HonamiBlendTreeType.FreeformDirectional2D)
+            {
+                var input = new Vector2(GetDefaultFloat(controller, directional.blendParameter),
+                    GetDefaultFloat(controller, directional.blendParameterY));
+                if (!directional.TryGetDirectionalPeriod(input, out float period, out _)) return 0f;
+                float speed = state.speed > 0f ? state.speed : 1f;
+                return period / speed;
+            }
             return state.node.GetDuration(state, 0, null, 0f);
+        }
+
+        private static float GetDefaultFloat(HonamiRuntimeController controller, string parameterName)
+        {
+            if (controller == null || string.IsNullOrEmpty(parameterName)) return 0f;
+            var parameters = controller.ActiveParameters;
+            if (parameters == null) return 0f;
+            for (int i = 0; i < parameters.Count; i++)
+            {
+                HonamiParameter parameter = parameters[i];
+                if (parameter != null && parameter.type == HonamiParameterType.Float && parameter.name == parameterName)
+                    return parameter.defaultFloat;
+            }
+            return 0f;
         }
 
         public static VisualElement BuildConstraints(SerializedObject so, SerializedProperty constraintsProp,

@@ -45,7 +45,7 @@ namespace HonamiAnimationSystem.Editor.BlendTree
             _edges = new BlendTreeGraphEdges(_state);
             _canvas.ContentContainer.Add(_edges);
 
-            _outputNode = new BlendTreeOutputCard(_state, OnNodePositionChanged);
+            _outputNode = new BlendTreeOutputCard(_state, OnNodePositionChanged, SetPreviewInputFromMap);
             _canvas.ContentContainer.Add(_outputNode);
 
             var motions = _state.Node.blendMotions;
@@ -78,7 +78,7 @@ namespace HonamiAnimationSystem.Editor.BlendTree
             const float gap = 40f;
             float outH = _state.OutputNodeMeasuredSize.y > 0f
                 ? _state.OutputNodeMeasuredSize.y
-                : (_state.ShowPreview ? 250f : 110f);
+                : (_state.ShowPreview ? (_state.IsDirectional2D ? 500f : 250f) : 110f);
             return outputY + outH + gap;
         }
 
@@ -131,16 +131,32 @@ namespace HonamiAnimationSystem.Editor.BlendTree
             if (_state.Node == null) return;
             _state.CalculateWeights(_state.PreviewValue);
 
-            _state.GetSliderRange(out float min, out float max);
-
             for (int i = 0; i < _motionNodes.Count && i < _state.Weights.Length; i++)
             {
                 _motionNodes[i].UpdateWeight(_state.Weights[i]);
             }
 
-            _outputNode?.UpdatePreviewValue(_state.PreviewValue, min, max);
+            if (_state.IsDirectional2D)
+                _outputNode?.UpdatePreviewInput(_state.PreviewInput);
+            else
+            {
+                _state.GetSliderRange(out float min, out float max);
+                _outputNode?.UpdatePreviewValue(_state.PreviewValue, min, max);
+            }
 
             _edges?.MarkDirtyRepaint();
+        }
+
+        private void SetPreviewInputFromMap(Vector2 input)
+        {
+            if (!_state.IsDirectional2D || float.IsNaN(input.x) || float.IsInfinity(input.x) ||
+                float.IsNaN(input.y) || float.IsInfinity(input.y))
+                return;
+
+            SetPreviewValueX(input.x);
+            SetPreviewValueY(input.y);
+            _valueFieldX?.SetValueWithoutNotify(_state.PreviewValueX);
+            _valueFieldY?.SetValueWithoutNotify(_state.PreviewValueY);
         }
     }
 }
