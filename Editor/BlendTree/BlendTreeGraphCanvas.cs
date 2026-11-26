@@ -1,4 +1,3 @@
-#if UNITY_EDITOR
 using UnityEngine;
 using UnityEngine.UIElements;
 
@@ -61,7 +60,7 @@ namespace HonamiAnimationSystem.Editor.BlendTree
             Vector2 center = layout.size * 0.5f;
             Vector2 currentPosition = new Vector2(_state.ViewPosition.x, _state.ViewPosition.y);
             float currentScale = _state.ViewScale;
-            if (!IsFinite(currentScale) || currentScale <= 0f) currentScale = 1f;
+            if (!float.IsFinite(currentScale) || currentScale <= 0f) currentScale = 1f;
 
             if (Mathf.Approximately(currentScale, scale)) return;
 
@@ -73,9 +72,9 @@ namespace HonamiAnimationSystem.Editor.BlendTree
 
         public void UpdateTransform(Vector3 position, float scale)
         {
-            if (!IsFinite(scale) || scale <= 0f) scale = 1f;
+            if (!float.IsFinite(scale) || scale <= 0f) scale = 1f;
             scale = Mathf.Clamp(scale, BlendTreeTheme.ZoomMin, BlendTreeTheme.ZoomMax);
-            if (!IsFinite(position.x) || !IsFinite(position.y)) position = Vector3.zero;
+            if (!float.IsFinite(position.x) || !float.IsFinite(position.y)) position = Vector3.zero;
 
             _state.ViewPosition = position;
             _state.ViewScale = scale;
@@ -175,7 +174,6 @@ namespace HonamiAnimationSystem.Editor.BlendTree
             return null;
         }
         
-        private static bool IsFinite(float v) => !float.IsNaN(v) && !float.IsInfinity(v);
 
         public void FrameAllWhenReady()
         {
@@ -240,7 +238,7 @@ namespace HonamiAnimationSystem.Editor.BlendTree
             bounds.yMin -= 50f;
             bounds.yMax += 50f;
 
-            if (bounds.width <= 0f || bounds.height <= 0f || !IsFinite(bounds.width) || !IsFinite(bounds.height))
+            if (bounds.width <= 0f || bounds.height <= 0f || !float.IsFinite(bounds.width) || !float.IsFinite(bounds.height))
             {
                 UpdateTransform(Vector3.zero, 1f);
                 return;
@@ -253,7 +251,7 @@ namespace HonamiAnimationSystem.Editor.BlendTree
             float scaleY = viewHeight / bounds.height;
             float newScale = Mathf.Min(scaleX, scaleY);
             newScale = Mathf.Clamp(newScale, BlendTreeTheme.ZoomMin, 1f);
-            if (!IsFinite(newScale) || newScale <= 0f) newScale = 1f;
+            if (!float.IsFinite(newScale) || newScale <= 0f) newScale = 1f;
 
             Vector2 center = bounds.center;
             Vector2 viewCenter = new Vector2(viewWidth * 0.5f, viewHeight * 0.5f);
@@ -263,4 +261,3 @@ namespace HonamiAnimationSystem.Editor.BlendTree
         }
     }
 }
-#endif

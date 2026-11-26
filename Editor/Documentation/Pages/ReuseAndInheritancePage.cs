@@ -15,7 +15,7 @@ namespace HonamiAnimationSystem.Editor.Documentation.Pages
             HonamiDocumentationBuilder.AddPageIntro(root,
                 new[]
                 {
-                    HonamiDocLocalization.Get("Layer inheritance vs Override Controllers — and when to pick which", "Спадкування шарів vs Override Controller — і коли що обирати"),
+                    HonamiDocLocalization.Get("Layer inheritance vs Override Controllers - and when to pick which", "Спадкування шарів vs Override Controller - і коли що обирати"),
                     HonamiDocLocalization.Get("The Create Child Layer / Create Override workflow", "Воркфлоу Create Child Layer / Create Override"),
                     HonamiDocLocalization.Get("Building families of characters without duplicating graphs", "Побудова сімейств персонажів без дублювання графів")
                 },

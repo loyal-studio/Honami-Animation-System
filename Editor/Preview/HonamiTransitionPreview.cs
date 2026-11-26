@@ -1,4 +1,3 @@
-#if UNITY_EDITOR
 using System;
 using System.Collections.Generic;
 using UnityEditor;
@@ -9,9 +8,9 @@ using HonamiAnimationSystem.Runtime.Core;
 namespace HonamiAnimationSystem.Editor.Preview
 {
     /// <summary>
-    /// Live skeleton preview of a transition. In crossfade mode it plays a small timeline — source
+    /// Live skeleton preview of a transition. In crossfade mode it plays a small timeline - source
     /// leads in, blends into target over the transition window (curve or linear), then target plays
-    /// out — so both clips actually animate while the blend happens. When only one side is poseable
+    /// out - so both clips actually animate while the blend happens. When only one side is poseable
     /// (AnyState source, Exit / portal / null target) it loops that single side. The source can be
     /// overridden from a dropdown to preview an AnyState / interrupt transition from a chosen state.
     /// </summary>
@@ -522,4 +521,3 @@ namespace HonamiAnimationSystem.Editor.Preview
         }
     }
 }
-#endif

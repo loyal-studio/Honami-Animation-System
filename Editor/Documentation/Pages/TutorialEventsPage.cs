@@ -29,28 +29,28 @@ namespace HonamiAnimationSystem.Editor.Documentation.Pages
                 "Звуки, партикли та геймплейні вікна мають спрацьовувати на точних кадрах анімації. У Honami за це відповідають маркери івентів на таймлайні стейту. Додамо звук приземлення до стрибка."
             ));
 
-            HonamiDocumentationBuilder.AddHeader(root, HonamiDocLocalization.Get("Step 1 — Place the marker", "Крок 1 — Поставте маркер"), HonamiEditorIcons.TimelineWhite);
+            HonamiDocumentationBuilder.AddHeader(root, HonamiDocLocalization.Get("Step 1 - Place the marker", "Крок 1 - Поставте маркер"), HonamiEditorIcons.TimelineWhite);
             HonamiDocumentationBuilder.AddBulletPoint(root, HonamiDocLocalization.Get(
-                "Select the Jump state — its timeline appears in the Timeline panel at the bottom of the Graph Editor.",
-                "Виберіть стейт Jump — його таймлайн з'явиться в панелі Timeline внизу Graph Editor."));
+                "Select the Jump state - its timeline appears in the Timeline panel at the bottom of the Graph Editor.",
+                "Виберіть стейт Jump - його таймлайн з'явиться в панелі Timeline внизу Graph Editor."));
             HonamiDocumentationBuilder.AddBulletPoint(root, HonamiDocLocalization.Get(
-                "Right-click the timeline at the moment the feet hit the ground and choose Add Local Event.",
-                "Клікніть правою кнопкою по таймлайну в момент, коли стопи торкаються землі, і виберіть Add Local Event."));
+                "Click + Add Module above the rows and choose Events → Local Events. Then right-click the new Local Events row at the moment the feet hit the ground and choose Add Local Event.",
+                "Натисніть + Add Module над рядками й виберіть Events → Local Events. Потім клікніть правою кнопкою по новому рядку Local Events у момент, коли стопи торкаються землі, і виберіть Add Local Event."));
             HonamiDocumentationBuilder.AddBulletPoint(root, HonamiDocLocalization.Get(
                 "Select the marker and set its Event Name to Land.",
                 "Виберіть маркер і задайте йому Event Name = Land."));
 
-            HonamiDocumentationBuilder.AddHeader(root, HonamiDocLocalization.Get("Step 2 — Wire the receiver", "Крок 2 — Підключіть ресівер"), HonamiEditorIcons.Controller);
+            HonamiDocumentationBuilder.AddHeader(root, HonamiDocLocalization.Get("Step 2 - Wire the receiver", "Крок 2 - Підключіть ресівер"), HonamiEditorIcons.Controller);
             HonamiDocumentationBuilder.AddBulletPoint(root, HonamiDocLocalization.Get(
-                "On the GameObject that has the Honami Animator: Add Component → Honami Animation → Local Event Receiver. Do this before entering Play mode — the receiver is discovered once, when the animator initializes.",
-                "На GameObject із Honami Animator: Add Component → Honami Animation → Local Event Receiver. Зробіть це до входу в Play mode — ресівер знаходиться один раз, під час ініціалізації аніматора."));
+                "On the GameObject that has the Honami Animator: Add Component → Honami Animation → Local Event Receiver. Do this before entering Play mode - the receiver is discovered once, when the animator initializes.",
+                "На GameObject із Honami Animator: Add Component → Honami Animation → Local Event Receiver. Зробіть це до входу в Play mode - ресівер знаходиться один раз, під час ініціалізації аніматора."));
             HonamiDocumentationBuilder.AddBulletPoint(root, HonamiDocLocalization.Get(
                 "In its Local Events list add an entry with Event Name = Land (must match the marker exactly) and wire the UnityEvent to an AudioSource.PlayOneShot with your landing clip.",
                 "У списку Local Events додайте запис з Event Name = Land (має точно збігатися з маркером) і підключіть UnityEvent до AudioSource.PlayOneShot із кліпом приземлення."));
 
             HonamiDocumentationBuilder.AddParagraph(root, HonamiDocLocalization.Get(
-                "Play, run, jump: the thud lands exactly on the frame you marked. If you mistype the name, Honami logs a console warning when the marker fires — use it to catch typos.",
-                "Play, біжимо, стрибаємо: звук падає точно на позначений кадр. Якщо помилитеся в назві, Honami напише попередження в консоль у момент спрацювання маркера — так зручно ловити одруки."
+                "Play, run, jump: the thud lands exactly on the frame you marked. If you mistype the name, Honami logs a console warning when the marker fires - use it to catch typos.",
+                "Play, біжимо, стрибаємо: звук падає точно на позначений кадр. Якщо помилитеся в назві, Honami напише попередження в консоль у момент спрацювання маркера - так зручно ловити одруки."
             ));
 
             HonamiDocumentationBuilder.AddSeparator(root);

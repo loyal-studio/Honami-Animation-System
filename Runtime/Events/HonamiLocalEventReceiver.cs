@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Events;
@@ -16,34 +16,68 @@ namespace HonamiAnimationSystem.Runtime.Events
     public sealed class HonamiLocalEventReceiver : MonoBehaviour
     {
         public List<LocalEventEntry> localEvents = new List<LocalEventEntry>();
-        private Dictionary<string, List<UnityEvent>> _eventLookup;
 
-        private void Awake()
+        private readonly Dictionary<string, List<UnityEvent>> _eventLookup = new();
+        private readonly HashSet<string> _reportedMisses = new();
+        private bool _lookupBuilt;
+
+        private void Awake() => RebuildLookup();
+
+        /// <summary>
+        /// Re-indexes <see cref="localEvents"/>. Call after adding or renaming entries at runtime.
+        /// </summary>
+        public void RebuildLookup()
         {
-            _eventLookup = new Dictionary<string, List<UnityEvent>>();
-            foreach (var entry in localEvents)
+            _eventLookup.Clear();
+            _reportedMisses.Clear();
+            _lookupBuilt = true;
+
+            for (int i = 0; i < localEvents.Count; i++)
             {
-                if (string.IsNullOrEmpty(entry.eventName)) continue;
+                LocalEventEntry entry = localEvents[i];
+                if (entry == null || string.IsNullOrEmpty(entry.eventName)) continue;
+
                 if (!_eventLookup.TryGetValue(entry.eventName, out var list))
                 {
                     list = new List<UnityEvent>();
                     _eventLookup[entry.eventName] = list;
                 }
+
                 list.Add(entry.onEventTriggered);
             }
         }
 
-        public void TriggerEvent(string eventName)
+        /// <summary>
+        /// True when at least one entry answers to <paramref name="eventName"/>.
+        /// </summary>
+        public bool HasEvent(string eventName)
         {
-            if (_eventLookup.TryGetValue(eventName, out var events))
+            if (!_lookupBuilt) RebuildLookup();
+            return !string.IsNullOrEmpty(eventName) && _eventLookup.ContainsKey(eventName);
+        }
+
+        /// <summary>
+        /// Invokes every entry registered under <paramref name="eventName"/>. Returns false when nothing matched.
+        /// </summary>
+        public bool TriggerEvent(string eventName)
+        {
+            if (!_lookupBuilt) RebuildLookup();
+
+            if (!_eventLookup.TryGetValue(eventName, out var events))
             {
-                foreach (var uEvent in events)
-                    uEvent?.Invoke();
+                // Markers fire every loop, so a missing name would otherwise log once per frame.
+                if (_reportedMisses.Add(eventName))
+                    Debug.LogWarning($"[Honami] Local event '{eventName}' is not declared on {gameObject.name}.", this);
+
+                return false;
             }
-            else
+
+            for (int i = 0; i < events.Count; i++)
             {
-                Debug.LogWarning($"[HonamiLocalEventReceiver] Event {eventName} not found on {gameObject.name}");
+                events[i]?.Invoke();
             }
+
+            return true;
         }
     }
 }

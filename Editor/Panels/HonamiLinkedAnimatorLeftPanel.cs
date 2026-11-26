@@ -54,8 +54,7 @@ namespace HonamiAnimationSystem.Editor
             scroll.style.flexGrow = 1;
 
             var pad = new VisualElement();
-            pad.style.paddingLeft = pad.style.paddingRight =
-            pad.style.paddingTop = pad.style.paddingBottom = 6;
+            pad.Padding(6);
             scroll.Add(pad);
 
             _eventsContent = new VisualElement();

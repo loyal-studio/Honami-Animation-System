@@ -14,7 +14,7 @@ namespace HonamiAnimationSystem.Editor.Documentation.Pages
         {
             HonamiDocumentationBuilder.AddParagraph(root, HonamiDocLocalization.Get(
                 "Brain Graphs use specialized nodes to control multiple animators simultaneously. Nodes are ScriptableObject assets (Create → Honami Animation → Linked Animator Nodes) chained into sequences; the Brain's executor ticks them every frame until each reports Done.",
-                "Brain Graph використовує спеціалізовані вузли для одночасного керування кількома аніматорами. Вузли — це ScriptableObject-ассети (Create → Honami Animation → Linked Animator Nodes), з'єднані в послідовності; екзекютор Мозку тікає їх щокадру, доки кожен не поверне Done."
+                "Brain Graph використовує спеціалізовані вузли для одночасного керування кількома аніматорами. Вузли - це ScriptableObject-ассети (Create → Honami Animation → Linked Animator Nodes), з'єднані в послідовності; екзекютор Мозку тікає їх щокадру, доки кожен не поверне Done."
             ));
 
             HonamiDocumentationBuilder.AddHeader(root, HonamiDocLocalization.Get("Node reference", "Довідник вузлів"), HonamiEditorIcons.GraphWhite);
@@ -28,7 +28,7 @@ namespace HonamiAnimationSystem.Editor.Documentation.Pages
                 ("Condition", HonamiDocLocalization.Get("Branches into onTrue / onFalse based on a parameter check (FloatGreater/Less, IntEquals/NotEqual, BoolTrue/False). The parameter is read from the first linked animator.", "Розгалужується на onTrue / onFalse за перевіркою параметра (FloatGreater/Less, IntEquals/NotEqual, BoolTrue/False). Параметр читається з першого прилінкованого аніматора."), ""),
                 ("Wait", HonamiDocLocalization.Get("Pauses sequence execution for a duration in seconds.", "Призупиняє виконання послідовності на задану кількість секунд."), ""),
                 ("Sequence", HonamiDocLocalization.Get("Runs its children strictly one after another, waiting for Running children to finish.", "Виконує дочірні вузли строго один за одним, чекаючи завершення тих, що в стані Running."), ""),
-                ("Log", HonamiDocLocalization.Get("Prints a debug message — invaluable when tuning long choreographies.", "Друкує debug-повідомлення — незамінно при налаштуванні довгих хореографій."), "")
+                ("Log", HonamiDocLocalization.Get("Prints a debug message - invaluable when tuning long choreographies.", "Друкує debug-повідомлення - незамінно при налаштуванні довгих хореографій."), "")
             );
 
             HonamiDocumentationBuilder.AddHeader(root, HonamiDocLocalization.Get("Running graphs from code", "Запуск графів із коду"), HonamiEditorIcons.Controller);

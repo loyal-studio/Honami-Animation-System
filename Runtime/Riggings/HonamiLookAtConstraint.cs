@@ -137,7 +137,7 @@ namespace HonamiAnimationSystem.Runtime.Riggings
 
         public void ProcessAnimation(AnimationStream stream)
         {
-            float globalWeight = parameters[ParamGlobalWeight];
+            float globalWeight = math.clamp(parameters[ParamGlobalWeight], 0f, 1f);
             if (globalWeight <= 0.001f)
             {
                 for (int i = 0; i < (int)parameters[ParamBoneCount]; i++)
@@ -165,6 +165,7 @@ namespace HonamiAnimationSystem.Runtime.Riggings
             for (int i = 0; i < boneCount; i++)
             {
                 var boneH = boneHandles[i];
+                if (!boneH.IsValid(stream)) continue;
                 var parentH = parentHandles[i];
 
                 quaternion boneRot = (quaternion)boneH.GetRotation(stream);
@@ -422,6 +423,8 @@ namespace HonamiAnimationSystem.Runtime.Riggings
         private HonamiAnimator _cachedHonamiAnimator;
         private HonamiBoneReplacer _cachedBoneReplacer;
         private bool _avatarComponentsCached;
+        private Transform[] _resolvedAvatarBones;
+        private bool _avatarBonesResolved;
 
         private Quaternion[] _smoothedRotations;
         private bool[] _isInitialized;
@@ -432,8 +435,10 @@ namespace HonamiAnimationSystem.Runtime.Riggings
         public override void ResetRig()
         {
             _avatarComponentsCached = false;
+            _avatarBonesResolved = false;
             _cachedHonamiAnimator = null;
             _cachedBoneReplacer = null;
+            InvalidateAxisOffsetCache();
 
             if (_nativeSmoothed.IsCreated)
             {
@@ -475,10 +480,24 @@ namespace HonamiAnimationSystem.Runtime.Riggings
             _nativeEyeCenterOffset = new NativeArray<float3>(1, Allocator.Persistent);
             _nativeEyeCenterOffset[0] = (float3)eyeCenterOffset;
 
+            // the native offsets are fresh; the managed axis cache must not report them as up to date
+            EnsureArrays(count);
+            InvalidateAxisOffsetCache();
+
             for (int i = 0; i < count; i++)
             {
                 ref readonly var data = ref activeTargets[i];
-                if (data.transform == null) continue;
+                if (data.transform == null)
+                {
+                    Debug.LogWarning($"HonamiLookAtConstraint: Objects entry {i} on '{name}' has no bone assigned. It is skipped until one is set.", this);
+                    continue;
+                }
+
+                if (!data.transform.IsChildOf(animator.transform))
+                {
+                    Debug.LogWarning($"HonamiLookAtConstraint: bone '{data.transform.name}' on '{name}' is outside the Animator '{animator.name}' hierarchy and cannot be driven. It is skipped.", this);
+                    continue;
+                }
 
                 _boneHandles[i] = animator.BindStreamTransform(data.transform);
                 _parentHandles[i] = data.transform.parent != null
@@ -536,7 +555,7 @@ namespace HonamiAnimationSystem.Runtime.Riggings
             if (!_playable.IsValid()) return;
 
             float effectiveWeight = (enabled && gameObject.activeInHierarchy && target != null && _boundBoneCount > 0)
-                ? weight
+                ? Mathf.Clamp01(EffectiveWeight)
                 : 0f;
 
             if (target != null)
@@ -574,6 +593,7 @@ namespace HonamiAnimationSystem.Runtime.Riggings
 
             HonamiLookAtTarget[] activeTargets = ResolveActiveTargets(out int count);
             int actualCount = math.min(count, _boundBoneCount);
+            EnsureArrays(actualCount);
 
             for (int i = 0; i < actualCount; i++)
             {
@@ -584,11 +604,8 @@ namespace HonamiAnimationSystem.Runtime.Riggings
                 _nativePosOffsets[i] = data.positionOffset;
                 _nativeAxisWeights[i] = new float3(data.weightX, data.weightY, data.weightZ);
 
-                Vector3 aim = data.aimAxis.sqrMagnitude > 0.0001f ? data.aimAxis.normalized : Vector3.forward;
-                Vector3 boneUp = data.upAxis.sqrMagnitude > 0.0001f ? data.upAxis.normalized : Vector3.up;
-                if (Vector3.SqrMagnitude(Vector3.Cross(aim, boneUp)) < 0.0001f)
-                    boneUp = Mathf.Abs(aim.y) < 0.9f ? Vector3.up : Vector3.forward;
-                _nativeCachedOffsets[i] = Quaternion.Inverse(Quaternion.LookRotation(aim, boneUp));
+                if (UpdateCachedOffsets(i, data.aimAxis, data.upAxis))
+                    _nativeCachedOffsets[i] = _cachedAxisOffsets[i];
             }
 
             _nativeParams[0] = effectiveWeight;
@@ -650,6 +667,8 @@ namespace HonamiAnimationSystem.Runtime.Riggings
             if (_resolvedAvatarTargets == null || _resolvedAvatarTargets.Length < avatarTargets.Length)
                 System.Array.Resize(ref _resolvedAvatarTargets, avatarTargets.Length);
 
+            EnsureAvatarBoneCache();
+
             int count = 0;
             var span = new ReadOnlySpan<HonamiAvatarLookAtTarget>(avatarTargets);
             for (int i = 0; i < span.Length; i++)
@@ -657,7 +676,7 @@ namespace HonamiAnimationSystem.Runtime.Riggings
                 ref readonly var entry = ref span[i];
                 if (!entry.enabled) continue;
 
-                Transform bone = ResolveAvatarBone(in entry);
+                Transform bone = _resolvedAvatarBones[i];
                 if (bone == null) continue;
 
                 _resolvedAvatarTargets[count++] = new HonamiLookAtTarget
@@ -674,6 +693,36 @@ namespace HonamiAnimationSystem.Runtime.Riggings
             }
 
             return count;
+        }
+
+        // Resolving a bone walks the hierarchy by path and scans the replacer list by name, so it is
+        // done once per binding instead of per frame; ResetRig drops the cache when either can change.
+        private void EnsureAvatarBoneCache()
+        {
+            bool rebuild = !_avatarBonesResolved
+                           || _resolvedAvatarBones == null
+                           || _resolvedAvatarBones.Length != avatarTargets.Length;
+
+            if (rebuild)
+            {
+                if (_resolvedAvatarBones == null || _resolvedAvatarBones.Length != avatarTargets.Length)
+                    _resolvedAvatarBones = new Transform[avatarTargets.Length];
+
+                _avatarBonesResolved = true;
+            }
+
+            for (int i = 0; i < avatarTargets.Length; i++)
+            {
+                if (!avatarTargets[i].enabled)
+                {
+                    _resolvedAvatarBones[i] = null;
+                    continue;
+                }
+
+                // an entry that stayed unresolved keeps retrying, so a bone spawned later still binds
+                if (rebuild || _resolvedAvatarBones[i] == null)
+                    _resolvedAvatarBones[i] = ResolveAvatarBone(in avatarTargets[i]);
+            }
         }
 
         private Transform ResolveAvatarBone(in HonamiAvatarLookAtTarget entry)
@@ -727,7 +776,8 @@ namespace HonamiAnimationSystem.Runtime.Riggings
                 activeTargets = _resolvedAvatarTargets;
             }
 
-            if (target == null || weight <= 0.001f || activeTargets == null || count == 0)
+            float safeWeight = Mathf.Clamp01(EffectiveWeight);
+            if (target == null || safeWeight <= 0.001f || activeTargets == null || count == 0)
             {
                 if (_isInitialized != null)
                 {
@@ -762,21 +812,28 @@ namespace HonamiAnimationSystem.Runtime.Riggings
             }
         }
 
-        private void UpdateCachedOffsets(int index, Vector3 aim, Vector3 up)
+        // zero is unreachable as a stored axis, so it marks every entry as needing a recompute
+        private void InvalidateAxisOffsetCache()
+        {
+            if (_lastAimAxes != null) System.Array.Clear(_lastAimAxes, 0, _lastAimAxes.Length);
+            if (_lastUpAxes != null) System.Array.Clear(_lastUpAxes, 0, _lastUpAxes.Length);
+        }
+
+        private bool UpdateCachedOffsets(int index, Vector3 aim, Vector3 up)
         {
             if (aim.sqrMagnitude < 0.0001f) aim = Vector3.forward;
             if (up.sqrMagnitude < 0.0001f) up = Vector3.up;
 
-            if (aim != _lastAimAxes[index] || up != _lastUpAxes[index])
-            {
-                _lastAimAxes[index] = aim;
-                _lastUpAxes[index] = up;
-                Vector3 normAim = aim.normalized;
-                Vector3 safeUp = up.normalized;
-                if (Vector3.SqrMagnitude(Vector3.Cross(normAim, safeUp)) < 0.0001f)
-                    safeUp = (Mathf.Abs(normAim.y) < 0.9f) ? Vector3.up : Vector3.forward;
-                _cachedAxisOffsets[index] = Quaternion.Inverse(Quaternion.LookRotation(normAim, safeUp));
-            }
+            if (aim == _lastAimAxes[index] && up == _lastUpAxes[index]) return false;
+
+            _lastAimAxes[index] = aim;
+            _lastUpAxes[index] = up;
+            Vector3 normAim = aim.normalized;
+            Vector3 safeUp = up.normalized;
+            if (Vector3.SqrMagnitude(Vector3.Cross(normAim, safeUp)) < 0.0001f)
+                safeUp = (Mathf.Abs(normAim.y) < 0.9f) ? Vector3.up : Vector3.forward;
+            _cachedAxisOffsets[index] = Quaternion.Inverse(Quaternion.LookRotation(normAim, safeUp));
+            return true;
         }
 
         private void ProcessObject(int index, in HonamiLookAtTarget data, float deltaTime)
@@ -851,10 +908,11 @@ namespace HonamiAnimationSystem.Runtime.Riggings
                 finalRotation = parentRot * Quaternion.Euler(x, y, z);
             }
 
-            obj.rotation = Quaternion.Slerp(obj.rotation, finalRotation, weight);
+            float safeWeight = Mathf.Clamp01(EffectiveWeight);
+            obj.rotation = Quaternion.Slerp(obj.rotation, finalRotation, safeWeight);
 
             if (data.positionOffset.sqrMagnitude > 0.0001f)
-                obj.localPosition += data.positionOffset * weight;
+                obj.localPosition += data.positionOffset * safeWeight;
         }
 
         private bool TryGetLookRotation(Transform obj, int index, out Quaternion rotation)

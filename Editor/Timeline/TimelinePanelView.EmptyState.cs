@@ -1,4 +1,3 @@
-#if UNITY_EDITOR
 using System;
 using HonamiAnimationSystem.Runtime.Core;
 using HonamiAnimationSystem.Runtime.Timeline;
@@ -29,7 +28,8 @@ namespace HonamiAnimationSystem.Editor.Timeline
             container.style.alignItems = Align.Center;
             container.style.justifyContent = Justify.Center;
             IgnorePicking(container);
-            _content.Add(container);
+            _emptyOverlay = container;
+            _timelineRoot.Add(container);
 
             var tex = _state.Mode == TimelineMode.HonamiClipEdit
                 ? LoadClipIcon()
@@ -135,7 +135,7 @@ namespace HonamiAnimationSystem.Editor.Timeline
             if (string.IsNullOrEmpty(path)) return;
             var timeline = ScriptableObject.CreateInstance<HonamiTimeline>();
             AssetDatabase.CreateAsset(timeline, path);
-            AssetDatabase.SaveAssets();
+            AssetDatabase.SaveAssetIfDirty(timeline);
             _state.ActiveTimeline = timeline;
             _rebuild();
         }
@@ -147,10 +147,9 @@ namespace HonamiAnimationSystem.Editor.Timeline
 
             var clip = new AnimationClip();
             AssetDatabase.CreateAsset(clip, path);
-            AssetDatabase.SaveAssets();
+            AssetDatabase.SaveAssetIfDirty(clip);
             _state.ActiveClip = clip;
             _rebuild();
         }
     }
 }
-#endif

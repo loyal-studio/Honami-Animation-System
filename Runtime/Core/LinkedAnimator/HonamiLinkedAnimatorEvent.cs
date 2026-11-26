@@ -4,7 +4,6 @@ using UnityEngine;
 namespace HonamiAnimationSystem.Runtime.Core
 {
     [System.Serializable]
-    [UnityEngine.Scripting.APIUpdating.MovedFrom("HonamiBrainEvent")]
     public sealed class HonamiLinkedAnimatorEvent : ScriptableObject
     {
         public string eventName = "New Event";

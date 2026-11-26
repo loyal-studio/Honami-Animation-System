@@ -18,7 +18,7 @@ namespace HonamiAnimationSystem.Editor
             {
                 _saveScheduled = false;
                 IsInternalSave = true;
-                try { AssetDatabase.SaveAssets(); }
+                try { HonamiAnimationSystem.Editor.Core.HonamiEditorController.SaveDirtyHonamiAssets(); }
                 finally { IsInternalSave = false; }
             };
         }

@@ -3,6 +3,8 @@ using UnityEngine.UIElements;
 using UnityEditor;
 using System;
 using System.Collections.Generic;
+using HonamiAnimationSystem.Runtime.Core;
+using System.Text.RegularExpressions;
 
 namespace HonamiAnimationSystem.Editor.Documentation
 {
@@ -40,8 +42,7 @@ namespace HonamiAnimationSystem.Editor.Documentation
             line.style.backgroundColor = HonamiGraphStyles.Accent;
             line.style.width = 50;
             line.style.marginBottom = 16;
-            line.style.borderTopLeftRadius = line.style.borderTopRightRadius =
-            line.style.borderBottomLeftRadius = line.style.borderBottomRightRadius = 1.5f;
+            line.Radius(1.5f);
             root.Add(line);
         }
 
@@ -91,8 +92,7 @@ namespace HonamiAnimationSystem.Editor.Documentation
             bullet.style.backgroundColor = HonamiGraphStyles.Accent;
             bullet.style.marginRight = 12;
             bullet.style.marginTop = 7;
-            bullet.style.borderTopLeftRadius = bullet.style.borderTopRightRadius =
-            bullet.style.borderBottomLeftRadius = bullet.style.borderBottomRightRadius = 3;
+            bullet.Radius(3);
 
             var p = new Label(text);
             p.style.fontSize = 13.5f;
@@ -108,13 +108,11 @@ namespace HonamiAnimationSystem.Editor.Documentation
         public static void AddCallout(VisualElement root, string text, CalloutType type = CalloutType.Info)
         {
             var box = new VisualElement();
-            box.style.paddingTop = box.style.paddingBottom = 12;
-            box.style.paddingLeft = box.style.paddingRight = 16;
+            box.Padding(12, 16);
             box.style.marginTop = 12;
             box.style.marginBottom = 12;
             box.style.borderLeftWidth = 4;
-            box.style.borderTopLeftRadius = box.style.borderTopRightRadius =
-            box.style.borderBottomLeftRadius = box.style.borderBottomRightRadius = 4;
+            box.Radius(4);
 
             Color accentColor = type switch
             {
@@ -170,8 +168,7 @@ namespace HonamiAnimationSystem.Editor.Documentation
         public static void AddPageIntro(VisualElement root, string[] youWillLearn, string[] prerequisites = null)
         {
             var box = new VisualElement();
-            box.style.paddingTop = box.style.paddingBottom = 14;
-            box.style.paddingLeft = box.style.paddingRight = 16;
+            box.Padding(14, 16);
             box.style.marginBottom = 24;
             box.style.backgroundColor = HonamiGraphStyles.BoxBg;
             box.style.borderTopColor = box.style.borderBottomColor =
@@ -180,8 +177,7 @@ namespace HonamiAnimationSystem.Editor.Documentation
             box.style.borderRightWidth = 1;
             box.style.borderLeftWidth = 4;
             box.style.borderLeftColor = HonamiGraphStyles.Accent;
-            box.style.borderTopLeftRadius = box.style.borderTopRightRadius =
-            box.style.borderBottomLeftRadius = box.style.borderBottomRightRadius = 6;
+            box.Radius(6);
 
             AddIntroSection(box, HonamiDocLocalization.Get("YOU WILL LEARN", "ЩО ВИ ДІЗНАЄТЕСЬ"), HonamiGraphStyles.Accent, youWillLearn, 0);
 
@@ -216,8 +212,7 @@ namespace HonamiAnimationSystem.Editor.Documentation
                 bullet.style.backgroundColor = titleColor;
                 bullet.style.marginRight = 10;
                 bullet.style.marginTop = 7;
-                bullet.style.borderTopLeftRadius = bullet.style.borderTopRightRadius =
-                bullet.style.borderBottomLeftRadius = bullet.style.borderBottomRightRadius = 2.5f;
+                bullet.Radius(2.5f);
 
                 var p = new Label(line);
                 p.style.fontSize = 13;
@@ -238,12 +233,8 @@ namespace HonamiAnimationSystem.Editor.Documentation
             container.style.marginBottom = 12;
             container.style.backgroundColor = new Color(0.08f, 0.08f, 0.09f);
             container.style.overflow = Overflow.Hidden;
-            container.style.borderTopLeftRadius = container.style.borderTopRightRadius =
-            container.style.borderBottomLeftRadius = container.style.borderBottomRightRadius = 8;
-            container.style.borderTopColor = container.style.borderBottomColor =
-            container.style.borderLeftColor = container.style.borderRightColor = new Color(1, 1, 1, 0.05f);
-            container.style.borderTopWidth = container.style.borderBottomWidth =
-            container.style.borderLeftWidth = container.style.borderRightWidth = 1;
+            container.Radius(8);
+            container.Border(1, new Color(1, 1, 1, 0.05f));
 
             var header = new VisualElement();
             header.style.height = 28;
@@ -264,9 +255,8 @@ namespace HonamiAnimationSystem.Editor.Documentation
             copyBtn.style.fontSize = 9;
             copyBtn.style.height = 18;
             copyBtn.style.backgroundColor = new Color(1, 1, 1, 0.05f);
-            copyBtn.style.borderTopWidth = copyBtn.style.borderBottomWidth = copyBtn.style.borderLeftWidth = copyBtn.style.borderRightWidth = 1;
-            copyBtn.style.borderTopColor = copyBtn.style.borderBottomColor = copyBtn.style.borderLeftColor = copyBtn.style.borderRightColor = Color.clear;
-            copyBtn.style.borderTopLeftRadius = copyBtn.style.borderTopRightRadius = copyBtn.style.borderBottomLeftRadius = copyBtn.style.borderBottomRightRadius = 3;
+            copyBtn.Border(1, Color.clear);
+            copyBtn.Radius(3);
             copyBtn.style.color = new Color(0.8f, 0.8f, 0.8f);
             copyBtn.style.paddingLeft = copyBtn.style.paddingRight = 8;
             copyBtn.style.transitionProperty = new List<StylePropertyName> { "background-color", "border-color", "color" };
@@ -288,12 +278,12 @@ namespace HonamiAnimationSystem.Editor.Documentation
             copyBtn.RegisterCallback<MouseOverEvent>(evt =>
             {
                 copyBtn.style.backgroundColor = new Color(1, 1, 1, 0.1f);
-                copyBtn.style.borderTopColor = copyBtn.style.borderBottomColor = copyBtn.style.borderLeftColor = copyBtn.style.borderRightColor = new Color(1, 1, 1, 0.15f);
+                copyBtn.BorderColor(new Color(1, 1, 1, 0.15f));
             });
             copyBtn.RegisterCallback<MouseOutEvent>(evt =>
             {
                 copyBtn.style.backgroundColor = new Color(1, 1, 1, 0.05f);
-                copyBtn.style.borderTopColor = copyBtn.style.borderBottomColor = copyBtn.style.borderLeftColor = copyBtn.style.borderRightColor = Color.clear;
+                copyBtn.BorderColor(Color.clear);
             });
 
             header.Add(copyBtn);
@@ -301,21 +291,17 @@ namespace HonamiAnimationSystem.Editor.Documentation
             container.Add(header);
 
             var codeContent = new VisualElement();
-            codeContent.style.paddingTop = codeContent.style.paddingBottom = 12;
-            codeContent.style.paddingLeft = codeContent.style.paddingRight = 12;
+            codeContent.Padding(12);
 
-            var highlighted = HighlightCSharp(code);
-            var style = new GUIStyle(EditorStyles.label)
-            {
-                richText = true,
-                fontSize = 12,
-                wordWrap = false
-            };
+           string highlighted = HighlightCSharp(code);
+            GUIContent highlightedContent = new(highlighted);
+            float codeHeight = -1f;
 
             var imgui = new IMGUIContainer(() =>
             {
-                var rect = EditorGUILayout.GetControlRect(false, style.CalcHeight(new GUIContent(highlighted), 1000));
-                EditorGUI.SelectableLabel(rect, highlighted, style);
+                if (codeHeight < 0f) codeHeight = CodeStyle.CalcHeight(highlightedContent, CodeBlockLayoutWidth);
+                Rect rect = EditorGUILayout.GetControlRect(false, codeHeight);
+                EditorGUI.SelectableLabel(rect, highlighted, CodeStyle);
             });
 
             codeContent.Add(imgui);
@@ -324,12 +310,28 @@ namespace HonamiAnimationSystem.Editor.Documentation
             root.Add(container);
         }
 
+       private const float CodeBlockLayoutWidth = 1000f;
+
+        private static GUIStyle _codeStyle;
+
+        private static GUIStyle CodeStyle => _codeStyle ??= new GUIStyle(EditorStyles.label)
+        {
+            richText = true,
+            fontSize = 12,
+            wordWrap = false
+        };
+
+        private static readonly Regex KeywordPattern = new(@"\b(public|private|protected|internal|static|class|struct|interface|enum|void|override|virtual|new|using|namespace|if|else|while|for|foreach|return|true|false|null|in|out|ref|params|var)\b", RegexOptions.Compiled);
+        private static readonly Regex TypePattern = new(@"\b(string|int|float|bool|VisualElement|HonamiAnimator|HonamiController|HonamiExecutionContext|honami|ctx)\b", RegexOptions.Compiled);
+        private static readonly Regex StringPattern = new(@"""(.*?)""", RegexOptions.Compiled);
+        private static readonly Regex CommentPattern = new(@"//(.*)", RegexOptions.Compiled);
+
         private static string HighlightCSharp(string code)
         {
-            code = System.Text.RegularExpressions.Regex.Replace(code, @"\b(public|private|protected|internal|static|class|struct|interface|enum|void|override|virtual|new|using|namespace|if|else|while|for|foreach|return|true|false|null|in|out|ref|params|var)\b", "<color=#569cd6>$1</color>");
-            code = System.Text.RegularExpressions.Regex.Replace(code, @"\b(string|int|float|bool|VisualElement|HonamiAnimator|HonamiController|HonamiExecutionContext|honami|ctx)\b", "<color=#4ec9b0>$1</color>");
-            code = System.Text.RegularExpressions.Regex.Replace(code, @"""(.*?)""", "<color=#d69d85>\"$1\"</color>");
-            code = System.Text.RegularExpressions.Regex.Replace(code, @"//(.*)", "<color=#6a9955>//$1</color>");
+            code = KeywordPattern.Replace(code, "<color=#569cd6>$1</color>");
+            code = TypePattern.Replace(code, "<color=#4ec9b0>$1</color>");
+            code = StringPattern.Replace(code, "<color=#d69d85>\"$1\"</color>");
+            code = CommentPattern.Replace(code, "<color=#6a9955>//$1</color>");
             return code;
         }
 
@@ -348,8 +350,7 @@ namespace HonamiAnimationSystem.Editor.Documentation
             container.style.marginTop = 12;
             container.style.marginBottom = 12;
             container.style.backgroundColor = new Color(0.12f, 0.13f, 0.14f, 0.3f);
-            container.style.borderTopLeftRadius = container.style.borderTopRightRadius =
-            container.style.borderBottomLeftRadius = container.style.borderBottomRightRadius = 6;
+            container.Radius(6);
             container.style.overflow = Overflow.Hidden;
 
             var header = new VisualElement();
@@ -417,14 +418,9 @@ namespace HonamiAnimationSystem.Editor.Documentation
             container.style.marginTop = 12;
             container.style.marginBottom = 12;
             container.style.backgroundColor = HonamiGraphStyles.BoxBg;
-            container.style.borderTopColor = container.style.borderBottomColor =
-            container.style.borderLeftColor = container.style.borderRightColor = HonamiGraphStyles.BoxBorder;
-            container.style.borderTopWidth = container.style.borderBottomWidth =
-            container.style.borderLeftWidth = container.style.borderRightWidth = 1;
-            container.style.borderTopLeftRadius = container.style.borderTopRightRadius =
-            container.style.borderBottomLeftRadius = container.style.borderBottomRightRadius = 6;
-            container.style.paddingTop = container.style.paddingBottom = 12;
-            container.style.paddingLeft = container.style.paddingRight = 16;
+            container.Border(1, HonamiGraphStyles.BoxBorder);
+            container.Radius(6);
+            container.Padding(12, 16);
 
             ReadOnlySpan<(string name, string desc)> span = properties;
             for (int i = 0; i < span.Length; i++)
@@ -458,9 +454,8 @@ namespace HonamiAnimationSystem.Editor.Documentation
             var node = new VisualElement();
             node.style.width = 220;
             node.style.backgroundColor = new Color(0.12f, 0.13f, 0.14f);
-            node.style.borderTopColor = node.style.borderBottomColor = node.style.borderLeftColor = node.style.borderRightColor = new Color(0.06f, 0.07f, 0.08f);
-            node.style.borderTopWidth = node.style.borderBottomWidth = node.style.borderLeftWidth = node.style.borderRightWidth = 1;
-            node.style.borderTopLeftRadius = node.style.borderTopRightRadius = node.style.borderBottomLeftRadius = node.style.borderBottomRightRadius = 10;
+            node.Border(1, new Color(0.06f, 0.07f, 0.08f));
+            node.Radius(10);
             node.style.marginTop = 16;
             node.style.marginBottom = 16;
             node.style.alignSelf = Align.Center;
@@ -516,26 +511,20 @@ namespace HonamiAnimationSystem.Editor.Documentation
             btn.style.marginTop = 8;
             btn.style.marginBottom = 8;
             btn.style.backgroundColor = new Color(0.15f, 0.16f, 0.17f);
-            btn.style.borderTopColor = btn.style.borderBottomColor =
-            btn.style.borderLeftColor = btn.style.borderRightColor = new Color(0.25f, 0.26f, 0.27f, 0.5f);
-            btn.style.borderTopWidth = btn.style.borderBottomWidth =
-            btn.style.borderLeftWidth = btn.style.borderRightWidth = 1;
-            btn.style.borderTopLeftRadius = btn.style.borderTopRightRadius =
-            btn.style.borderBottomLeftRadius = btn.style.borderBottomRightRadius = 6;
+            btn.Border(1, new Color(0.25f, 0.26f, 0.27f, 0.5f));
+            btn.Radius(6);
             btn.style.transitionProperty = new List<StylePropertyName> { "background-color", "border-color" };
             btn.style.transitionDuration = new List<TimeValue> { new TimeValue(100, TimeUnit.Millisecond) };
 
             btn.RegisterCallback<MouseOverEvent>(evt =>
             {
                 btn.style.backgroundColor = new Color(0.20f, 0.21f, 0.22f);
-                btn.style.borderTopColor = btn.style.borderBottomColor =
-                btn.style.borderLeftColor = btn.style.borderRightColor = HonamiGraphStyles.Accent;
+                btn.BorderColor(HonamiGraphStyles.Accent);
             });
             btn.RegisterCallback<MouseOutEvent>(evt =>
             {
                 btn.style.backgroundColor = new Color(0.15f, 0.16f, 0.17f);
-                btn.style.borderTopColor = btn.style.borderBottomColor =
-                btn.style.borderLeftColor = btn.style.borderRightColor = new Color(0.25f, 0.26f, 0.27f, 0.5f);
+                btn.BorderColor(new Color(0.25f, 0.26f, 0.27f, 0.5f));
             });
 
             if (icon != null)
@@ -577,12 +566,8 @@ namespace HonamiAnimationSystem.Editor.Documentation
                 btn.style.marginRight = 10;
                 btn.style.marginBottom = 10;
                 btn.style.backgroundColor = new Color(0.18f, 0.19f, 0.20f);
-                btn.style.borderTopColor = btn.style.borderBottomColor =
-                btn.style.borderLeftColor = btn.style.borderRightColor = new Color(1, 1, 1, 0.05f);
-                btn.style.borderTopWidth = btn.style.borderBottomWidth =
-                btn.style.borderLeftWidth = btn.style.borderRightWidth = 1;
-                btn.style.borderTopLeftRadius = btn.style.borderTopRightRadius =
-                btn.style.borderBottomLeftRadius = btn.style.borderBottomRightRadius = 4;
+                btn.Border(1, new Color(1, 1, 1, 0.05f));
+                btn.Radius(4);
                 btn.style.transitionProperty = new List<StylePropertyName> { "background-color" };
                 btn.style.transitionDuration = new List<TimeValue> { new TimeValue(100, TimeUnit.Millisecond) };
 
@@ -625,15 +610,10 @@ namespace HonamiAnimationSystem.Editor.Documentation
                 var card = new VisualElement();
                 card.style.width = Length.Percent(48.5f);
                 card.style.marginBottom = 12;
-                card.style.paddingTop = card.style.paddingBottom = 16;
-                card.style.paddingLeft = card.style.paddingRight = 16;
+                card.Padding(16);
                 card.style.backgroundColor = HonamiGraphStyles.BoxBg;
-                card.style.borderTopColor = card.style.borderBottomColor =
-                card.style.borderLeftColor = card.style.borderRightColor = HonamiGraphStyles.BoxBorder;
-                card.style.borderTopWidth = card.style.borderBottomWidth =
-                card.style.borderLeftWidth = card.style.borderRightWidth = 1;
-                card.style.borderTopLeftRadius = card.style.borderTopRightRadius =
-                card.style.borderBottomLeftRadius = card.style.borderBottomRightRadius = 8;
+                card.Border(1, HonamiGraphStyles.BoxBorder);
+                card.Radius(8);
 
                 if (span[i].icon != null)
                 {
@@ -674,9 +654,9 @@ namespace HonamiAnimationSystem.Editor.Documentation
             }
 
             var assetPath = AssetDatabase.GenerateUniqueAssetPath(path + "/New Honami Controller.asset");
-            var asset = ScriptableObject.CreateInstance<Runtime.Core.HonamiController>();
+            var asset = ScriptableObject.CreateInstance<HonamiController>();
             AssetDatabase.CreateAsset(asset, assetPath);
-            AssetDatabase.SaveAssets();
+            AssetDatabase.SaveAssetIfDirty(asset);
             EditorUtility.FocusProjectWindow();
             Selection.activeObject = asset;
         }

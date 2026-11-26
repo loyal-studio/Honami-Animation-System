@@ -1,11 +1,11 @@
-using UnityEngine.UIElements;
+﻿using UnityEngine.UIElements;
 
 namespace HonamiAnimationSystem.Editor.Documentation.Pages
 {
     public sealed class ScriptingApiPage : IHonamiDocumentationPage
     {
         public string Title => HonamiDocLocalization.Get("Scripting API", "API для скриптів");
-        public string Category => HonamiDocLocalization.Get("08. Developer API", "08. API для розробників");
+        public string Category => HonamiDocLocalization.Get("09. Developer API", "09. API для розробників");
         public string SearchKeywords => "scripting api code access methods animator tick playstate parameters tags pause stop layer controller events callbacks mirror initial pose global weight mode init bind timescale fps cap апі скрипти події параметри глобальна вага режим";
         public int Order => 700;
         public int EstimatedReadTime => 15;
@@ -14,12 +14,12 @@ namespace HonamiAnimationSystem.Editor.Documentation.Pages
         {
             HonamiDocumentationBuilder.AddParagraph(root, HonamiDocLocalization.Get(
                 "Honami provides a clean, modern C# API to control your animators from code. All core functions live on the HonamiAnimator component in the HonamiAnimationSystem.Runtime.Core namespace. This page is a full reference: playback, state skipping, pausing and stopping, parameters, tags, layers, C# events, controller switching, initial pose, mirroring and time control.",
-                "Honami надає чисте та сучасне C# API для керування аніматорами з коду. Усі основні функції живуть на компоненті HonamiAnimator у просторі імен HonamiAnimationSystem.Runtime.Core. Ця сторінка — повний довідник: відтворення, пропуск станів, пауза та зупинка, параметри, теги, шари, C#-події, зміна контролера, initial pose, віддзеркалення та керування часом."
+                "Honami надає чисте та сучасне C# API для керування аніматорами з коду. Усі основні функції живуть на компоненті HonamiAnimator у просторі імен HonamiAnimationSystem.Runtime.Core. Ця сторінка - повний довідник: відтворення, пропуск станів, пауза та зупинка, параметри, теги, шари, C#-події, зміна контролера, initial pose, віддзеркалення та керування часом."
             ));
 
             HonamiDocumentationBuilder.AddCallout(root, HonamiDocLocalization.Get(
-                "Every method that takes a state or parameter name also has an overload that takes an int hash (via HonamiAnimator.StringToHash) and, for states, a ...ByGuid variant. Names are convenient, hashes are allocation-free and fast, GUIDs survive state renames.",
-                "Кожен метод, що приймає назву стану чи параметра, має перевантаження з int-хешем (через HonamiAnimator.StringToHash), а для станів — ще й варіант ...ByGuid. Назви зручні, хеші швидкі та без алокацій, GUID переживають перейменування станів."
+                "Playback and parameter methods that take a name also take an int hash (via HonamiAnimator.StringToHash), and state methods add a ...ByGuid variant. Names are convenient, hashes are allocation-free and fast, GUIDs survive state renames. PauseState and StopState are name/GUID only. One rule worth remembering: an int argument always means a name hash - accessors that take a runtime index carry an At suffix (GetStateAt, GetStateDurationAt).",
+                "Методи відтворення й параметрів, що приймають назву, приймають також int-хеш (через HonamiAnimator.StringToHash), а методи станів мають ще й варіант ...ByGuid. Назви зручні, хеші швидкі та без алокацій, GUID переживають перейменування станів. PauseState і StopState мають лише варіанти з назвою та GUID. Одне правило варте уваги: int-аргумент завжди означає хеш назви - аксесори, що беруть рантайм-індекс, мають суфікс At (GetStateAt, GetStateDurationAt)."
             ), HonamiDocumentationBuilder.CalloutType.Info);
 
             HonamiDocumentationBuilder.AddHeader(root, HonamiDocLocalization.Get("Playback", "Відтворення"), HonamiEditorIcons.Controller);
@@ -34,6 +34,28 @@ namespace HonamiAnimationSystem.Editor.Documentation.Pages
                 ("GetPreviousStateIndex(layer)", HonamiDocLocalization.Get("Index of the state that was active before the current one.", "Індекс стану, що був активним перед поточним."), ""),
                 ("GetTransitionWeight(layer)", HonamiDocLocalization.Get("Current cross-fade weight of the running transition on a layer.", "Поточна вага кросфейду активного переходу на шарі."), ""),
                 ("GetStateProgress(layer, portIdx)", HonamiDocLocalization.Get("Normalized playback progress of a state port.", "Нормалізований прогрес відтворення порту стану."), "")
+            );
+
+            HonamiDocumentationBuilder.AddHeader(root, HonamiDocLocalization.Get("Reading runtime state", "Читання рантайм-стану"), HonamiEditorIcons.GraphWhite);
+            HonamiDocumentationBuilder.AddParagraph(root, HonamiDocLocalization.Get(
+                "Playback methods answer \"do this\". These answer \"what is happening\" - useful for HUDs, debug overlays, gameplay gates and custom nodes that need to look around the graph.",
+                "Методи відтворення відповідають на «зроби це». Ці - на «що зараз відбувається»: для HUD, дебаг-оверлеїв, ґейтів геймплею та власних вузлів, яким треба озирнутись по графу."
+            ));
+            HonamiDocumentationBuilder.AddTable(root,
+                (HonamiDocLocalization.Get("Member", "Член"), 300),
+                (HonamiDocLocalization.Get("Description", "Опис"), 0),
+                ("", 0),
+                ("StateCount / LayerCount", HonamiDocLocalization.Get("Size of the built graph.", "Розмір побудованого графа."), ""),
+                ("TryResolveState(name / hash) / TryResolveStateByGuid / TryResolveStateByGuidHash", HonamiDocLocalization.Get("Name, hash or GUID to runtime state index. The guid-hash form matches HonamiTransition.targetStateGuidHash, so custom nodes can follow transitions.", "Назва, хеш чи GUID у індекс рантайм-стану. Форма з guid-хешем відповідає HonamiTransition.targetStateGuidHash, тож власні вузли можуть іти по переходах."), ""),
+                ("GetStateAt(index) / GetState(name) / GetStateByGuid(guid)", HonamiDocLocalization.Get("The HonamiState asset behind an index, or null.", "Ассет HonamiState за індексом, або null."), ""),
+                ("GetStatesNonAlloc(Span<HonamiState>)", HonamiDocLocalization.Get("Copies every runtime state into your buffer.", "Копіює всі рантайм-стани у ваш буфер."), ""),
+                ("GetCurrentState(layer) / GetCurrentStateName(layer) / GetPreviousState(layer)", HonamiDocLocalization.Get("What a layer is playing right now, and what it is blending away from.", "Що шар грає зараз і від чого відходить."), ""),
+                ("GetLayerState(layer) / GetPortState(layer, port)", HonamiDocLocalization.Get("Read-only snapshots of the transition and per-port bookkeeping structs.", "Знімки структур переходу та побудового обліку порту тільки для читання."), ""),
+                ("GetStateDurationAt(index) / GetStateDuration(name)", HonamiDocLocalization.Get("Unscaled length as the graph currently evaluates it, blend trees resolved.", "Немасштабована довжина так, як її зараз оцінює граф, з розв'язаними blend tree."), ""),
+                ("GetCurrentStateProgress(layer)", HonamiDocLocalization.Get("Progress of whatever owns the layer, without needing the port index.", "Прогрес того, що володіє шаром, без потреби знати індекс порту."), ""),
+                ("GetStatePlayable(layer, port) / GetStateWeight(layer, port)", HonamiDocLocalization.Get("The raw Playable and its mixer weight, for direct Playables work.", "Сирий Playable та його вага в мікшері - для прямої роботи з Playables."), ""),
+                ("GetStateNodeAt(index) / GetStateRuntimeAt(index)", HonamiDocLocalization.Get("The node the controller evaluates for a state after override resolution, and the per-animator runtime object it allocated.", "Вузол, який контролер оцінює для стану після розв'язання оверрайдів, та виділений ним рантайм-об'єкт на аніматор."), ""),
+                ("IsStatePausedAt(index, layer) / IsTransitioningController", HonamiDocLocalization.Get("Pause and controller-swap status.", "Стан паузи та підміни контролера."), "")
             );
 
             HonamiDocumentationBuilder.AddCodeBlock(root,
@@ -66,15 +88,16 @@ public sealed class WeaponAnimation : MonoBehaviour
 
             HonamiDocumentationBuilder.AddHeader(root, HonamiDocLocalization.Get("State skipping", "Пропуск станів"), HonamiEditorIcons.GraphWhite);
             HonamiDocumentationBuilder.AddParagraph(root, HonamiDocLocalization.Get(
-                "Skipping lets you conditionally interrupt a specific state without polluting the graph with parameter checks. All skip methods return bool — true if the transition actually happened.",
-                "Пропуск дозволяє умовно перервати конкретний стан, не засмічуючи граф перевірками параметрів. Усі skip-методи повертають bool — true, якщо перехід дійсно відбувся."
+                "Skipping lets you conditionally interrupt a specific state without polluting the graph with parameter checks. All skip methods return bool - true if the transition actually happened.",
+                "Пропуск дозволяє умовно перервати конкретний стан, не засмічуючи граф перевірками параметрів. Усі skip-методи повертають bool - true, якщо перехід дійсно відбувся."
             ));
             HonamiDocumentationBuilder.AddTable(root,
                 (HonamiDocLocalization.Get("Method", "Метод"), 260),
                 (HonamiDocLocalization.Get("Description", "Опис"), 0),
                 ("", 0),
                 ("TrySkipState(skip, target, ...)", HonamiDocLocalization.Get("Transitions to target ONLY if the skipped state is currently playing. Name, hash and GUID variants.", "Переходить до цілі ТІЛЬКИ якщо зараз грає стан, що пропускається. Варіанти з назвою, хешем і GUID."), ""),
-                ("TryAutoSkipState(skip, ...)", HonamiDocLocalization.Get("Skips the active state using the first transition authored in the graph — duration, curve and priority come from the editor. ignoreExitTime bypasses exit time; cancelEvents suppresses unfired event markers of the skipped state.", "Скіпає активний стан за першим переходом, намальованим у графі — тривалість, крива та пріоритет беруться з редактора. ignoreExitTime ігнорує exit time; cancelEvents скасовує ще не спрацьовані маркери подій стану."), "")
+                ("TryAutoSkipState(skip, ...)", HonamiDocLocalization.Get("Skips the active state using the first transition authored in the graph - duration, curve and priority come from the editor. ignoreExitTime bypasses exit time; cancelEvents suppresses unfired event markers of the skipped state.", "Скіпає активний стан за першим переходом, намальованим у графі - тривалість, крива та пріоритет беруться з редактора. ignoreExitTime ігнорує exit time; cancelEvents скасовує ще не спрацьовані маркери подій стану."), ""),
+                ("AutoSkipStateAt(index, layer, ...)", HonamiDocLocalization.Get("The same skip by runtime index, without the is-it-active check. Useful from custom nodes that already resolved an index.", "Той самий скіп за рантайм-індексом, без перевірки активності. Зручно з власних вузлів, які вже мають індекс."), "")
             );
             HonamiDocumentationBuilder.AddCodeBlock(root,
 @"// Interrupt the weapon draw only if it is still playing.
@@ -93,11 +116,11 @@ _honami.TryAutoSkipState(""Equip"", ignoreExitTime: true, cancelEvents: true);")
                 (HonamiDocLocalization.Get("Description", "Опис"), 0),
                 ("", 0),
                 ("Pause() / Resume()", HonamiDocLocalization.Get("Freezes / resumes the whole animator. IsPaused reflects the flag.", "Заморожує / відновлює весь аніматор. IsPaused відображає прапорець."), ""),
-                ("PauseLayer(layer, paused)", HonamiDocLocalization.Get("Pauses a single layer. Check with IsLayerPaused(layer).", "Ставить на паузу окремий шар. Перевірка — IsLayerPaused(layer)."), ""),
+                ("PauseLayer(layer, paused)", HonamiDocLocalization.Get("Pauses a single layer. Check with IsLayerPaused(layer).", "Ставить на паузу окремий шар. Перевірка - IsLayerPaused(layer)."), ""),
                 ("PauseState(name, paused, layer)", HonamiDocLocalization.Get("Pauses one specific state without touching the rest of the layer. GUID variant available.", "Ставить на паузу один конкретний стан, не чіпаючи решту шару. Є варіант із GUID."), ""),
                 ("Stop(layer)", HonamiDocLocalization.Get("Stops all states on one layer.", "Зупиняє всі стани на одному шарі."), ""),
                 ("StopState(name, layer)", HonamiDocLocalization.Get("Stops one state on a layer. GUID variant available.", "Зупиняє один стан на шарі. Є варіант із GUID."), ""),
-                ("StopAll()", HonamiDocLocalization.Get("Full reset of the animator state — all layers stop.", "Повне скидання стану аніматора — зупиняються всі шари."), ""),
+                ("StopAll()", HonamiDocLocalization.Get("Full reset of the animator state - all layers stop.", "Повне скидання стану аніматора - зупиняються всі шари."), ""),
                 ("StopAndKeepPose()", HonamiDocLocalization.Get("Stops updates but keeps the last sampled pose on the character.", "Зупиняє оновлення, але залишає на персонажі останню семпловану позу."), ""),
                 ("ResetToDefault()", HonamiDocLocalization.Get("Returns every layer to its default state.", "Повертає кожен шар до його стану за замовчуванням."), "")
             );
@@ -125,8 +148,8 @@ private void Update()
 float speed = _honami.GetFloat(SpeedId);
 bool grounded = _honami.GetBool(""IsGrounded"");");
             HonamiDocumentationBuilder.AddTip(root, HonamiDocLocalization.Get(
-                "The Random parameter type refreshes itself with a new 0..1 value every tick — useful for driving idle variation in blend trees without any code. The Parameters property exposes the raw HonamiParameterStore if you need direct access.",
-                "Тип параметра Random сам оновлюється новим значенням 0..1 кожен тік — зручно для варіацій idle у blend tree без жодного коду. Властивість Parameters відкриває прямий доступ до HonamiParameterStore."
+                "The Random parameter type refreshes itself with a new 0..1 value every tick - useful for driving idle variation in blend trees without any code. The Parameters property exposes the raw HonamiParameterStore: Definitions lists every parameter the controller declared, Contains(name) tests existence, and TryGetFloat/TryGetInteger/TryGetBool distinguish \"zero\" from \"not declared\" - which the plain getters cannot.",
+                "Тип параметра Random сам оновлюється новим значенням 0..1 кожен тік - зручно для варіацій idle у blend tree без жодного коду. Властивість Parameters відкриває прямий доступ до HonamiParameterStore: Definitions перелічує всі оголошені контролером параметри, Contains(name) перевіряє наявність, а TryGetFloat/TryGetInteger/TryGetBool відрізняють «нуль» від «не оголошено» - чого звичайні геттери не вміють."
             ));
 
             HonamiDocumentationBuilder.AddHeader(root, HonamiDocLocalization.Get("Tags and layers", "Теги та шари"), HonamiEditorIcons.GraphWhite);
@@ -202,8 +225,8 @@ _honami.SetController(pistolPoseController,
     transitionDuration: 0.5f,
     mode: HonamiControllerTransitionMode.ContinueEvaluating);");
             HonamiDocumentationBuilder.AddTip(root, HonamiDocLocalization.Get(
-                "For named controller sets with per-state transition settings, add a HonamiControllerProfile component and call SetProfile(\"Rifle\") — see the Controller Profiles page.",
-                "Для іменованих наборів контролерів із власними налаштуваннями переходів додайте компонент HonamiControllerProfile і викликайте SetProfile(\"Rifle\") — див. сторінку Controller Profiles."
+                "For named controller sets with per-state transition settings, add a HonamiControllerProfile component and call SetProfile(\"Rifle\") - see the Controller Profiles page.",
+                "Для іменованих наборів контролерів із власними налаштуваннями переходів додайте компонент HonamiControllerProfile і викликайте SetProfile(\"Rifle\") - див. сторінку Controller Profiles."
             ));
 
             HonamiDocumentationBuilder.AddHeader(root, HonamiDocLocalization.Get("Initial pose", "Initial Pose"), HonamiEditorIcons.Controller);
@@ -224,25 +247,25 @@ _honami.SetController(pistolPoseController,
             HonamiDocumentationBuilder.AddHeader(root, HonamiDocLocalization.Get("Global weight", "Global Weight"), HonamiEditorIcons.Controller);
             HonamiDocumentationBuilder.AddParagraph(root, HonamiDocLocalization.Get(
                 "GlobalWeight (0..1) attenuates how much this animator drives the hierarchy - 1 is full animation, 0 is none. Global Weight Mode, set in the inspector or via the GlobalWeightMode property, decides how that attenuation is produced.",
-                "GlobalWeight (0..1) регулює, наскільки сильно цей аніматор рухає ієрархію — 1 це повна анімація, 0 це жодної. Global Weight Mode, що задається в інспекторі або через property GlobalWeightMode, визначає, як саме ця атенюація рахується."
+                "GlobalWeight (0..1) регулює, наскільки сильно цей аніматор рухає ієрархію - 1 це повна анімація, 0 це жодної. Global Weight Mode, що задається в інспекторі або через property GlobalWeightMode, визначає, як саме ця атенюація рахується."
             ));
             HonamiDocumentationBuilder.AddTable(root,
                 (HonamiDocLocalization.Get("Mode", "Режим"), 160),
                 (HonamiDocLocalization.Get("Description", "Опис"), 0),
                 ("", 0),
-                ("Init", HonamiDocLocalization.Get("Default. Blends the evaluated pose toward the captured initial pose, so weight 0 is a clean neutral. The animation output stays at full weight, so rotations never drift. Requires a captured initial pose (Capture On Awake) - otherwise GlobalWeight below 1 has no effect.", "Типовий. Блендить оцінену позу до захопленої initial pose, тож вага 0 дає чистий нейтрал. Output анімації лишається на повній вазі, тож обертання не пливуть. Потребує захопленої initial pose (Capture On Awake) — інакше GlobalWeight нижче 1 не має ефекту."), ""),
-                ("Bind", HonamiDocLocalization.Get("Scales the animation output weight itself. Weight 0 falls back to the Animator bind pose. No initial pose needed, but fading an output below 1 can drift rotations (a visible tilt) because Unity mixes against the bind pose.", "Масштабує саму вагу output анімації. Вага 0 відкочується до bind-пози Animator. Initial pose не потрібна, але фейд output нижче 1 може «пливти» по обертанню (видимий нахил), бо Unity мішає проти bind-пози."), "")
+                ("Init", HonamiDocLocalization.Get("Default. Blends the evaluated pose toward the captured initial pose after the graph runs, so weight 0 is a clean neutral and the animation output stays at full weight - rotations never drift. Costs a position, rotation and scale interpolation per driven bone on every frame the weight is below 1. Requires a captured initial pose (Capture On Awake); without one, GlobalWeight below 1 has no effect at all.", "Типовий. Після обчислення графа блендить оцінену позу до захопленої initial pose, тож вага 0 дає чистий нейтрал, а output анімації лишається на повній вазі - обертання не пливуть. Коштує інтерполяції позиції, обертання й масштабу на кожну керовану кістку в кожному кадрі, поки вага менша за 1. Потребує захопленої initial pose (Capture On Awake); без неї GlobalWeight нижче 1 не має жодного ефекту."), ""),
+                ("Bind", HonamiDocLocalization.Get("Scales the animation output weight itself, so the blend happens inside Unity's animation system: one call, no per-bone work on any frame. Needs no initial pose. Weight 0 falls back to the Animator bind pose rather than your captured rest pose, and fading below 1 can drift rotations (a visible tilt) because Unity mixes against that bind pose.", "Масштабує саму вагу output анімації, тож бленд відбувається всередині анімаційної системи Unity: один виклик, жодної роботи по кістках у жодному кадрі. Initial pose не потрібна. Вага 0 відкочується до bind-пози Animator, а не до вашої захопленої пози спокою, і фейд нижче 1 може «пливти» по обертанню (видимий нахил), бо Unity мішає проти цієї bind-пози."), "")
             );
             HonamiDocumentationBuilder.AddCodeBlock(root,
 @"// Dial the whole animator's influence down to 50%.
 _honami.GlobalWeight = 0.5f;
 
 // Choose how weight attenuates (usually set once in the inspector).
-_honami.GlobalWeightMode = HonamiGlobalWeightMode.Init; // clean neutral at 0
-_honami.GlobalWeightMode = HonamiGlobalWeightMode.Bind; // legacy output-weight fade");
+_honami.GlobalWeightMode = HonamiGlobalWeightMode.Init; // exact rest pose at 0, per-bone cost
+_honami.GlobalWeightMode = HonamiGlobalWeightMode.Bind; // free, but fades toward the bind pose");
             HonamiDocumentationBuilder.AddTip(root, HonamiDocLocalization.Get(
-                "Use Init for camera or additive rigs where weight 0 must be a precise rest pose - it is deterministic and leaves the animation output at full weight. Reach for Bind only when you deliberately want the classic output fade toward the bind pose.",
-                "Використовуйте Init для камери чи адитивних ригів, де вага 0 має бути точною rest-позою — він детермінований і лишає output анімації на повній вазі. Bind беріть лише коли свідомо потрібен класичний output-fade до bind-пози."
+                "Neither mode is the old one - they trade precision against cost. Use Init for camera or additive rigs where weight 0 must land on an exact rest pose: it is deterministic and leaves the animation output untouched. Use Bind when the weight is held below 1 for long stretches or across many characters, when the GameObject has no captured initial pose to blend toward, or when the bind pose is the fallback you actually want - it moves the blend into the animation system and costs nothing per frame.",
+                "Жоден із режимів не є «старим» - вони міняють точність на ціну. Init беріть для камери чи адитивних ригів, де вага 0 має дати точну rest-позу: він детермінований і не чіпає output анімації. Bind беріть, коли вага тримається нижче 1 тривало або на багатьох персонажах, коли на об'єкті немає захопленої initial pose, до якої блендити, або коли саме bind-поза і є потрібним фолбеком - він переносить бленд в анімаційну систему й не коштує нічого за кадр."
             ));
 
             HonamiDocumentationBuilder.AddHeader(root, HonamiDocLocalization.Get("Mirroring", "Віддзеркалення"), HonamiEditorIcons.Controller);
@@ -264,8 +287,12 @@ bool mirrored = _honami.MirrorAvatar;");
                 ("", 0),
                 ("TimeScale", HonamiDocLocalization.Get("Per-animator playback speed multiplier (0..10 in the inspector).", "Множник швидкості відтворення для цього аніматора (0..10 в інспекторі)."), ""),
                 ("FpsCap / TargetFPS", HonamiDocLocalization.Get("Evaluates the graph at a fixed rate (1-120 FPS) for LOD-style savings; fpsCapInterpolate smooths between evaluated frames.", "Оцінює граф із фіксованою частотою (1-120 FPS) для економії в стилі LOD; fpsCapInterpolate згладжує між кадрами."), ""),
-                ("Update Mode", HonamiDocLocalization.Get("Normal, AnimatePhysics, UnscaledTime, LateUpdate or Manual — chooses which Unity loop drives the graph.", "Normal, AnimatePhysics, UnscaledTime, LateUpdate або Manual — визначає, який цикл Unity рухає граф."), ""),
-                ("Tick(deltaTime)", HonamiDocLocalization.Get("Advances the animator by hand. Intended for Manual mode: deterministic simulations, network ticks, editor preview.", "Просуває аніматор вручну. Для режиму Manual: детерміновані симуляції, мережеві тіки, editor preview."), "")
+                ("Update Mode", HonamiDocLocalization.Get("Normal, AnimatePhysics, UnscaledTime, LateUpdate or Manual - chooses which Unity loop drives the graph.", "Normal, AnimatePhysics, UnscaledTime, LateUpdate або Manual - визначає, який цикл Unity рухає граф."), ""),
+                ("BatchedEvaluation", HonamiDocLocalization.Get("Inspector toggle, on by default. False keeps this animator off Unity's batched animation pass even when Update Mode allows it.", "Перемикач з інспектора, увімкнений за замовчуванням. False не пускає аніматор у пакетний анімаційний прохід Unity, навіть коли Update Mode це дозволяє."), ""),
+                ("IsBatchEvaluated / SupportsBatching", HonamiDocLocalization.Get("Whether Unity is batch-evaluating the graph right now, and whether this animator type can be batched at all.", "Чи оцінює Unity граф пакетно просто зараз, і чи цей тип аніматора взагалі підтримує пакетне оцінювання."), ""),
+                ("Tick(deltaTime)", HonamiDocLocalization.Get("Advances the animator by hand. Intended for Manual mode: deterministic simulations, network ticks, editor preview.", "Просуває аніматор вручну. Для режиму Manual: детерміновані симуляції, мережеві тіки, editor preview."), ""),
+                ("RefreshFpsCapHierarchy()", HonamiDocLocalization.Get("Rebuilds the interpolation buffers after child transforms are added or removed at runtime (equipping an item, swapping a limb). Only needed with FPS Cap plus interpolation.", "Перебудовує буфери інтерполяції після додавання чи видалення дочірніх transform у рантаймі (взяли предмет, замінили кінцівку). Потрібно лише при FPS Cap з інтерполяцією."), ""),
+                ("RequestCatchUpTick()", HonamiDocLocalization.Get("Queues a zero-delta evaluation for this frame LateUpdate, so a graph rebuilt mid-frame does not hold a stale pose. Ignored in Manual mode.", "Ставить у чергу оцінювання з нульовою дельтою на LateUpdate цього кадру, щоб перебудований посеред кадру граф не тримав стару позу. У режимі Manual ігнорується."), "")
             );
             HonamiDocumentationBuilder.AddCodeBlock(root,
 @"// Drive Honami from your own simulation clock (Update Mode = Manual).
@@ -294,13 +321,13 @@ _honami.TargetFPS = 15;");
 
             HonamiDocumentationBuilder.AddSeparator(root);
             HonamiDocumentationBuilder.AddParagraph(root, HonamiDocLocalization.Get(
-                "This page documents HonamiAnimator. Its lighter sibling, HonamiClipPlayer, shares the whole base API — Tick, Pause, Resume, TimeScale, FpsCap, GlobalWeight, CaptureInitialPose, ReactToAction — but replaces states and parameters with a clip list: PlayClip, CrossFade, PlayQueued, Blend, Sample and the player[\"Idle\"] handles. See the Clip Player page in Core Concepts. Both derive from HonamiAnimatorBase, so tooling that should accept either one types against the base.",
-                "Ця сторінка описує HonamiAnimator. Його легший побратим HonamiClipPlayer ділить усе базове API — Tick, Pause, Resume, TimeScale, FpsCap, GlobalWeight, CaptureInitialPose, ReactToAction — але замість станів і параметрів має список кліпів: PlayClip, CrossFade, PlayQueued, Blend, Sample та хендли player[\"Idle\"]. Див. сторінку Clip Player в Основних концептах. Обидва успадковані від HonamiAnimatorBase, тож тулінг, який має приймати будь-який із них, типізується по базі."
+                "This page documents HonamiAnimator. Its lighter sibling, HonamiClipPlayer, shares the whole base API - Tick, Pause, Resume, TimeScale, FpsCap, GlobalWeight, CaptureInitialPose, ReactToAction - but replaces states and parameters with a clip list: PlayClip, CrossFade, PlayQueued, Blend, Sample and the player[\"Idle\"] handles. See the Clip Player page in Core Concepts. Both derive from HonamiAnimatorBase, so tooling that should accept any Honami animator types against the base - including animators you write yourself: see Writing a Custom Animator.",
+                "Ця сторінка описує HonamiAnimator. Його легший побратим HonamiClipPlayer ділить усе базове API - Tick, Pause, Resume, TimeScale, FpsCap, GlobalWeight, CaptureInitialPose, ReactToAction - але замість станів і параметрів має список кліпів: PlayClip, CrossFade, PlayQueued, Blend, Sample та хендли player[\"Idle\"]. Див. сторінку Clip Player в Основних концептах. Обидва успадковані від HonamiAnimatorBase, тож тулінг, який має приймати будь-який аніматор Honami, типізується по базі - включно з аніматорами, які ви напишете самі: див. «Власний аніматор»."
             ));
 
             HonamiDocumentationBuilder.AddParagraph(root, HonamiDocLocalization.Get(
-                "Broadcasting to many animators at once (SetActionID, PlayState across a squad, ByTag parameter setters) lives on the Linked Animator brain — see the Linked Animation category. The static HonamiLinkedAction class additionally offers global, tag, layer-mask, radius, propagation-wave and closest-N targeting without any brain in the scene.",
-                "Розсилання на багато аніматорів одночасно (SetActionID, PlayState по загону, ByTag-сеттери параметрів) живе на «мозку» Linked Animator — див. категорію Linked Animation. Статичний клас HonamiLinkedAction додатково дає глобальне таргетування, за тегом, layer-маскою, радіусом, хвилею поширення та за N найближчими — без жодного мозку в сцені."
+                "Broadcasting to many animators at once (SetActionID, PlayState across a squad, ByTag parameter setters) lives on the Linked Animator brain - see the Linked Animation category. The static HonamiLinkedAction class additionally offers global, tag, layer-mask, radius, propagation-wave and closest-N targeting without any brain in the scene, plus Broadcast(id, predicate) for a filter it does not ship.",
+                "Розсилання на багато аніматорів одночасно (SetActionID, PlayState по загону, ByTag-сеттери параметрів) живе на «мозку» Linked Animator - див. категорію Linked Animation. Статичний клас HonamiLinkedAction додатково дає глобальне таргетування, за тегом, layer-маскою, радіусом, хвилею поширення та за N найближчими - без жодного мозку в сцені, а також Broadcast(id, predicate) для фільтра, якого немає в комплекті."
             ));
         }
     }

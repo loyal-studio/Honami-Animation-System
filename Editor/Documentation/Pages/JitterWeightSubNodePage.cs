@@ -20,7 +20,7 @@ namespace HonamiAnimationSystem.Editor.Documentation.Pages
             HonamiDocumentationBuilder.AddHeader(root, HonamiDocLocalization.Get("Parameters", "Параметри"), HonamiEditorIcons.Controller);
             HonamiDocumentationBuilder.AddPropertyBox(root,
                 (HonamiDocLocalization.Get("Scale", "Scale"), HonamiDocLocalization.Get("Maximum deviation of the state's weight, as a fraction of its current weight. 0.1 = up to ±10%.", "Максимальне відхилення ваги стану у частках від поточної ваги. 0.1 = до ±10%.")),
-                (HonamiDocLocalization.Get("Frequency", "Frequency"), HonamiDocLocalization.Get("How fast the Perlin noise evolves — how quickly the weight wobbles.", "Наскільки швидко змінюється шум Перліна — як швидко коливається вага."))
+                (HonamiDocLocalization.Get("Frequency", "Frequency"), HonamiDocLocalization.Get("How fast the Perlin noise evolves - how quickly the weight wobbles.", "Наскільки швидко змінюється шум Перліна - як швидко коливається вага."))
             );
             HonamiDocumentationBuilder.AddInfoBox(root, HonamiDocLocalization.Get(
                 "The jitter multiplies the weight the state already has (the result is clamped to 0..1), and each state gets a unique noise phase automatically. A state at weight 0 stays untouched.",

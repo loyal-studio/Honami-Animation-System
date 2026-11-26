@@ -18,8 +18,7 @@ namespace HonamiAnimationSystem.Editor
             HonamiLinkedAnimatorGraphView graphView)
         {
             VisualElement root = new VisualElement();
-            root.style.paddingLeft = root.style.paddingRight = 10;
-            root.style.paddingTop = root.style.paddingBottom = 12;
+            root.Padding(12, 10);
 
             VisualElement breadcrumbs = new VisualElement { style = { flexDirection = FlexDirection.Row, marginBottom = -8 } };
             breadcrumbs.Add(HonamiGraphStyles.MiniLabel(graph.name, new Color(0.3f, 0.7f, 1f)));
@@ -74,8 +73,7 @@ namespace HonamiAnimationSystem.Editor
             Action onNameChanged)
         {
             VisualElement root = new VisualElement();
-            root.style.paddingLeft = root.style.paddingRight = 10;
-            root.style.paddingTop = root.style.paddingBottom = 12;
+            root.Padding(12, 10);
 
             VisualElement breadcrumbs = new VisualElement { style = { flexDirection = FlexDirection.Row, marginBottom = -8 } };
             breadcrumbs.Add(HonamiGraphStyles.MiniLabel(graph.name, new Color(0.3f, 0.7f, 1f)));

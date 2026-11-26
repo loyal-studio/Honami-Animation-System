@@ -6,6 +6,7 @@ using UnityEngine;
 using UnityEngine.UIElements;
 using HonamiAnimationSystem.Editor.Timeline;
 using HonamiAnimationSystem.Editor.Handlers;
+using HonamiAnimationSystem.Runtime.Core;
 
 namespace HonamiAnimationSystem.Editor
 {
@@ -13,33 +14,32 @@ namespace HonamiAnimationSystem.Editor
     /// Main node-based graph editor window for defining animation states, 
     /// transitions, parameters, and blend trees within HonamiAnimationSystem.
     /// </summary>
-    public sealed class HonamiGraphWindow : EditorWindow
+    public sealed partial class HonamiGraphWindow : EditorWindow
     {
         public HonamiNotificationPanel NotificationPanel { get; private set; }
 
-        [SerializeField] public List<HonamiGraphTab> Tabs = new List<HonamiGraphTab>();
-        [SerializeField] public int ActiveTabIndex = -1;
+        [field: SerializeField] public List<HonamiGraphTab> Tabs { get; private set; } = new();
+        [field: SerializeField] public int ActiveTabIndex { get; private set; } = -1;
 
         private HonamiTabBar _tabBar;
 
-        [SerializeField] public Runtime.Core.HonamiRuntimeController RuntimeController;
-        [SerializeField] public Runtime.Core.HonamiController Controller;
-        public SerializedObject SerializedController;
-        public SerializedObject SerializedState;
+        [field: SerializeField] public HonamiRuntimeController RuntimeController { get; private set; }
+        [field: SerializeField] public HonamiController Controller { get; private set; }
+        public SerializedObject SerializedController { get; private set; }
+        public SerializedObject SerializedState { get; private set; }
 
-        [SerializeField] public string SelectedNodeGuid;
-        [SerializeField] public string SelectedTransitionGuid;
-        [SerializeField] public int SelectedTransitionIndex = -1;
-        [SerializeField] public Runtime.Core.HonamiState SelectedTransitionOwner;
+        [field: SerializeField] public string SelectedNodeGuid { get; private set; }
+        [field: SerializeField] public string SelectedTransitionGuid { get; private set; }
+        [field: SerializeField] public int SelectedTransitionIndex { get; private set; } = -1;
+        [field: SerializeField] public HonamiState SelectedTransitionOwner { get; private set; }
 
-        public static Runtime.Core.HonamiController ClipboardController;
+        public static HonamiController ClipboardController;
         public static int ClipboardLayerIndex = -1;
 
-
-        public HonamiNode SelectedNode;
-        public Runtime.Core.HonamiTransition SelectedTransition;
-        public Runtime.Core.HonamiSubNodeBase SelectedSubNode;
-        public SerializedObject SerializedSubNode;
+        public HonamiNode SelectedNode { get; private set; }
+        public HonamiTransition SelectedTransition { get; private set; }
+        public HonamiSubNodeBase SelectedSubNode { get; private set; }
+        public SerializedObject SerializedSubNode { get; private set; }
 
         public VisualElement LeftPanel { get; private set; }
         public VisualElement RightPanel { get; private set; }
@@ -54,28 +54,28 @@ namespace HonamiAnimationSystem.Editor
         [SerializeField] private bool _isRightPanelVisible = true;
         [SerializeField] private float _leftPanelWidth = 250;
         [SerializeField] private float _rightPanelWidth = 320;
-        [SerializeField] public int CurrentLayerIndex = 0;
+        [field: SerializeField] public int CurrentLayerIndex { get; private set; }
 
         private bool _isLeftPanelSupported = true;
         private bool _isRightPanelSupported = true;
 
-        public Runtime.Core.HonamiAnimator RuntimeAnimator;
-        [SerializeField] public bool IsLocked = false;
+        public HonamiAnimator RuntimeAnimator;
+        [field: SerializeField] public bool IsLocked { get; set; }
         public float NextAnimatorSearchTime;
         public Label TitleLabel { get; private set; }
         public Label OverrideBadge { get; private set; }
         public Label LinkedBadge { get; private set; }
 
         [SerializeField] private string _windowModeId = "Animator";
-        [SerializeField] public Runtime.Core.HonamiLinkedAnimatorGraph LinkedGraph;
-        [SerializeField] public Runtime.Core.HonamiControllerProfileGraph ProfileGraph;
-        public Runtime.Core.HonamiLinkedAnimator RuntimeLinkedAnimator;
+        [field: SerializeField] public HonamiLinkedAnimatorGraph LinkedGraph { get; private set; }
+        [field: SerializeField] public HonamiControllerProfileGraph ProfileGraph { get; private set; }
+        public HonamiLinkedAnimator RuntimeLinkedAnimator { get; private set; }
 
         public string WindowModeId => _windowModeId;
 
-        public Runtime.Core.HonamiLinkedAnimatorNodeBase SelectedLinkedNode;
-        public Runtime.Core.HonamiLinkedAnimatorEvent SelectedLinkedEvent;
-        public Runtime.Core.HonamiProfileState SelectedProfileState;
+        public HonamiLinkedAnimatorNodeBase SelectedLinkedNode { get; private set; }
+        public HonamiLinkedAnimatorEvent SelectedLinkedEvent { get; private set; }
+        public HonamiProfileState SelectedProfileState { get; private set; }
 
         private Dictionary<string, IHonamiGraphModeHandler> _handlers;
         private IHonamiGraphModeHandler _currentHandler;
@@ -88,7 +88,7 @@ namespace HonamiAnimationSystem.Editor
             w.minSize = new Vector2(800, 600);
         }
 
-        public static void LoadController(Runtime.Core.HonamiRuntimeController ctrl)
+        public static void LoadController(HonamiRuntimeController ctrl)
             => GetWindow<HonamiGraphWindow>().SetController(ctrl);
 
         public static void ShowNotification(string title, string msg,
@@ -102,7 +102,7 @@ namespace HonamiAnimationSystem.Editor
         public static bool OnOpenAsset(int instanceID, int line)
         {
             var obj = EditorUtility.EntityIdToObject(instanceID);
-            if (obj is Runtime.Core.HonamiRuntimeController || obj is Runtime.Core.HonamiLinkedAnimatorGraph || obj is Runtime.Core.HonamiControllerProfileGraph)
+            if (obj is HonamiRuntimeController || obj is HonamiLinkedAnimatorGraph || obj is HonamiControllerProfileGraph)
             {
                 var w = GetWindow<HonamiGraphWindow>();
                 w.titleContent = HonamiEditorIcons.IconContent("HonamiGraphWhite", "Honami Animator");
@@ -118,9 +118,9 @@ namespace HonamiAnimationSystem.Editor
             for (int i = 0; i < Tabs.Count; i++)
             {
                 var tab = Tabs[i];
-                if ((asset is Runtime.Core.HonamiRuntimeController rc && tab.RuntimeController == rc) ||
-                    (asset is Runtime.Core.HonamiLinkedAnimatorGraph lg && tab.LinkedGraph == lg) ||
-                    (asset is Runtime.Core.HonamiControllerProfileGraph pg && tab.ProfileGraph == pg))
+                if ((asset is HonamiRuntimeController rc && tab.RuntimeController == rc) ||
+                    (asset is HonamiLinkedAnimatorGraph lg && tab.LinkedGraph == lg) ||
+                    (asset is HonamiControllerProfileGraph pg && tab.ProfileGraph == pg))
                 {
                     SwitchToTab(i);
                     return;
@@ -129,9 +129,9 @@ namespace HonamiAnimationSystem.Editor
 
             // Create new tab
             var newTab = new HonamiGraphTab();
-            if (asset is Runtime.Core.HonamiRuntimeController rcc) { newTab = new HonamiGraphTab(rcc); }
-            else if (asset is Runtime.Core.HonamiLinkedAnimatorGraph lgc) { newTab = new HonamiGraphTab(lgc, null); }
-            else if (asset is Runtime.Core.HonamiControllerProfileGraph pgc) { newTab = new HonamiGraphTab(pgc); }
+            if (asset is HonamiRuntimeController rcc) { newTab = new HonamiGraphTab(rcc); }
+            else if (asset is HonamiLinkedAnimatorGraph lgc) { newTab = new HonamiGraphTab(lgc, null); }
+            else if (asset is HonamiControllerProfileGraph pgc) { newTab = new HonamiGraphTab(pgc); }
 
             Tabs.Add(newTab);
             SwitchToTab(Tabs.Count - 1);
@@ -142,12 +142,24 @@ namespace HonamiAnimationSystem.Editor
             _handlers = new Dictionary<string, IHonamiGraphModeHandler>();
             var handlerTypes = TypeCache.GetTypesDerivedFrom<IHonamiGraphModeHandler>();
 
-            foreach (var type in handlerTypes)
+           foreach (var type in handlerTypes)
             {
                 if (type.IsAbstract || type.IsInterface) continue;
-                if (System.Activator.CreateInstance(type) is IHonamiGraphModeHandler handler)
+
+                if (type.GetConstructor(System.Type.EmptyTypes) == null)
                 {
-                    _handlers[handler.ModeId] = handler;
+                    Debug.LogError($"[Honami] Graph mode handler '{type.FullName}' needs a public parameterless constructor.");
+                    continue;
+                }
+
+                try
+                {
+                    if (System.Activator.CreateInstance(type) is IHonamiGraphModeHandler handler)
+                        _handlers[handler.ModeId] = handler;
+                }
+                catch (System.Exception exception)
+                {
+                    Debug.LogError($"[Honami] Graph mode handler '{type.FullName}' failed to construct: {exception}");
                 }
             }
 
@@ -172,11 +184,11 @@ namespace HonamiAnimationSystem.Editor
                 }
             }
 
-            if (Tabs == null) Tabs = new List<HonamiGraphTab>();
+            Tabs ??= new List<HonamiGraphTab>();
             if (Tabs.Count > 0 && ActiveTabIndex >= 0 && ActiveTabIndex < Tabs.Count)
             {
                 var tab = Tabs[ActiveTabIndex];
-                tab.ApplyTo(this);
+                RestoreFromTab(tab);
             }
             else
             {
@@ -360,6 +372,7 @@ namespace HonamiAnimationSystem.Editor
             var rightScroll = new ScrollView();
             rightScroll.style.flexGrow = 1;
             RightContent = new VisualElement();
+            _rightPanelRebuild = null;
             rightScroll.Add(RightContent);
             RightPanel.Add(rightScroll);
 
@@ -376,7 +389,21 @@ namespace HonamiAnimationSystem.Editor
             UpdateEmptyState();
         }
 
-        public void BuildRightPanel() => _currentHandler?.BuildRightPanel(RightContent);
+        private IVisualElementScheduledItem _rightPanelRebuild;
+
+        // One selection click or graph reload asks for several rebuilds; the inspector is rebuilt once, before the next repaint.
+        public void BuildRightPanel()
+        {
+            if (RightContent == null) return;
+            if (_rightPanelRebuild == null) _rightPanelRebuild = RightContent.schedule.Execute(BuildRightPanelImmediate);
+            else _rightPanelRebuild.ExecuteLater(0);
+        }
+
+        public void BuildRightPanelImmediate()
+        {
+            _rightPanelRebuild?.Pause();
+            _currentHandler?.BuildRightPanel(RightContent);
+        }
 
         private void BuildTabBar(VisualElement root)
         {
@@ -435,17 +462,17 @@ namespace HonamiAnimationSystem.Editor
             if (ActiveTabIndex >= 0 && ActiveTabIndex < Tabs.Count)
             {
                 SaveSelection(); // current to window state
-                Tabs[ActiveTabIndex].SaveSelectionFrom(this);
+                SaveSelectionToTab(Tabs[ActiveTabIndex]);
             }
 
             ActiveTabIndex = index;
             var tab = Tabs[ActiveTabIndex];
-            tab.ApplyTo(this);
+            RestoreFromTab(tab);
             UpdateTabsUI();
             UpdateEmptyState();
         }
 
-        public void SetController(Runtime.Core.HonamiRuntimeController ctrl)
+        public void SetController(HonamiRuntimeController ctrl)
         {
             if (RuntimeController == ctrl) return;
 
@@ -454,11 +481,7 @@ namespace HonamiAnimationSystem.Editor
                 RuntimeController = null;
                 Controller = null;
                 SerializedController = null;
-                SelectedNode = null;
-                SelectedNodeGuid = null;
-                SelectedTransition = null;
-                SelectedTransitionGuid = null;
-                SelectedTransitionOwner = null;
+                ClearSelection();
                 SwitchMode("Animator");
                 UpdateTabsUI();
                 return;
@@ -485,11 +508,7 @@ namespace HonamiAnimationSystem.Editor
                 Controller = ctrl != null ? ctrl.BaseController : null;
                 SerializedController = Controller != null ? new SerializedObject(Controller) : null;
                 CurrentLayerIndex = 0;
-                SelectedNode = null;
-                SelectedNodeGuid = null;
-                SelectedTransition = null;
-                SelectedTransitionGuid = null;
-                SelectedTransitionOwner = null;
+                ClearSelection();
 
                 SwitchMode("Animator");
                 UpdateTabsUI();
@@ -501,7 +520,7 @@ namespace HonamiAnimationSystem.Editor
             }
         }
 
-        public void SetLinkedGraph(Runtime.Core.HonamiLinkedAnimatorGraph bg, Runtime.Core.HonamiLinkedAnimator brain)
+        public void SetLinkedGraph(HonamiLinkedAnimatorGraph bg, HonamiLinkedAnimator brain)
         {
             if (LinkedGraph == bg && RuntimeLinkedAnimator == brain) return;
 
@@ -509,13 +528,7 @@ namespace HonamiAnimationSystem.Editor
             {
                 LinkedGraph = null;
                 RuntimeLinkedAnimator = null;
-                SelectedNode = null;
-                SelectedNodeGuid = null;
-                SelectedTransition = null;
-                SelectedTransitionGuid = null;
-                SelectedTransitionOwner = null;
-                SelectedLinkedNode = null;
-                SelectedLinkedEvent = null;
+                ClearSelection();
                 SwitchMode("LinkedAnimator");
                 UpdateTabsUI();
                 return;
@@ -545,13 +558,7 @@ namespace HonamiAnimationSystem.Editor
                 RuntimeController = null;
                 Controller = null;
                 SerializedController = null;
-                SelectedNode = null;
-                SelectedNodeGuid = null;
-                SelectedTransition = null;
-                SelectedTransitionGuid = null;
-                SelectedTransitionOwner = null;
-                SelectedLinkedNode = null;
-                SelectedLinkedEvent = null;
+                ClearSelection();
 
                 SwitchMode("LinkedAnimator");
                 UpdateTabsUI();
@@ -563,21 +570,14 @@ namespace HonamiAnimationSystem.Editor
             }
         }
 
-        public void SetProfileGraph(Runtime.Core.HonamiControllerProfileGraph pg)
+        public void SetProfileGraph(HonamiControllerProfileGraph pg)
         {
             if (ProfileGraph == pg) return;
 
             if (pg == null)
             {
                 ProfileGraph = null;
-                SelectedNode = null;
-                SelectedNodeGuid = null;
-                SelectedTransition = null;
-                SelectedTransitionGuid = null;
-                SelectedTransitionOwner = null;
-                SelectedLinkedNode = null;
-                SelectedLinkedEvent = null;
-                SelectedProfileState = null;
+                ClearSelection();
                 SwitchMode("Profile");
                 UpdateTabsUI();
                 return;
@@ -657,13 +657,13 @@ namespace HonamiAnimationSystem.Editor
             public string NodeGuid;
             public string TransGuid;
             public int TransIndex;
-            public Runtime.Core.HonamiState TransOwner;
-            public Runtime.Core.HonamiSubNodeBase SubNode;
+            public HonamiState TransOwner;
+            public HonamiSubNodeBase SubNode;
 
-            public Runtime.Core.HonamiLinkedAnimatorNodeBase LinkedNode;
-            public Runtime.Core.HonamiLinkedAnimatorEvent LinkedEvent;
+            public HonamiLinkedAnimatorNodeBase LinkedNode;
+            public HonamiLinkedAnimatorEvent LinkedEvent;
 
-            public Runtime.Core.HonamiProfileState ProfileState;
+            public HonamiProfileState ProfileState;
         }
 
         private SelectionState _savedSelection;
@@ -716,7 +716,7 @@ namespace HonamiAnimationSystem.Editor
                 else if (!string.IsNullOrEmpty(SelectedTransitionGuid) && SelectedTransitionOwner != null)
                 {
                     var edge = graphView.edges.OfType<HonamiTransitionEdge>().FirstOrDefault(e =>
-                        e.userData is Runtime.Core.HonamiTransition t &&
+                        e.userData is HonamiTransition t &&
                         t.targetStateGuid == SelectedTransitionGuid &&
                         e.output != null && e.output.node is HonamiNode sn &&
                         sn.StateGuid == SelectedTransitionOwner.guid);
@@ -724,7 +724,7 @@ namespace HonamiAnimationSystem.Editor
                     if (edge != null)
                     {
                         graphView.AddToSelection(edge);
-                        SelectedTransition = edge.userData as Runtime.Core.HonamiTransition;
+                        SelectedTransition = edge.userData as HonamiTransition;
                         if (!SelectedTransitionOwner.isVirtualInheritedState) SerializedState = new SerializedObject(SelectedTransitionOwner);
 
                         var transitions = RuntimeController != null ? RuntimeController.GetTransitions(SelectedTransitionOwner) : SelectedTransitionOwner.transitions;
@@ -771,9 +771,9 @@ namespace HonamiAnimationSystem.Editor
         {
             Toolbar = new Toolbar();
 
-            var cf = new ObjectField { objectType = typeof(Runtime.Core.HonamiRuntimeController), value = RuntimeController };
+            var cf = new ObjectField { objectType = typeof(HonamiRuntimeController), value = RuntimeController };
             cf.style.minWidth = 180;
-            cf.RegisterValueChangedCallback(ev => SetController(ev.newValue as Runtime.Core.HonamiRuntimeController));
+            cf.RegisterValueChangedCallback(ev => SetController(ev.newValue as HonamiRuntimeController));
             Toolbar.Add(cf);
 
             var lockTgl = new ToolbarToggle { value = IsLocked, tooltip = "Lock to current Animator/Controller" };
@@ -896,732 +896,13 @@ namespace HonamiAnimationSystem.Editor
         private void HandleSelectionChanged() => _currentHandler?.OnSelectionChange();
         private void OnUndoRedo() => _currentHandler?.OnUndoRedo();
 
-        // ------------------ Animator Logic ------------------ //
-        public void SetLayer(int index)
-        {
-            CurrentLayerIndex = index;
-            SelectedNode = null; SelectedNodeGuid = null;
-            SelectedTransition = null; SelectedTransitionGuid = null;
-            if (_currentHandler is HonamiAnimatorGraphHandler h && h.GetMainView() is HonamiGraphView gv)
-            {
-                gv.PopulateView(RuntimeController, CurrentLayerIndex);
-            }
-            _currentHandler?.RebuildLeftPanel();
-            BuildRightPanel();
-        }
-
-        public void AddParameter(Runtime.Core.HonamiParameterType type)
-        {
-            Undo.RecordObject(Controller, "Add Parameter");
-            Controller.parameters.Add(new Runtime.Core.HonamiParameter { name = "New " + type, type = type });
-            EditorUtility.SetDirty(Controller);
-        }
-
-        public void DuplicateLayer(int srcIdx)
-        {
-            if (Controller == null) return;
-
-            bool srcInherited = Controller.IsLayerInherited(srcIdx);
-            int srcParent = srcInherited ? Controller.layers[srcIdx].parentLayerIndex : -1;
-
-            SerializedController.Update();
-            var layersProp = SerializedController.FindProperty("layers");
-            int newIdx = layersProp.arraySize;
-            layersProp.InsertArrayElementAtIndex(newIdx);
-
-            var newLayerProp = layersProp.GetArrayElementAtIndex(newIdx);
-            var srcLayerProp = layersProp.GetArrayElementAtIndex(srcIdx);
-
-            newLayerProp.FindPropertyRelative("name").stringValue = srcLayerProp.FindPropertyRelative("name").stringValue + " Copy";
-            newLayerProp.FindPropertyRelative("weight").floatValue = srcLayerProp.FindPropertyRelative("weight").floatValue;
-            newLayerProp.FindPropertyRelative("avatarMask").objectReferenceValue = srcLayerProp.FindPropertyRelative("avatarMask").objectReferenceValue;
-            newLayerProp.FindPropertyRelative("mirror").boolValue = srcLayerProp.FindPropertyRelative("mirror").boolValue;
-            newLayerProp.FindPropertyRelative("parentLayerIndex").intValue = srcParent;
-
-            if (srcInherited)
-            {
-                var versionProp = SerializedController.FindProperty("serializedLayerInheritanceVersion");
-                if (versionProp != null) versionProp.intValue = 1;
-            }
-
-            SerializedController.ApplyModifiedProperties();
-
-            Undo.RecordObject(Controller, "Duplicate Layer");
-
-            var guidMap = new Dictionary<string, string>();
-            var newStates = new List<Runtime.Core.HonamiState>();
-
-            foreach (var s in Controller.states.Where(s => s?.layerIndex == srcIdx))
-            {
-                var ns = Instantiate(s);
-                ns.name = s.name;
-                bool isOverrideState = !string.IsNullOrEmpty(s.inheritedFromStateGuid);
-                if (srcInherited && isOverrideState)
-                {
-                    ns.guid = Runtime.Core.HonamiController.GetInheritedStateGuid(s.inheritedFromStateGuid, newIdx);
-                }
-                else
-                {
-                    ns.guid = System.Guid.NewGuid().ToString();
-                    ns.inheritedFromStateGuid = null;
-                }
-                ns.layerIndex = newIdx;
-
-                if (ns.node != null)
-                {
-                    ns.node = Instantiate(ns.node);
-                    ns.node.name = s.node.name;
-                    AssetDatabase.AddObjectToAsset(ns.node, Controller);
-                    Undo.RegisterCreatedObjectUndo(ns.node, "Dup Layer State Node");
-                }
-
-                if (ns.subNodes != null)
-                {
-                    var copiedSubNodes = new List<Runtime.Core.HonamiSubNodeBase>();
-                    foreach (var sn in ns.subNodes)
-                    {
-                        if (sn != null)
-                        {
-                            var nsn = Instantiate(sn);
-                            nsn.name = sn.name;
-                            AssetDatabase.AddObjectToAsset(nsn, Controller);
-                            Undo.RegisterCreatedObjectUndo(nsn, "Dup Layer State SubNode");
-                            copiedSubNodes.Add(nsn);
-                        }
-                    }
-                    ns.subNodes = copiedSubNodes;
-                }
-
-                guidMap[s.guid] = ns.guid;
-                newStates.Add(ns);
-                AssetDatabase.AddObjectToAsset(ns, Controller);
-                Undo.RegisterCreatedObjectUndo(ns, "Dup Layer State");
-            }
-
-            foreach (var ns in newStates)
-            {
-                Controller.states.Add(ns);
-                if (string.IsNullOrEmpty(ns.inheritedFromStateGuid))
-                    HonamiAnimationSystem.Editor.Core.HonamiEditorController.EnsureUniqueStateName(RuntimeController, ns);
-                foreach (var t in ns.transitions)
-                {
-                    t.id = System.Guid.NewGuid().ToString();
-                    if (guidMap.TryGetValue(t.targetStateGuid, out string ng)) t.targetStateGuid = ng;
-                    else t.targetStateGuid = RemapInheritedGuidForDuplicate(t.targetStateGuid, srcIdx, newIdx);
-                }
-                EditorUtility.SetDirty(ns);
-            }
-
-            foreach (var g in Controller.groups.Where(g => g.layerIndex == srcIdx).ToList())
-                Controller.groups.Add(new Runtime.Core.HonamiGroupData
-                {
-                    title = g.title,
-                    position = g.position,
-                    size = g.size,
-                    layerIndex = newIdx,
-                    containedNodes = g.containedNodes.Select(id => guidMap.TryGetValue(id, out string ng2) ? ng2 : RemapInheritedGuidForDuplicate(id, srcIdx, newIdx)).ToList()
-                });
-
-            foreach (var sn in Controller.stickyNotes.Where(sn => sn.layerIndex == srcIdx).ToList())
-                Controller.stickyNotes.Add(new Runtime.Core.HonamiStickyNoteData
-                {
-                    title = sn.title,
-                    contents = sn.contents,
-                    position = sn.position,
-                    size = sn.size,
-                    layerIndex = newIdx,
-                    themeColor = sn.themeColor
-                });
-
-            EditorUtility.SetDirty(Controller);
-            HonamiGraphView.DeferredSave();
-
-            Controller.ClearEffectiveStateCache();
-
-            CurrentLayerIndex = newIdx;
-            SelectedNode = null; SelectedNodeGuid = null;
-            SelectedTransition = null; SelectedTransitionGuid = null;
-
-            var srcName = srcLayerProp.FindPropertyRelative("name").stringValue;
-
-            if (_currentHandler is HonamiAnimatorGraphHandler h && h.GetMainView() is HonamiGraphView gv)
-            {
-                gv.PopulateView(RuntimeController, CurrentLayerIndex);
-            }
-            _currentHandler?.RebuildLeftPanel();
-            BuildRightPanel();
-            HonamiNotificationPanel.ShowGlobal("Layer Duplicated", $"Layer '{srcName}' duplicated.", HonamiNotificationType.Success);
-        }
-
-        public void CreateInheritedLayer(int parentIdx)
-        {
-            if (Controller == null || parentIdx < 0 || parentIdx >= Controller.layers.Count) return;
-
-            SerializedController.Update();
-            var layersProp = SerializedController.FindProperty("layers");
-            int newIdx = layersProp.arraySize;
-            layersProp.InsertArrayElementAtIndex(newIdx);
-
-            var newLayerProp = layersProp.GetArrayElementAtIndex(newIdx);
-            var parentLayerProp = layersProp.GetArrayElementAtIndex(parentIdx);
-            var versionProp = SerializedController.FindProperty("serializedLayerInheritanceVersion");
-            if (versionProp != null) versionProp.intValue = 1;
-
-            newLayerProp.FindPropertyRelative("name").stringValue = parentLayerProp.FindPropertyRelative("name").stringValue + " Child";
-            newLayerProp.FindPropertyRelative("weight").floatValue = parentLayerProp.FindPropertyRelative("weight").floatValue;
-            newLayerProp.FindPropertyRelative("avatarMask").objectReferenceValue = parentLayerProp.FindPropertyRelative("avatarMask").objectReferenceValue;
-            newLayerProp.FindPropertyRelative("mirror").boolValue = parentLayerProp.FindPropertyRelative("mirror").boolValue;
-            newLayerProp.FindPropertyRelative("parentLayerIndex").intValue = parentIdx;
-
-            SerializedController.ApplyModifiedProperties();
-            Controller.ClearEffectiveStateCache();
-            EditorUtility.SetDirty(Controller);
-            HonamiGraphView.DeferredSave();
-
-            CurrentLayerIndex = newIdx;
-            SelectedNode = null; SelectedNodeGuid = null;
-            SelectedTransition = null; SelectedTransitionGuid = null;
-
-            if (_currentHandler is HonamiAnimatorGraphHandler h && h.GetMainView() is HonamiGraphView gv)
-                gv.PopulateView(RuntimeController, CurrentLayerIndex);
-
-            _currentHandler?.RebuildLeftPanel();
-            BuildRightPanel();
-            HonamiNotificationPanel.ShowGlobal("Inherited Layer Added", $"Layer now inherits from '{Controller.layers[parentIdx].name}'.", HonamiNotificationType.Success);
-        }
-
-        public void CopyLayer(int srcIdx)
-        {
-            if (Controller == null || srcIdx < 0 || srcIdx >= Controller.layers.Count) return;
-            ClipboardController = Controller;
-            ClipboardLayerIndex = srcIdx;
-            var srcName = Controller.layers[srcIdx].name;
-            HonamiNotificationPanel.ShowGlobal("Layer Copied", $"Layer '{srcName}' copied to clipboard.", HonamiNotificationType.Info);
-        }
-
-        public void PasteLayer()
-        {
-            if (Controller == null || ClipboardController == null || ClipboardLayerIndex < 0 || ClipboardLayerIndex >= ClipboardController.layers.Count)
-            {
-                HonamiNotificationPanel.ShowGlobal("Paste Failed", "Clipboard is empty or invalid.", HonamiNotificationType.Error);
-                return;
-            }
-
-            SerializedController.Update();
-            var layersProp = SerializedController.FindProperty("layers");
-            int newIdx = layersProp.arraySize;
-            layersProp.InsertArrayElementAtIndex(newIdx);
-
-            var newLayerProp = layersProp.GetArrayElementAtIndex(newIdx);
-
-            var srcLayer = ClipboardController.layers[ClipboardLayerIndex];
-            newLayerProp.FindPropertyRelative("name").stringValue = srcLayer.name + " (Pasted)";
-            newLayerProp.FindPropertyRelative("weight").floatValue = srcLayer.weight;
-            newLayerProp.FindPropertyRelative("avatarMask").objectReferenceValue = srcLayer.avatarMask;
-            newLayerProp.FindPropertyRelative("mirror").boolValue = srcLayer.mirror;
-            newLayerProp.FindPropertyRelative("parentLayerIndex").intValue = -1;
-
-            SerializedController.ApplyModifiedProperties();
-
-            Undo.RecordObject(Controller, "Paste Layer");
-
-            var guidMap = new Dictionary<string, string>();
-            var newStates = new List<Runtime.Core.HonamiState>();
-
-            foreach (var s in ClipboardController.states.Where(s => s?.layerIndex == ClipboardLayerIndex))
-            {
-                var ns = Instantiate(s);
-                ns.name = s.name;
-                ns.guid = System.Guid.NewGuid().ToString();
-                ns.layerIndex = newIdx;
-
-                if (ns.node != null)
-                {
-                    ns.node = Instantiate(ns.node);
-                    ns.node.name = s.node.name;
-                    AssetDatabase.AddObjectToAsset(ns.node, Controller);
-                    Undo.RegisterCreatedObjectUndo(ns.node, "Paste Layer State Node");
-                }
-
-                if (ns.subNodes != null)
-                {
-                    var copiedSubNodes = new List<Runtime.Core.HonamiSubNodeBase>();
-                    foreach (var sn in ns.subNodes)
-                    {
-                        if (sn != null)
-                        {
-                            var nsn = Instantiate(sn);
-                            nsn.name = sn.name;
-                            AssetDatabase.AddObjectToAsset(nsn, Controller);
-                            Undo.RegisterCreatedObjectUndo(nsn, "Paste Layer State SubNode");
-                            copiedSubNodes.Add(nsn);
-                        }
-                    }
-                    ns.subNodes = copiedSubNodes;
-                }
-
-                guidMap[s.guid] = ns.guid;
-                newStates.Add(ns);
-                AssetDatabase.AddObjectToAsset(ns, Controller);
-                Undo.RegisterCreatedObjectUndo(ns, "Paste Layer State");
-            }
-
-            foreach (var ns in newStates)
-            {
-                Controller.states.Add(ns);
-                HonamiAnimationSystem.Editor.Core.HonamiEditorController.EnsureUniqueStateName(RuntimeController, ns);
-                foreach (var t in ns.transitions)
-                {
-                    t.id = System.Guid.NewGuid().ToString();
-                    if (guidMap.TryGetValue(t.targetStateGuid, out string ng)) t.targetStateGuid = ng;
-                }
-
-                var usedParameterNames = new HashSet<string>();
-                try
-                {
-                    CollectParameterStrings(ns, usedParameterNames);
-                    if (ns.node != null) CollectParameterStrings(ns.node, usedParameterNames);
-                    if (ns.subNodes != null)
-                    {
-                        for (int i = 0; i < ns.subNodes.Count; i++) CollectParameterStrings(ns.subNodes[i], usedParameterNames);
-                    }
-                }
-                catch (System.Exception ex)
-                {
-                    Debug.LogWarning($"[HonamiGraphWindow] Failed to collect parameter strings for state {ns.stateName}: {ex.Message}");
-                }
-
-                foreach (var paramName in usedParameterNames)
-                {
-                    bool exists = false;
-                    for (int j = 0; j < Controller.parameters.Count; j++)
-                    {
-                        if (Controller.parameters[j].name == paramName)
-                        {
-                            exists = true;
-                            break;
-                        }
-                    }
-
-                    if (!exists)
-                    {
-                        var srcParam = ClipboardController.parameters.FirstOrDefault(p => p.name == paramName);
-                        if (srcParam != null)
-                        {
-                            Controller.parameters.Add(new Runtime.Core.HonamiParameter
-                            {
-                                name = srcParam.name,
-                                type = srcParam.type,
-                                defaultFloat = srcParam.defaultFloat,
-                                defaultInt = srcParam.defaultInt,
-                                defaultBool = srcParam.defaultBool
-                            });
-                        }
-                    }
-                }
-
-                EditorUtility.SetDirty(ns);
-            }
-
-            foreach (var g in ClipboardController.groups.Where(g => g.layerIndex == ClipboardLayerIndex).ToList())
-                Controller.groups.Add(new Runtime.Core.HonamiGroupData
-                {
-                    title = g.title,
-                    position = g.position,
-                    size = g.size,
-                    layerIndex = newIdx,
-                    containedNodes = g.containedNodes.Select(id => guidMap.TryGetValue(id, out string ng2) ? ng2 : id).ToList()
-                });
-
-            foreach (var sn in ClipboardController.stickyNotes.Where(sn => sn.layerIndex == ClipboardLayerIndex).ToList())
-                Controller.stickyNotes.Add(new Runtime.Core.HonamiStickyNoteData
-                {
-                    title = sn.title,
-                    contents = sn.contents,
-                    position = sn.position,
-                    size = sn.size,
-                    layerIndex = newIdx,
-                    themeColor = sn.themeColor
-                });
-
-            EditorUtility.SetDirty(Controller);
-            HonamiGraphView.DeferredSave();
-
-            Controller.ClearEffectiveStateCache();
-
-            CurrentLayerIndex = newIdx;
-            SelectedNode = null; SelectedNodeGuid = null;
-            SelectedTransition = null; SelectedTransitionGuid = null;
-
-            if (_currentHandler is HonamiAnimatorGraphHandler h && h.GetMainView() is HonamiGraphView gv)
-            {
-                gv.PopulateView(RuntimeController, CurrentLayerIndex);
-            }
-            _currentHandler?.RebuildLeftPanel();
-            BuildRightPanel();
-            HonamiNotificationPanel.ShowGlobal("Layer Pasted", $"Layer '{srcLayer.name}' pasted successfully.", HonamiNotificationType.Success);
-        }
-
-        public void DeleteLayer(int idx, string name)
-        {
-            if (Controller == null || idx <= 0) return;
-            if (!EditorUtility.DisplayDialog("Delete Layer",
-                    $"Delete '{name}'? This removes all its states and transitions.", "Delete", "Cancel")) return;
-
-            Undo.RecordObject(Controller, "Delete Layer");
-            var guids = new HashSet<string>(Controller.states
-                .Where(s => s?.layerIndex == idx).Select(s => s.guid));
-
-            foreach (var s in Controller.states)
-            {
-                if (s?.transitions == null) continue;
-                if (s.transitions.RemoveAll(t => guids.Contains(t.targetStateGuid)) > 0)
-                    EditorUtility.SetDirty(s);
-            }
-
-            foreach (var s in Controller.states.Where(s => s != null && guids.Contains(s.guid)).ToList())
-            {
-                Controller.states.Remove(s);
-                HonamiAnimationSystem.Editor.Core.HonamiEditorController.DestroyStateSubAssets(Controller, s);
-                Undo.DestroyObjectImmediate(s);
-            }
-            Controller.states.RemoveAll(s => s == null);
-
-            foreach (var s in Controller.states)
-            {
-                if (s?.layerIndex > idx) { s.layerIndex--; EditorUtility.SetDirty(s); }
-            }
-
-            foreach (var layer in Controller.layers)
-            {
-                if (layer == null) continue;
-                if (layer.parentLayerIndex == idx) layer.parentLayerIndex = -1;
-                else if (layer.parentLayerIndex > idx) layer.parentLayerIndex--;
-            }
-
-            SerializedController.Update();
-            SerializedController.FindProperty("layers").DeleteArrayElementAtIndex(idx);
-            SerializedController.ApplyModifiedProperties();
-            Controller.ClearEffectiveStateCache();
-
-            if (CurrentLayerIndex >= Controller.layers.Count)
-                CurrentLayerIndex = Controller.layers.Count - 1;
-
-            SelectedNode = null; SelectedNodeGuid = null;
-            SelectedTransition = null; SelectedTransitionGuid = null;
-
-            if (_currentHandler is HonamiAnimatorGraphHandler h && h.GetMainView() is HonamiGraphView gv)
-            {
-                gv.PopulateView(RuntimeController, CurrentLayerIndex);
-            }
-            _currentHandler?.RebuildLeftPanel();
-            HonamiGraphView.DeferredSave();
-            BuildRightPanel();
-            HonamiNotificationPanel.ShowGlobal("Layer Deleted", "Layer and states removed.", HonamiNotificationType.Info);
-        }
-
-        public void MoveLayer(int fromIdx, int toIdx)
-        {
-            if (Controller == null) return;
-            int count = Controller.layers.Count;
-            if (fromIdx < 0 || fromIdx >= count || toIdx < 0 || toIdx >= count || fromIdx == toIdx) return;
-
-            var map = BuildLayerMoveMap(count, fromIdx, toIdx);
-
-            for (int i = 0; i < count; i++)
-            {
-                var layer = Controller.layers[i];
-                if (layer == null || layer.parentLayerIndex < 0 || layer.parentLayerIndex >= count) continue;
-                if (map[layer.parentLayerIndex] >= map[i])
-                {
-                    HonamiNotificationPanel.ShowGlobal("Move Blocked",
-                        $"'{Controller.layers[i].name}' would end up before its parent layer. Detach it from its parent first.",
-                        HonamiNotificationType.Warning);
-                    return;
-                }
-            }
-
-            string movedName = Controller.layers[fromIdx].name;
-
-            Undo.RecordObject(Controller, "Move Layer");
-
-            var reordered = new Runtime.Core.HonamiLayer[count];
-            for (int i = 0; i < count; i++) reordered[map[i]] = Controller.layers[i];
-            Controller.layers.Clear();
-            Controller.layers.AddRange(reordered);
-
-            foreach (var layer in Controller.layers)
-            {
-                if (layer != null && layer.parentLayerIndex >= 0 && layer.parentLayerIndex < count)
-                    layer.parentLayerIndex = map[layer.parentLayerIndex];
-            }
-
-            if ((fromIdx == 0 || toIdx == 0) && Controller.layers[0] != null)
-                Controller.layers[0].weight = 1f;
-
-            foreach (var s in Controller.states)
-                RemapStateLayerData(s, map, count);
-
-            RemapDecorationLayerIndices(Controller.groups, Controller.stickyNotes, map, count);
-            RemapDependentOverrideControllers(map, count);
-            RemapLayerCameraPrefs(map, count);
-
-            Controller.ClearEffectiveStateCache();
-            EditorUtility.SetDirty(Controller);
-            SerializedController.Update();
-            HonamiGraphView.DeferredSave();
-
-            if (CurrentLayerIndex >= 0 && CurrentLayerIndex < count)
-                CurrentLayerIndex = map[CurrentLayerIndex];
-
-            SelectedNode = null; SelectedNodeGuid = null;
-            SelectedTransition = null; SelectedTransitionGuid = null;
-
-            if (_currentHandler is HonamiAnimatorGraphHandler h && h.GetMainView() is HonamiGraphView gv)
-                gv.PopulateView(RuntimeController, CurrentLayerIndex);
-
-            _currentHandler?.RebuildLeftPanel();
-            BuildRightPanel();
-
-            if (toIdx == 0)
-                HonamiNotificationPanel.ShowGlobal("Base Layer Changed", $"'{movedName}' is now the base layer.", HonamiNotificationType.Success);
-            else
-                HonamiNotificationPanel.ShowGlobal("Layer Moved", $"'{movedName}' moved to position {toIdx}.", HonamiNotificationType.Success);
-        }
-
-        private static int[] BuildLayerMoveMap(int count, int fromIdx, int toIdx)
-        {
-            var map = new int[count];
-            for (int i = 0; i < count; i++)
-            {
-                if (i == fromIdx)
-                {
-                    map[i] = toIdx;
-                    continue;
-                }
-
-                int shifted = i;
-                if (shifted > fromIdx) shifted--;
-                if (shifted >= toIdx) shifted++;
-                map[i] = shifted;
-            }
-            return map;
-        }
-
-        private static void RemapStateLayerData(Runtime.Core.HonamiState s, int[] map, int count)
-        {
-            if (s == null) return;
-
-            int newLayer = s.layerIndex >= 0 && s.layerIndex < count ? map[s.layerIndex] : s.layerIndex;
-            string newGuid = RemapInheritedLayerGuid(s.guid, map, count);
-
-            bool changed = newLayer != s.layerIndex || !string.Equals(newGuid, s.guid, System.StringComparison.Ordinal);
-            if (!changed && s.transitions != null)
-            {
-                foreach (var t in s.transitions)
-                {
-                    if (t == null) continue;
-                    if (!string.Equals(RemapInheritedLayerGuid(t.targetStateGuid, map, count), t.targetStateGuid, System.StringComparison.Ordinal))
-                    {
-                        changed = true;
-                        break;
-                    }
-                }
-            }
-            if (!changed) return;
-
-            Undo.RecordObject(s, "Move Layer");
-            s.layerIndex = newLayer;
-            s.guid = newGuid;
-            if (s.transitions != null)
-            {
-                foreach (var t in s.transitions)
-                {
-                    if (t != null) t.targetStateGuid = RemapInheritedLayerGuid(t.targetStateGuid, map, count);
-                }
-            }
-            EditorUtility.SetDirty(s);
-        }
-
-        private static string RemapInheritedGuidForDuplicate(string guid, int fromLayer, int toLayer)
-        {
-            if (string.IsNullOrEmpty(guid)) return guid;
-
-            const string marker = Runtime.Core.HonamiController.InheritedLayerGuidMarker;
-            int at = guid.LastIndexOf(marker, System.StringComparison.Ordinal);
-            if (at < 0) return guid;
-            if (!int.TryParse(guid.Substring(at + marker.Length), out int layer) || layer != fromLayer) return guid;
-
-            return guid.Substring(0, at + marker.Length) + toLayer;
-        }
-
-        private static string RemapInheritedLayerGuid(string guid, int[] map, int count)
-        {
-            if (string.IsNullOrEmpty(guid)) return guid;
-
-            const string marker = Runtime.Core.HonamiController.InheritedLayerGuidMarker;
-            int at = guid.LastIndexOf(marker, System.StringComparison.Ordinal);
-            if (at < 0) return guid;
-            if (!int.TryParse(guid.Substring(at + marker.Length), out int layer)) return guid;
-            if (layer < 0 || layer >= count || map[layer] == layer) return guid;
-
-            return guid.Substring(0, at + marker.Length) + map[layer];
-        }
-
-        private static void RemapDecorationLayerIndices(
-            List<Runtime.Core.HonamiGroupData> groups,
-            List<Runtime.Core.HonamiStickyNoteData> stickyNotes,
-            int[] map,
-            int count)
-        {
-            if (groups != null)
-            {
-                foreach (var g in groups)
-                {
-                    if (g != null && g.layerIndex >= 0 && g.layerIndex < count) g.layerIndex = map[g.layerIndex];
-                }
-            }
-
-            if (stickyNotes != null)
-            {
-                foreach (var n in stickyNotes)
-                {
-                    if (n != null && n.layerIndex >= 0 && n.layerIndex < count) n.layerIndex = map[n.layerIndex];
-                }
-            }
-        }
-
-        private void RemapDependentOverrideControllers(int[] map, int count)
-        {
-            var assetGuids = AssetDatabase.FindAssets("t:HonamiOverrideController");
-            foreach (var assetGuid in assetGuids)
-            {
-                var path = AssetDatabase.GUIDToAssetPath(assetGuid);
-                var over = AssetDatabase.LoadAssetAtPath<Runtime.Core.HonamiOverrideController>(path);
-                if (over == null || over.BaseController != Controller) continue;
-
-                Undo.RecordObject(over, "Move Layer");
-
-                if (over.additionalLayers != null)
-                {
-                    foreach (var l in over.additionalLayers)
-                    {
-                        if (l != null && l.parentLayerIndex >= 0 && l.parentLayerIndex < count)
-                            l.parentLayerIndex = map[l.parentLayerIndex];
-                    }
-                }
-
-                RemapDecorationLayerIndices(over.additionalGroups, over.additionalStickyNotes, map, count);
-
-                if (over.additionalStates != null)
-                {
-                    foreach (var s in over.additionalStates)
-                        RemapStateLayerData(s, map, count);
-                }
-
-                if (over.overrides != null)
-                {
-                    foreach (var entry in over.overrides)
-                    {
-                        if (entry == null) continue;
-
-                        var remapped = RemapInheritedLayerGuid(entry.parentStateGuid, map, count);
-                        if (!string.Equals(remapped, entry.parentStateGuid, System.StringComparison.Ordinal))
-                        {
-                            entry.parentStateGuid = remapped;
-                        }
-
-                        if (entry.effectiveState != null)
-                        {
-                            RemapStateLayerData(entry.effectiveState, map, count);
-                            if (entry.effectiveState.transitions != null)
-                            {
-                                foreach (var t in entry.effectiveState.transitions)
-                                {
-                                    if (t != null) t.targetStateGuid = RemapInheritedLayerGuid(t.targetStateGuid, map, count);
-                                }
-                            }
-                        }
-                    }
-                }
-
-                if (over.nodePositions != null)
-                {
-                    for (int i = 0; i < over.nodePositions.Count; i++)
-                    {
-                        var np = over.nodePositions[i];
-                        var remapped = RemapInheritedLayerGuid(np.stateGuid, map, count);
-                        if (!string.Equals(remapped, np.stateGuid, System.StringComparison.Ordinal))
-                        {
-                            np.stateGuid = remapped;
-                            over.nodePositions[i] = np;
-                        }
-                    }
-                }
-
-                over.ClearCaches();
-                EditorUtility.SetDirty(over);
-            }
-        }
-
-        private void RemapLayerCameraPrefs(int[] map, int count)
-        {
-            string assetPath = AssetDatabase.GetAssetPath(Controller);
-            string controllerGuid = AssetDatabase.AssetPathToGUID(assetPath);
-            if (string.IsNullOrEmpty(controllerGuid)) return;
-
-            var stored = new (bool has, float x, float y, float scale)[count];
-            for (int i = 0; i < count; i++)
-            {
-                string keyBase = $"HonamiGraphView_{controllerGuid}_{i}";
-                if (!EditorPrefs.HasKey($"{keyBase}_PosX")) continue;
-                stored[i] = (true,
-                    EditorPrefs.GetFloat($"{keyBase}_PosX"),
-                    EditorPrefs.GetFloat($"{keyBase}_PosY"),
-                    EditorPrefs.GetFloat($"{keyBase}_Scale", 1f));
-            }
-
-            for (int i = 0; i < count; i++)
-            {
-                string keyBase = $"HonamiGraphView_{controllerGuid}_{map[i]}";
-                if (stored[i].has)
-                {
-                    EditorPrefs.SetFloat($"{keyBase}_PosX", stored[i].x);
-                    EditorPrefs.SetFloat($"{keyBase}_PosY", stored[i].y);
-                    EditorPrefs.SetFloat($"{keyBase}_Scale", stored[i].scale);
-                }
-                else
-                {
-                    EditorPrefs.DeleteKey($"{keyBase}_PosX");
-                    EditorPrefs.DeleteKey($"{keyBase}_PosY");
-                    EditorPrefs.DeleteKey($"{keyBase}_Scale");
-                }
-            }
-        }
-
-        private void CollectParameterStrings(ScriptableObject obj, HashSet<string> hashSet)
-        {
-            if (obj == null) return;
-            var so = new SerializedObject(obj);
-            var prop = so.GetIterator();
-            bool enterChildren = true;
-            while (prop.NextVisible(enterChildren))
-            {
-                enterChildren = true;
-                if (prop.propertyType == SerializedPropertyType.String)
-                {
-                    if (!string.IsNullOrEmpty(prop.stringValue))
-                        hashSet.Add(prop.stringValue);
-                }
-            }
-        }
 
         public void ReloadCurrentGraph()
         {
             if (RuntimeController != null)
             {
                 RuntimeController.BaseController?.ClearEffectiveStateCache();
-                if (RuntimeController is Runtime.Core.HonamiOverrideController ov) ov.ClearCaches();
+                if (RuntimeController is HonamiOverrideController ov) ov.ClearCaches();
             }
 
             if (_currentHandler != null)
@@ -1630,48 +911,6 @@ namespace HonamiAnimationSystem.Editor
             }
 
             Repaint();
-        }
-    }
-
-    public sealed class HonamiGraphAssetPostprocessor : AssetPostprocessor
-    {
-        private static void OnPostprocessAllAssets(string[] importedAssets, string[] deletedAssets, string[] movedAssets, string[] movedFromAssetPaths)
-        {
-            // Saves initiated by the graph editor itself must not rebuild the view mid-edit.
-            if (HonamiGraphView.IsInternalSave) return;
-            if (!HonamiGraphWindow.HasOpenInstances<HonamiGraphWindow>()) return;
-
-            EditorApplication.delayCall += () =>
-            {
-                var windows = Resources.FindObjectsOfTypeAll<HonamiGraphWindow>();
-                foreach (var window in windows)
-                {
-                    if (window == null) continue;
-
-                    bool shouldReload = false;
-                    string ctrlPath = window.RuntimeController != null ? AssetDatabase.GetAssetPath(window.RuntimeController) : null;
-                    string baseCtrlPath = window.Controller != null ? AssetDatabase.GetAssetPath(window.Controller) : null;
-                    string linkedPath = window.LinkedGraph != null ? AssetDatabase.GetAssetPath(window.LinkedGraph) : null;
-                    string profilePath = window.ProfileGraph != null ? AssetDatabase.GetAssetPath(window.ProfileGraph) : null;
-
-                    foreach (var path in importedAssets)
-                    {
-                        if ((!string.IsNullOrEmpty(ctrlPath) && path == ctrlPath) ||
-                            (!string.IsNullOrEmpty(baseCtrlPath) && path == baseCtrlPath) ||
-                            (!string.IsNullOrEmpty(linkedPath) && path == linkedPath) ||
-                            (!string.IsNullOrEmpty(profilePath) && path == profilePath))
-                        {
-                            shouldReload = true;
-                            break;
-                        }
-                    }
-
-                    if (shouldReload)
-                    {
-                        window.ReloadCurrentGraph();
-                    }
-                }
-            };
         }
     }
 }

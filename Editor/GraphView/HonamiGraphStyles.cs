@@ -67,16 +67,10 @@ namespace HonamiAnimationSystem.Editor
         public static void ApplyBox(VisualElement e)
         {
             e.style.backgroundColor = BoxBg;
-            e.style.borderTopColor = e.style.borderBottomColor =
-            e.style.borderLeftColor = e.style.borderRightColor = BoxBorder;
-            e.style.borderTopWidth = e.style.borderBottomWidth =
-            e.style.borderLeftWidth = e.style.borderRightWidth = 1;
-            e.style.borderTopLeftRadius = e.style.borderTopRightRadius =
-            e.style.borderBottomLeftRadius = e.style.borderBottomRightRadius = 4;
-            e.style.paddingTop = e.style.paddingBottom = 12;
-            e.style.paddingLeft = e.style.paddingRight = 12;
-            e.style.marginTop = e.style.marginBottom = 6;
-            e.style.marginLeft = e.style.marginRight = 0;
+            e.Border(1, BoxBorder);
+            e.Radius(4);
+            e.Padding(12);
+            e.Margin(6, 0);
         }
 
         public static VisualElement ListBox()
@@ -89,16 +83,10 @@ namespace HonamiAnimationSystem.Editor
         public static void ApplyListBox(VisualElement e)
         {
             e.style.backgroundColor = ListBoxBg;
-            e.style.borderTopColor = e.style.borderBottomColor =
-            e.style.borderLeftColor = e.style.borderRightColor = ListBoxBorder;
-            e.style.borderTopWidth = e.style.borderBottomWidth =
-            e.style.borderLeftWidth = e.style.borderRightWidth = 1;
-            e.style.borderTopLeftRadius = e.style.borderTopRightRadius =
-            e.style.borderBottomLeftRadius = e.style.borderBottomRightRadius = 4;
-            e.style.paddingTop = e.style.paddingBottom = 8;
-            e.style.paddingLeft = e.style.paddingRight = 10;
-            e.style.marginTop = e.style.marginBottom = 4;
-            e.style.marginLeft = e.style.marginRight = 0;
+            e.Border(1, ListBoxBorder);
+            e.Radius(4);
+            e.Padding(8, 10);
+            e.Margin(4, 0);
         }
 
         public static VisualElement Row()
@@ -131,8 +119,7 @@ namespace HonamiAnimationSystem.Editor
             var b = new Button(onClick) { text = text };
             b.style.width = 25;
             b.style.height = 20;
-            b.style.paddingLeft = b.style.paddingRight = 2;
-            b.style.paddingTop = b.style.paddingBottom = 0;
+            b.Padding(0, 2);
             b.style.fontSize = 11;
             return b;
         }
@@ -196,12 +183,8 @@ namespace HonamiAnimationSystem.Editor
                     label.style.marginLeft = 4;
                 }
                 toggle.style.backgroundColor = BoxBg;
-                toggle.style.borderTopColor = toggle.style.borderBottomColor =
-                toggle.style.borderLeftColor = toggle.style.borderRightColor = BoxBorder;
-                toggle.style.borderTopWidth = toggle.style.borderBottomWidth =
-                toggle.style.borderLeftWidth = toggle.style.borderRightWidth = 1;
-                toggle.style.borderTopLeftRadius = toggle.style.borderTopRightRadius =
-                toggle.style.borderBottomLeftRadius = toggle.style.borderBottomRightRadius = 6;
+                toggle.Border(1, BoxBorder);
+                toggle.Radius(6);
                 toggle.style.paddingTop = toggle.style.paddingBottom = 6;
                 toggle.style.paddingLeft = 6;
                 toggle.style.marginBottom = 4;

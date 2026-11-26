@@ -13,7 +13,6 @@ namespace HonamiAnimationSystem.Runtime.Core
     }
 
     [CreateAssetMenu(fileName = "Condition", menuName = "Honami Animation/Linked Animator Nodes/Condition")]
-    [UnityEngine.Scripting.APIUpdating.MovedFrom("BrainConditionNode")]
     public sealed class LinkedAnimatorConditionNode : HonamiLinkedAnimatorNodeBase
     {
         public string parameterName;

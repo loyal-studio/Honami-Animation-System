@@ -49,7 +49,7 @@ In practice the animator does the graph and the programmer writes gameplay code.
 Almost everything lives in the editors, no scripting required:
 
 - **States, transitions and layers** - drawn in the node graph.
-- **Blend trees** - built in a visual editor with live per-motion weights and a skeleton preview.
+- **Blend trees and blend spaces** - 1D trees and N-dimensional blend spaces, built in a visual editor with live per-motion weights.
 - **Masks** - painted per bone with 0-1 weights in the mask editor.
 - **Events** - wired straight to `UnityEvent`s in the inspector.
 - **Parameter changes** - states can set parameters on enter/exit, right in the graph.
@@ -109,6 +109,7 @@ You draw states, transitions and layers instead of writing them. Behaviour is sp
 
 - **Animation Node** - plays a single clip, with a trimmable start/end range.
 - **Blend Tree Node** - the smooth locomotion blend: flows continuously between clips like **idle → walk → run** along a float such as speed, with no visible transition. **Standard** mode speed-syncs the clips so footfalls stay in phase; **Simple** plays each at its own speed. Damped, so it eases instead of snapping.
+- **Blend Space Node** - the same idea in more than one dimension: one float parameter per axis and a coordinate per clip, so strafing, backpedalling and diagonals come out of a single state. **Freeform Directional** and **Freeform Cartesian** take any number of axes; **Simple Directional** covers the classic one-clip-per-direction set in two. Authored on a draggable blend space field.
 - **Random Node** - picks one weighted clip on entry for idle/attack variety; can even sync its pick across linked animators.
 - **Sequencer Node** - stitches several clips onto one state's timeline (wind-up → hit → recover) without extra transitions.
 - **Event Node** - a state with no animation at all: a pure logic beat that fires event markers, sets parameters and runs Sub-Nodes for a set duration. Chain a few with exit-time transitions for scripted sequences, timers and decision points - all authored in the UI, no code.
@@ -278,12 +279,12 @@ Only the areas where the two genuinely diverge - where Mecanim already does the 
 | **Many characters** | ❌ No cross-animator coordination. | ✅ Linked Brain broadcast by tag, radius, wave or closest-N. |
 | **Objects that don't need a graph** | ⚠️ A controller asset per NPC and per door, or the deprecated legacy `Animation` component. | ✅ Clip Player: a clip list on the object, played by name, on the same runtime and rig stack as everything else. |
 | **Debugging** | ❌ Basic active-state progress bar. | ✅ Live node highlighting, weights and transition values. |
-| **Blend trees** | ✅ 1D and 2D blend trees. | ⚠️ 1D only (2D on the roadmap). |
+| **Blend trees** | ✅ 1D and 2D blend trees, nested trees, Direct mode. | ✅ 1D blend trees plus an N-dimensional Blend Space (2D, 3D or more). ⚠️ No nesting, no Direct mode. |
 | **Retargeting** | ✅ Humanoid muscle-space retargeting across skeletons. | ⚠️ No runtime retargeting - binds by transform path. The Humanoid Baker tool retargets Humanoid clips onto your skeleton offline and bakes them to Generic. |
 
 ## Honest scope
 
-Honami drives any Animator-based object, and it shines on fast, code-driven action games and on complex or exotic rigs. It is **not** a drop-in Mecanim replacement for every project, though: there's **no runtime Humanoid retargeting** (marketplace Humanoid clips are supported via the offline Humanoid Baker tool), blend trees are **1D only** (no 2D blend space), and overlays use masked layers (additive / aim-offset is on the roadmap). If your project leans on live cross-skeleton retargeting or 2D blendspace locomotion, Unity's built-in Animator is still the better fit.
+Honami drives any Animator-based object, and it shines on fast, code-driven action games and on complex or exotic rigs. It is **not** a drop-in Mecanim replacement for every project, though: there's **no runtime Humanoid retargeting** (marketplace Humanoid clips are supported via the offline Humanoid Baker tool), blend trees and blend spaces are **flat motion lists** (no nesting, no Direct mode), and overlays use masked layers (additive / aim-offset is on the roadmap). If your project leans on live cross-skeleton retargeting or deeply nested blend trees, Unity's built-in Animator is still the better fit.
 
 ## Migrating from Mecanim
 
@@ -299,7 +300,7 @@ Your rig setup, whatever it is, stays as-is. A Humanoid character keeps its Huma
 
 Everything lives under **Window ▸ Honami ▸ Tools**:
 
-**Animator Converter** - right-click any `AnimatorController` and choose *Convert to Honami Controller* (or open the window and pick one). It generates a `HonamiController` with your parameters and their defaults, layers with weights, every state (speed, loop, graph positions preserved), sub-state machines (each gets its own Any State and Exit), and transitions with their conditions, exit times and interruption settings. Two things don't auto-port and the converter says so: **2D blend trees** are flattened into a 1D motion list (re-author them as 1D trees, states or layers), and **`StateMachineBehaviour`s** have no direct equivalent - recreate them as Sub-Nodes, which is usually less code.
+**Animator Converter** - right-click any `AnimatorController` and choose *Convert to Honami Controller* (or open the window and pick one). It generates a `HonamiController` with your parameters and their defaults, layers with weights, every state (speed, loop, graph positions preserved), sub-state machines (each gets its own Any State and Exit), and transitions with their conditions, exit times and interruption settings. 1D blend trees become Blend Tree nodes and 2D ones become Blend Space nodes, carrying their blend type, parameters and every child's threshold or position, speed and mirror flag. Two things don't auto-port and the converter says so: **nested blend trees** are flattened into the parent's motion list, and **`StateMachineBehaviour`s** have no direct equivalent - recreate them as Sub-Nodes, which is usually less code.
 
 **Script API Converter** - scans a folder for C# scripts that use the Animator API, lists the affected files, and lets you convert the ones you tick. It finds your `Animator` fields and variables and rewrites them in place: type references (`Animator`, `GetComponent<Animator>`, `typeof(Animator)`) become `HonamiAnimator`, and `Play` / `CrossFade` / `CrossFadeInFixedTime` become `PlayState`. Parameter calls like `SetFloat`, `SetBool` and `SetTrigger` are left alone on purpose - `HonamiAnimator` uses the same method names, so they compile as-is. Converted files also get `using HonamiAnimationSystem.Runtime.Core;` inserted automatically. It's a source-code rewrite, so **commit first** and review the diff after.
 
@@ -326,7 +327,6 @@ Everything lives under **Window ▸ Honami ▸ Tools**:
 Honami is in active beta. In progress and planned:
 
 - **Cinematic Director** - clip-to-clip blending, camera tracks and full cutscene tooling on top of the current sequencer.
-- **2D blend trees** - a full 2D blend space alongside the current 1D trees.
 - **Additive** - additive layers for recoil, lean and look/aim overlays.
 - **Inertialization** - velocity-preserving transition blending.
 

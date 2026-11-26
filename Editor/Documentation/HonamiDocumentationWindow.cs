@@ -35,20 +35,27 @@ namespace HonamiAnimationSystem.Editor.Documentation
             ConstructLayout();
         }
 
-        private void InitializePages()
+       private void InitializePages()
         {
             _pages = new List<IHonamiDocumentationPage>();
 
-            var type = typeof(IHonamiDocumentationPage);
-            var types = AppDomain.CurrentDomain.GetAssemblies()
-                .SelectMany(s => s.GetTypes())
-                .Where(p => type.IsAssignableFrom(p) && !p.IsInterface && !p.IsAbstract);
-
-            foreach (var t in types)
+            foreach (Type type in TypeCache.GetTypesDerivedFrom<IHonamiDocumentationPage>())
             {
-                if (Activator.CreateInstance(t) is IHonamiDocumentationPage page)
+               if (type.IsAbstract || type.IsInterface) continue;
+
+                if (type.GetConstructor(Type.EmptyTypes) == null)
                 {
-                    _pages.Add(page);
+                    Debug.LogError($"[Honami] Documentation page '{type.FullName}' needs a public parameterless constructor.");
+                    continue;
+                }
+
+                try
+                {
+                    if (Activator.CreateInstance(type) is IHonamiDocumentationPage page) _pages.Add(page);
+                }
+                catch (Exception exception)
+                {
+                    Debug.LogError($"[Honami] Documentation page '{type.FullName}' failed to construct: {exception.Message}");
                 }
             }
 
@@ -176,12 +183,11 @@ namespace HonamiAnimationSystem.Editor.Documentation
                     bool isSelected = _currentPage == page;
                     btn.style.backgroundColor = isSelected ? new Color(HonamiGraphStyles.Accent.r, HonamiGraphStyles.Accent.g, HonamiGraphStyles.Accent.b, 0.12f) : Color.clear;
 
-                    btn.style.borderTopWidth = btn.style.borderBottomWidth = btn.style.borderLeftWidth = btn.style.borderRightWidth = 0;
+                    btn.BorderWidth(0);
                     btn.style.marginTop = btn.style.marginBottom = 0;
                     btn.style.marginLeft = 4;
                     btn.style.marginRight = 4;
-                    btn.style.borderTopLeftRadius = btn.style.borderTopRightRadius =
-                    btn.style.borderBottomLeftRadius = btn.style.borderBottomRightRadius = 6;
+                    btn.Radius(6);
 
                     btn.style.height = 32;
                     btn.style.unityTextAlign = TextAnchor.MiddleLeft;
@@ -295,10 +301,8 @@ namespace HonamiAnimationSystem.Editor.Documentation
 
             var langBadge = new VisualElement();
             langBadge.style.backgroundColor = new Color(1, 1, 1, 0.08f);
-            langBadge.style.paddingLeft = langBadge.style.paddingRight = 8;
-            langBadge.style.paddingTop = langBadge.style.paddingBottom = 2;
-            langBadge.style.borderTopLeftRadius = langBadge.style.borderTopRightRadius =
-            langBadge.style.borderBottomLeftRadius = langBadge.style.borderBottomRightRadius = 4;
+            langBadge.Padding(2, 8);
+            langBadge.Radius(4);
             langBadge.style.marginRight = 12;
             metaRow.Add(langBadge);
 
@@ -380,12 +384,10 @@ namespace HonamiAnimationSystem.Editor.Documentation
             var btn = new Button(onClick);
             btn.style.flexDirection = alignRight ? FlexDirection.RowReverse : FlexDirection.Row;
             btn.style.alignItems = Align.Center;
-            btn.style.paddingLeft = btn.style.paddingRight = 20;
-            btn.style.paddingTop = btn.style.paddingBottom = 16;
+            btn.Padding(16, 20);
             btn.style.backgroundColor = new Color(0.14f, 0.15f, 0.16f);
-            btn.style.borderTopWidth = btn.style.borderBottomWidth = btn.style.borderLeftWidth = btn.style.borderRightWidth = 1;
-            btn.style.borderTopColor = btn.style.borderBottomColor = btn.style.borderLeftColor = btn.style.borderRightColor = new Color(1, 1, 1, 0.08f);
-            btn.style.borderTopLeftRadius = btn.style.borderTopRightRadius = btn.style.borderBottomLeftRadius = btn.style.borderBottomRightRadius = 10;
+            btn.Border(1, new Color(1, 1, 1, 0.08f));
+            btn.Radius(10);
             btn.style.flexGrow = 1;
             btn.style.flexBasis = Length.Percent(48);
             btn.style.transitionProperty = new List<StylePropertyName> { "background-color", "border-color" };
@@ -394,12 +396,12 @@ namespace HonamiAnimationSystem.Editor.Documentation
             btn.RegisterCallback<MouseOverEvent>(evt =>
             {
                 btn.style.backgroundColor = new Color(0.18f, 0.20f, 0.22f);
-                btn.style.borderTopColor = btn.style.borderBottomColor = btn.style.borderLeftColor = btn.style.borderRightColor = HonamiGraphStyles.Accent;
+                btn.BorderColor(HonamiGraphStyles.Accent);
             });
             btn.RegisterCallback<MouseOutEvent>(evt =>
             {
                 btn.style.backgroundColor = new Color(0.14f, 0.15f, 0.16f);
-                btn.style.borderTopColor = btn.style.borderBottomColor = btn.style.borderLeftColor = btn.style.borderRightColor = new Color(1, 1, 1, 0.08f);
+                btn.BorderColor(new Color(1, 1, 1, 0.08f));
             });
 
             var textContainer = new VisualElement();

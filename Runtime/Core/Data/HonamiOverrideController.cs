@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -133,55 +133,15 @@ namespace HonamiAnimationSystem.Runtime.Core
     }
 
     /// <summary>
-    /// Legacy (schema v0) whole-node override record. Kept only so pre-existing assets can be migrated; never
-    /// written by current code.
-    /// </summary>
-    [Serializable]
-    public struct HonamiNodeOverride
-    {
-        public string stateGuid;
-        public HonamiNodeBase overrideNode;
-    }
-
-    /// <summary>
-    /// Legacy (schema v0) whole-list transition override record. Kept only for migration.
-    /// </summary>
-    [Serializable]
-    public struct HonamiStateTransitionsOverride
-    {
-        public string stateGuid;
-        public List<HonamiTransition> transitions;
-    }
-
-    /// <summary>
     /// Runtime controller that layers prefab-style per-field overrides on top of a parent controller.
     /// </summary>
     public sealed class HonamiOverrideController : HonamiRuntimeController
     {
-        public const int CurrentOverrideSchemaVersion = 1;
-
         [Tooltip("The base controller to inherit layers, parameters, and states from.")]
         public HonamiRuntimeController parentController;
 
         [Tooltip("Per-state prefab-style overrides applied on top of the parent controller.")]
         public List<HonamiOverrideEntry> overrides = new List<HonamiOverrideEntry>();
-
-        [SerializeField, HideInInspector]
-        private int overrideSchemaVersion;
-
-        [HideInInspector]
-        public List<HonamiNodeOverride> nodeOverrides = new List<HonamiNodeOverride>();
-
-        [HideInInspector]
-        public List<HonamiStateTransitionsOverride> transitionOverrides = new List<HonamiStateTransitionsOverride>();
-
-        public int OverrideSchemaVersion
-        {
-            get => overrideSchemaVersion;
-            set => overrideSchemaVersion = value;
-        }
-
-        public bool NeedsMigration => overrideSchemaVersion < CurrentOverrideSchemaVersion;
 
         [Tooltip("Additional layers exclusively for this override controller.")]
         public List<HonamiLayer> additionalLayers = new List<HonamiLayer>();

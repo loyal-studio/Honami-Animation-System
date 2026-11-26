@@ -5,7 +5,7 @@ namespace HonamiAnimationSystem.Editor.Documentation.Pages
     public sealed class AnimationTheoryDeepDivePage : IHonamiDocumentationPage
     {
         public string Title => HonamiDocLocalization.Get("Deep Dive: Theory", "Глибоке занурення: Теорія");
-        public string Category => HonamiDocLocalization.Get("09. Theory & Background", "09. Теорія та довідка");
+        public string Category => HonamiDocLocalization.Get("10. Theory & Background", "10. Теорія та довідка");
         public string SearchKeywords => "theory deep dive math quaternions interpolation slerp lerp математика теорія";
         public int Order => 810;
         public int EstimatedReadTime => 6;
@@ -13,8 +13,8 @@ namespace HonamiAnimationSystem.Editor.Documentation.Pages
         public void BuildContent(VisualElement root)
         {
             HonamiDocumentationBuilder.AddParagraph(root, HonamiDocLocalization.Get(
-                "Optional background reading: how Honami is structured internally and the math its blending rests on. Nothing here is required to use the system — it explains why it behaves the way it does.",
-                "Необов'язкове читання: як Honami влаштований усередині та на якій математиці тримається його блендінг. Нічого з цього не потрібно для роботи з системою — сторінка пояснює, чому вона поводиться саме так."
+                "Optional background reading: how Honami is structured internally and the math its blending rests on. Nothing here is required to use the system - it explains why it behaves the way it does.",
+                "Необов'язкове читання: як Honami влаштований усередині та на якій математиці тримається його блендінг. Нічого з цього не потрібно для роботи з системою - сторінка пояснює, чому вона поводиться саме так."
             ));
 
             HonamiDocumentationBuilder.AddHeader(root, HonamiDocLocalization.Get("1. High-Performance Blending Architecture", "1. Архітектура високопродуктивного змішування"), HonamiEditorIcons.GraphWhite);
@@ -35,7 +35,7 @@ namespace HonamiAnimationSystem.Editor.Documentation.Pages
             HonamiDocumentationBuilder.AddHeader(root, HonamiDocLocalization.Get("2. Sub-Frame Precision & Synchronization", "2. Субфреймова точність та синхронізація"), HonamiEditorIcons.TimelineWhite);
             HonamiDocumentationBuilder.AddParagraph(root, HonamiDocLocalization.Get(
                 "Variable frame rates are the enemy of smooth animation. Honami uses an independent 'Evaluation Clock' that samples animations with sub-frame precision, ensuring that transitions are mathematically continuous regardless of FPS fluctuations.",
-                "Змінна частота кадрів — ворог плавної анімації. Honami використовує незалежний «Evaluation Clock», який робить вибірку анімацій з субфреймовою точністю, гарантуючи математичну безперервність переходів незалежно від коливань FPS."
+                "Змінна частота кадрів - ворог плавної анімації. Honami використовує незалежний «Evaluation Clock», який робить вибірку анімацій з субфреймовою точністю, гарантуючи математичну безперервність переходів незалежно від коливань FPS."
             ));
 
             HonamiDocumentationBuilder.AddBulletPoint(root, HonamiDocLocalization.Get(
@@ -61,7 +61,7 @@ namespace HonamiAnimationSystem.Editor.Documentation.Pages
             HonamiDocumentationBuilder.AddHeader(root, HonamiDocLocalization.Get("4. Transition Dynamics & Curve Integrity", "4. Динаміка переходів та цілісність кривих"), HonamiEditorIcons.BlendTreeWhite);
             HonamiDocumentationBuilder.AddParagraph(root, HonamiDocLocalization.Get(
                 "Transitions in Honami are not just simple LERPs over time. We use cubic Hermite splines (S-curves) to ensure that motion has 'acceleration' and 'deceleration' (Ease-In/Out), mimicking biological muscle behavior.",
-                "Переходи в Honami — це не просто лінійне змішування. Ми використовуємо кубічні сплайни Ерміта (S-криві), щоб забезпечити «прискорення» та «уповільнення» руху (Ease-In/Out), імітуючи біологічну поведінку м'язів."
+                "Переходи в Honami - це не просто лінійне змішування. Ми використовуємо кубічні сплайни Ерміта (S-криві), щоб забезпечити «прискорення» та «уповільнення» руху (Ease-In/Out), імітуючи біологічну поведінку м'язів."
             ));
 
             HonamiDocumentationBuilder.AddFeatureGrid(root,

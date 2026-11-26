@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Playables;
 
@@ -185,7 +185,7 @@ namespace HonamiAnimationSystem.Runtime.Core
             {
                 var tr = transitions[i];
                 if (tr == null || !tr.hasTargetGuid) continue;
-                if (animator._stateGuidToIndex.TryGetValue(tr.targetStateGuidHash, out int targetIdx) && targetIdx == currentStateIndex)
+                if (animator.TryResolveStateByGuidHash(tr.targetStateGuidHash, out int targetIdx) && targetIdx == currentStateIndex)
                 {
                     currentIsComboTarget = true;
                     break;

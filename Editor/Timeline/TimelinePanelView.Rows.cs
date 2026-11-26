@@ -1,4 +1,3 @@
-#if UNITY_EDITOR
 using System.Collections.Generic;
 using System.Linq;
 using HonamiAnimationSystem.Runtime.Core;
@@ -6,7 +5,6 @@ using HonamiAnimationSystem.Runtime.Timeline;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.UIElements;
-using HonamiEditorController = HonamiAnimationSystem.Editor.Core.HonamiEditorController;
 
 namespace HonamiAnimationSystem.Editor.Timeline
 {
@@ -17,9 +15,17 @@ namespace HonamiAnimationSystem.Editor.Timeline
             public int Index;
             public string Title;
             public string IconName;
+            public Texture Icon;
             public Color Color;
             public bool IsSelected;
-            public HonamiTimelineTrack Track;
+            public string Problem;
+            public HonamiTimelineModule Module;
+
+            public bool IsNodeRow;
+            public int NodeRow;
+            public int MotionIndex;
+            public string GroupKey;
+            public bool IsDimmed;
 
             public bool IsGroup;
             public bool IsBoneGroup;
@@ -47,6 +53,20 @@ namespace HonamiAnimationSystem.Editor.Timeline
         }
 
         private readonly List<RowData> _cachedRows = new();
+        private readonly List<HonamiTimelineRow> _nodeRowBuffer = new();
+        private readonly HashSet<HonamiTimelineModule> _placedModules = new();
+
+        private static float RowY(int rowIndex) => rowIndex * TimelineTheme.RowHeight;
+
+        private int RowIndexAtCanvasY(float y)
+        {
+            if (y < 0f) return -1;
+            int index = Mathf.FloorToInt(y / TimelineTheme.RowHeight);
+            return index < _cachedRows.Count ? index : -1;
+        }
+
+        private float DisplayFps() => _state.FrameRate;
+
         private readonly ClipCurveCache _curveCache = new();
 
         private void EnsureCurveCache()
@@ -72,39 +92,83 @@ namespace HonamiAnimationSystem.Editor.Timeline
         private List<RowData> GetRows()
         {
             _cachedRows.Clear();
+            _placedModules.Clear();
 
             switch (_state.Mode)
             {
                 case TimelineMode.HonamiTimeline:
-                    CollectTimelineRows();
+                    CollectModuleRows();
                     break;
                 case TimelineMode.HonamiClipEdit:
                     CollectClipEditRows();
                     break;
                 default:
                     CollectStateRows();
+                    CollectModuleRows();
                     break;
             }
             return _cachedRows;
         }
 
-        private void CollectTimelineRows()
+        private void CollectModuleRows()
         {
-            if (_state.ActiveTimeline == null) return;
-            var tracks = _state.ActiveTimeline.tracks;
-            for (int i = 0; i < tracks.Count; i++)
+            var modules = _state.ActiveModules;
+            if (modules == null) return;
+            for (int i = 0; i < modules.Count; i++)
             {
-                var track = tracks[i];
-                _cachedRows.Add(new RowData
-                {
-                    Index = i,
-                    Title = string.IsNullOrEmpty(track.trackName) ? track.trackType.ToString() : track.trackName,
-                    Track = track,
-                    IconName = track.trackType == HonamiTimelineTrackType.Animation ? "AnimationClip Icon" : "AnimationWindowEvent Icon",
-                    Color = track.trackType == HonamiTimelineTrackType.Animation ? TimelineTheme.AnimationTrack : TimelineTheme.EventTrack,
-                    IsSelected = _state.SelectedTimelineTrack == track
-                });
+                var module = modules[i];
+                if (module == null || _placedModules.Contains(module)) continue;
+
+                var parent = _state.ResolveParent(module);
+                if (parent.Kind == HonamiTimelineModuleParentKind.Item) continue;
+
+                string suffix = parent.Kind == HonamiTimelineModuleParentKind.Motion ? _state.node.GetMotionName(parent.MotionIndex) : null;
+                string problem = parent.IsMissing ? "its parent clip or item is gone; pick another parent in its properties" : null;
+                AddModuleTree(module, 0, false, suffix, problem);
             }
+        }
+
+        private void AddModuleTree(HonamiTimelineModule module, int depth, bool nested, string titleSuffix = null, string problem = null)
+        {
+            if (!_placedModules.Add(module)) return;
+            AddModuleRow(module, depth, nested, !_state.IsModulePreviewed(module), titleSuffix, problem);
+
+            var modules = _state.ActiveModules;
+            var editor = HonamiTimelineModuleEditorRegistry.GetEditor(module);
+            int count = module.ItemCount;
+            for (int i = 0; i < count; i++)
+            {
+                var item = module.GetItem(i);
+                if (item == null || string.IsNullOrEmpty(item.Id)) continue;
+
+                for (int m = 0; m < modules.Count; m++)
+                {
+                    var child = modules[m];
+                    if (child == null || child.parentId != item.Id || _placedModules.Contains(child)) continue;
+                    if (_state.ResolveParent(child).Kind != HonamiTimelineModuleParentKind.Item) continue;
+                    AddModuleTree(child, depth + 1, true, $"{editor.GetItemLabel(item)} @ {_state.GetModuleTimeOffset(module) + item.time:F2}s");
+                }
+            }
+        }
+
+        private void AddModuleRow(HonamiTimelineModule module, int depth, bool nested, bool dimmed, string titleSuffix = null, string problem = null)
+        {
+            var editor = HonamiTimelineModuleEditorRegistry.GetEditor(module);
+            string title = string.IsNullOrEmpty(module.moduleName) ? editor.DisplayName : module.moduleName;
+            _cachedRows.Add(new RowData
+            {
+                Index = _cachedRows.Count,
+                Title = string.IsNullOrEmpty(titleSuffix) ? title : $"{title}  ·  {titleSuffix}",
+                Module = module,
+                Icon = editor.Icon,
+                Color = module.SupportsHost(_state.ActiveContainer.Host) ? editor.ModuleColor : TimelineTheme.MutedText,
+                IsSelected = _state.SelectedModule == module,
+                Problem = problem ?? GetBindingProblem(module),
+                Depth = depth,
+                GroupKey = nested ? module.parentId : null,
+                MotionIndex = -1,
+                IsDimmed = dimmed
+            });
         }
 
         private void CollectClipEditRows()
@@ -278,64 +342,66 @@ namespace HonamiAnimationSystem.Editor.Timeline
             _ => new Color(0.78f, 0.72f, 0.40f)
         };
 
-        private void CollectStateRows()
+        private string GetBindingProblem(HonamiTimelineModule module)
         {
-            int index = 0;
-            if (_state.ShowAnimTrack)
+            var container = _state.ActiveContainer;
+            if (container == null || module.BindingType == null || !module.SupportsHost(container.Host)) return null;
+
+            HonamiDirector director = null;
+            GameObject owner;
+            if (container.Host == HonamiTimelineModuleHost.Timeline)
             {
-                if (_state.IsRandomState && _state.RandomNode.randomClips != null)
-                {
-                    var clips = _state.RandomNode.randomClips;
-                    for (int i = 0; i < clips.Count; i++)
-                        _cachedRows.Add(new RowData { Index = index++, Title = clips[i].clip != null ? clips[i].clip.name : $"Empty Slot {i}", IconName = "AnimationClip Icon", Color = TimelineTheme.RandomTrack });
-                }
-                else if (_state.IsBlendState && _state.BlendNode.blendMotions != null)
-                {
-                    var motions = _state.BlendNode.blendMotions;
-                    for (int i = 0; i < motions.Count; i++)
-                    {
-                        var motion = motions[i];
-                        string name = motion.clip != null ? motion.clip.name : $"Empty Motion {i}";
-                        _cachedRows.Add(new RowData { Index = index++, Title = $"{name}  ({motion.threshold:F2})", IconName = "AnimationClip Icon", Color = TimelineTheme.PreviewTrack });
-                    }
-                }
-                else if (_state.IsSeqState && _state.SeqNode.sequencedClips != null)
-                {
-                    var clips = _state.SeqNode.sequencedClips;
-                    for (int i = 0; i < clips.Count; i++)
-                        _cachedRows.Add(new RowData { Index = index++, Title = clips[i].clip != null ? clips[i].clip.name : $"Empty Sequence {i}", IconName = "AnimationClip Icon", Color = TimelineTheme.SequencerTrack });
-                }
-                else
-                {
-                    _cachedRows.Add(new RowData { Index = index++, Title = "Animation Clip", IconName = "AnimationClip Icon", Color = TimelineTheme.AnimationTrack });
-                }
+                director = _state.ResolveDirector();
+                owner = director != null ? director.gameObject : null;
             }
-            if (_state.ShowLocalEventsTrack) _cachedRows.Add(new RowData { Index = index++, Title = "Local Events", IconName = "AnimationWindowEvent Icon", Color = TimelineTheme.EventTrack });
-            if (_state.ShowGlobalEventsTrack) _cachedRows.Add(new RowData { Index = index, Title = "Global Events", IconName = "AudioSource Icon", Color = TimelineTheme.GlobalEventTrack });
+            else
+            {
+                owner = _state.ResolvePreviewRoot();
+            }
+            if (owner == null) return null;
+
+            var binding = HonamiTimelineEditContext.ResolveBinding(container, module, director, owner);
+            return module.GetBindingProblem(container.Host, binding, owner);
         }
 
-        private float DisplayFps()
+        private void CollectStateRows()
         {
-            if (_state.Mode == TimelineMode.HonamiClipEdit)
-                return _state.ActiveClip != null ? _state.ActiveClip.frameRate : 0f;
+            var node = _state.SelectedState?.node;
+            if (!_state.ShowAnimTrack || node == null) return;
 
-            var clip = _state.AnimNode?.clip;
-            if (clip == null && _state.IsRandomState && _state.RandomNode.randomClips != null
-                && _state.RandomPreviewIdx >= 0 && _state.RandomPreviewIdx < _state.RandomNode.randomClips.Count)
-                clip = _state.RandomNode.randomClips[_state.RandomPreviewIdx].clip;
-            if (clip == null && _state.IsBlendState && _state.BlendNode.blendMotions != null)
+            var editor = HonamiNodeEditorRegistry.GetEditor(node);
+            if (editor == null) return;
+
+            _nodeRowBuffer.Clear();
+            editor.CollectTimelineRows(_state, _nodeRowBuffer);
+            var modules = _state.ActiveModules;
+            for (int i = 0; i < _nodeRowBuffer.Count; i++)
             {
-                var motions = _state.BlendNode.blendMotions;
-                for (int i = 0; i < motions.Count; i++)
+                var row = _nodeRowBuffer[i];
+                bool hostsModules = row.HasMotion && row.MotionIndex < node.MotionCount;
+                int parentRow = _cachedRows.Count;
+                _cachedRows.Add(new RowData
                 {
-                    if (motions[i].clip != null)
-                    {
-                        clip = motions[i].clip;
-                        break;
-                    }
+                    Index = parentRow,
+                    Title = row.Title,
+                    Icon = row.Icon,
+                    Color = row.Color,
+                    IsNodeRow = true,
+                    NodeRow = i,
+                    MotionIndex = hostsModules ? row.MotionIndex : -1
+                });
+
+                if (!hostsModules || modules == null) continue;
+
+                for (int m = 0; m < modules.Count; m++)
+                {
+                    var module = modules[m];
+                    if (module == null || _placedModules.Contains(module)) continue;
+                    var parent = _state.ResolveParent(module);
+                    if (parent.Kind == HonamiTimelineModuleParentKind.Motion && parent.MotionIndex == row.MotionIndex)
+                        AddModuleTree(module, 1, true);
                 }
             }
-            return clip != null ? clip.frameRate : 0f;
         }
 
         private static VisualElement RectElement(float x, float y, float width, float height, Color color)
@@ -377,11 +443,11 @@ namespace HonamiAnimationSystem.Editor.Timeline
             };
         }
 
-        private static VisualElement RowIcon(string iconName)
+        private static VisualElement RowIcon(Texture icon)
         {
             return new Image
             {
-                image = EditorGUIUtility.IconContent(iconName).image,
+                image = icon,
                 pickingMode = PickingMode.Ignore,
                 style =
                 {
@@ -394,10 +460,13 @@ namespace HonamiAnimationSystem.Editor.Timeline
             };
         }
 
+        internal const string RowLabelName = "timeline-row-label";
+
         private static Label RowLabel(string text)
         {
             return new Label(text)
             {
+                name = RowLabelName,
                 pickingMode = PickingMode.Ignore,
                 style =
                 {
@@ -412,33 +481,5 @@ namespace HonamiAnimationSystem.Editor.Timeline
                 }
             };
         }
-
-        private Button MuteButton(HonamiTimelineTrack track)
-        {
-            var button = new Button(() =>
-            {
-                HonamiEditorController.ToggleTrackMute(_state.ActiveTimeline, track);
-                _rebuild();
-            })
-            {
-                text = track.muted ? "M" : "V",
-                tooltip = track.muted ? "Muted" : "Visible"
-            };
-            button.style.position = Position.Absolute;
-            button.style.right = 6;
-            button.style.top = 9;
-            button.style.width = 22;
-            button.style.height = 22;
-            button.style.backgroundColor = TimelineTheme.ToolbarButton;
-            button.style.borderTopWidth = button.style.borderRightWidth = button.style.borderBottomWidth = button.style.borderLeftWidth = 1;
-            button.style.borderTopColor = button.style.borderRightColor = button.style.borderBottomColor = button.style.borderLeftColor = TimelineTheme.SubtleLine;
-            button.style.color = TimelineTheme.Text;
-            button.RegisterCallback<PointerEnterEvent>(_ => button.style.backgroundColor = TimelineTheme.ToolbarButtonHot);
-            button.RegisterCallback<PointerLeaveEvent>(_ => button.style.backgroundColor = TimelineTheme.ToolbarButton);
-            button.RegisterCallback<PointerDownEvent>(_ => button.style.backgroundColor = TimelineTheme.ToolbarButtonPressed);
-            button.RegisterCallback<PointerUpEvent>(_ => button.style.backgroundColor = TimelineTheme.ToolbarButtonHot);
-            return button;
-        }
     }
 }
-#endif

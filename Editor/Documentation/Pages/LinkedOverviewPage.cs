@@ -14,7 +14,7 @@ namespace HonamiAnimationSystem.Editor.Documentation.Pages
         {
             HonamiDocumentationBuilder.AddParagraph(root, HonamiDocLocalization.Get(
                 "Honami Linked is a suite of tools designed to synchronize and orchestrate multiple animators. Whether you have a character split into pieces or a group of NPCs reacting to a single event, the Linked system provides the logic to keep them in sync.",
-                "Honami Linked — це набір інструментів, розроблених для синхронізації та оркестрації кількох аніматорів. Незалежно від того, чи розділений ваш персонаж на частини, чи це група NPC, що реагують на одну подію, система Linked забезпечує логіку для їх синхронізації."
+                "Honami Linked - це набір інструментів, розроблених для синхронізації та оркестрації кількох аніматорів. Незалежно від того, чи розділений ваш персонаж на частини, чи це група NPC, що реагують на одну подію, система Linked забезпечує логіку для їх синхронізації."
             ));
 
             HonamiDocumentationBuilder.AddHeader(root, HonamiDocLocalization.Get("The Two Core Systems", "Дві основні системи"), HonamiEditorIcons.GraphWhite);
@@ -29,8 +29,8 @@ namespace HonamiAnimationSystem.Editor.Documentation.Pages
             HonamiDocumentationBuilder.AddBulletPoint(root, HonamiDocLocalization.Get("Use Linked Brain when you have a specific group of objects (like Body, Face, Armor) that MUST move together.", "Використовуйте Linked Brain, коли у вас є конкретна група об'єктів, які ПОВИННІ рухатися разом."));
 
             HonamiDocumentationBuilder.AddInfoBox(root, HonamiDocLocalization.Get(
-                "Both systems work on Honami Animators and Clip Players alike — an NPC or a scene prop on a Clip Player reacts to an ActionID exactly like a controller-backed character does. Calls that need a controller behind them (parameters, state skipping) simply skip the Clip Players.",
-                "Обидві системи працюють і з Honami Animator, і з Clip Player — NPC чи пропс на Clip Player реагує на ActionID так само, як персонаж із контролером. Виклики, що потребують контролера (параметри, пропуск станів), просто оминають Clip Player."
+                "Both systems work on Honami Animators and Clip Players alike - an NPC or a scene prop on a Clip Player reacts to an ActionID exactly like a controller-backed character does. Calls that need a controller behind them (parameters, state skipping) simply skip the Clip Players.",
+                "Обидві системи працюють і з Honami Animator, і з Clip Player - NPC чи пропс на Clip Player реагує на ActionID так само, як персонаж із контролером. Виклики, що потребують контролера (параметри, пропуск станів), просто оминають Clip Player."
             ));
         }
     }

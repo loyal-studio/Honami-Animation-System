@@ -1,4 +1,3 @@
-#if UNITY_EDITOR
 using System;
 using UnityEditor;
 using UnityEngine;
@@ -10,7 +9,7 @@ namespace HonamiAnimationSystem.Editor
     /// Factory for the shared toolbar look: buttons, icon buttons and toggles with the
     /// common Honami hover/press styling, reused across the editor windows.
     /// </summary>
-    internal static class HonamiToolbarControls
+    public static class HonamiToolbarControls
     {
         public static Button ToolbarButton(string text, Action onClick)
         {
@@ -50,6 +49,39 @@ namespace HonamiAnimationSystem.Editor
             return toggle;
         }
 
+       public static VisualElement AccentStrip()
+        {
+            return new VisualElement
+            {
+                style =
+                {
+                    width = 3,
+                    height = Length.Percent(100),
+                    backgroundColor = HonamiEditorTheme.Accent,
+                    marginRight = 8,
+                    flexShrink = 0
+                }
+            };
+        }
+
+        public static VisualElement Separator()
+        {
+            return new VisualElement
+            {
+                style =
+                {
+                    width = 1,
+                    height = 18,
+                    backgroundColor = HonamiEditorTheme.SubtleLine,
+                    marginLeft = 6,
+                    marginRight = 6,
+                    flexShrink = 0
+                }
+            };
+        }
+
+        public static VisualElement FlexibleSpace() => new() { style = { flexGrow = 1 } };
+
         public static void StyleToolbarElement(VisualElement element)
         {
             element.style.height = 24;
@@ -57,35 +89,19 @@ namespace HonamiAnimationSystem.Editor
             element.style.marginRight = 2;
             element.style.paddingLeft = 7;
             element.style.paddingRight = 7;
-            element.style.backgroundColor = HonamiEditorTheme.ToolbarButton;
-            element.style.borderTopWidth = element.style.borderRightWidth = element.style.borderBottomWidth = element.style.borderLeftWidth = 1;
-            element.style.borderTopColor = element.style.borderRightColor = element.style.borderBottomColor = element.style.borderLeftColor = HonamiEditorTheme.SubtleLine;
-            element.style.borderTopLeftRadius = element.style.borderTopRightRadius = element.style.borderBottomLeftRadius = element.style.borderBottomRightRadius = 4;
+           element.style.backgroundColor = HonamiEditorTheme.ToolbarButton;
+            element.Border(1, HonamiEditorTheme.SubtleLine).Radius(4);
 
-            element.RegisterCallback<PointerEnterEvent>(_ =>
-            {
-                if (!element.enabledSelf) return;
-                element.style.backgroundColor = HonamiEditorTheme.ToolbarButtonHot;
-                element.style.borderTopColor = element.style.borderRightColor = element.style.borderBottomColor = element.style.borderLeftColor = HonamiEditorTheme.AccentDim;
-            });
-            element.RegisterCallback<PointerLeaveEvent>(_ =>
-            {
-                element.style.backgroundColor = HonamiEditorTheme.ToolbarButton;
-                element.style.borderTopColor = element.style.borderRightColor = element.style.borderBottomColor = element.style.borderLeftColor = HonamiEditorTheme.SubtleLine;
-            });
-            element.RegisterCallback<PointerDownEvent>(_ =>
-            {
-                if (!element.enabledSelf) return;
-                element.style.backgroundColor = HonamiEditorTheme.ToolbarButtonPressed;
-                element.style.borderTopColor = element.style.borderRightColor = element.style.borderBottomColor = element.style.borderLeftColor = HonamiEditorTheme.Accent;
-            });
-            element.RegisterCallback<PointerUpEvent>(_ =>
-            {
-                if (!element.enabledSelf) return;
-                element.style.backgroundColor = HonamiEditorTheme.ToolbarButtonHot;
-                element.style.borderTopColor = element.style.borderRightColor = element.style.borderBottomColor = element.style.borderLeftColor = HonamiEditorTheme.AccentDim;
-            });
+            element.RegisterCallback<PointerEnterEvent>(_ => { if (element.enabledSelf) SetToolbarElementState(element, HonamiEditorTheme.ToolbarButtonHot, HonamiEditorTheme.AccentDim); });
+            element.RegisterCallback<PointerLeaveEvent>(_ => SetToolbarElementState(element, HonamiEditorTheme.ToolbarButton, HonamiEditorTheme.SubtleLine));
+            element.RegisterCallback<PointerDownEvent>(_ => { if (element.enabledSelf) SetToolbarElementState(element, HonamiEditorTheme.ToolbarButtonPressed, HonamiEditorTheme.Accent); });
+            element.RegisterCallback<PointerUpEvent>(_ => { if (element.enabledSelf) SetToolbarElementState(element, HonamiEditorTheme.ToolbarButtonHot, HonamiEditorTheme.AccentDim); });
+        }
+
+        private static void SetToolbarElementState(VisualElement element, Color background, Color border)
+        {
+            element.style.backgroundColor = background;
+            element.BorderColor(border);
         }
     }
 }
-#endif

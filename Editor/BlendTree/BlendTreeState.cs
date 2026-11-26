@@ -1,4 +1,3 @@
-#if UNITY_EDITOR
 using HonamiAnimationSystem.Runtime.Common;
 using UnityEditor;
 using UnityEngine;
@@ -27,10 +26,9 @@ namespace HonamiAnimationSystem.Editor.BlendTree
 
         public bool HasValidViewTransform =>
             HasViewTransform
-            && IsFinite(ViewScale) && ViewScale > 0f
-            && IsFinite(ViewPosition.x) && IsFinite(ViewPosition.y);
+            && float.IsFinite(ViewScale) && ViewScale > 0f
+            && float.IsFinite(ViewPosition.x) && float.IsFinite(ViewPosition.y);
 
-        private static bool IsFinite(float v) => !float.IsNaN(v) && !float.IsInfinity(v);
 
         public bool ShowProperties = true;
         public bool ShowPreview = true;
@@ -155,4 +153,3 @@ namespace HonamiAnimationSystem.Editor.BlendTree
         }
     }
 }
-#endif

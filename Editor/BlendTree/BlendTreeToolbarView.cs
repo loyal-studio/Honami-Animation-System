@@ -1,4 +1,3 @@
-#if UNITY_EDITOR
 using System;
 using System.Collections.Generic;
 using UnityEditor.UIElements;
@@ -58,7 +57,7 @@ namespace HonamiAnimationSystem.Editor.BlendTree
         private void Build()
         {
             Clear();
-            Add(AccentStrip());
+            Add(HonamiToolbarControls.AccentStrip());
 
             var scroll = new ScrollView(ScrollViewMode.Horizontal);
             scroll.style.flexGrow = 1;
@@ -107,11 +106,11 @@ namespace HonamiAnimationSystem.Editor.BlendTree
             };
             scroll.Add(_blendTypeLabel);
 
-            scroll.Add(FlexibleSpace());
+            scroll.Add(HonamiToolbarControls.FlexibleSpace());
 
             scroll.Add(HonamiToolbarControls.ToolbarButton("Frame All", () => _getPanel()?.FrameAll()));
             scroll.Add(HonamiToolbarControls.ToolbarButton("Distribute Evenly", () => _getPanel()?.DistributeThresholds()));
-            scroll.Add(Separator());
+            scroll.Add(HonamiToolbarControls.Separator());
 
             _propsToggle = HonamiToolbarControls.ToolbarToggle("Props", _state.ShowProperties, value =>
             {
@@ -175,41 +174,6 @@ namespace HonamiAnimationSystem.Editor.BlendTree
             return string.Empty;
         }
 
-        private static VisualElement AccentStrip()
-        {
-            return new VisualElement
-            {
-                style =
-                {
-                    width = 3,
-                    height = Length.Percent(100),
-                    backgroundColor = BlendTreeTheme.Accent,
-                    marginRight = 8,
-                    flexShrink = 0
-                }
-            };
-        }
 
-        private static VisualElement Separator()
-        {
-            return new VisualElement
-            {
-                style =
-                {
-                    width = 1,
-                    height = 18,
-                    backgroundColor = BlendTreeTheme.SubtleLine,
-                    marginLeft = 6,
-                    marginRight = 6,
-                    flexShrink = 0
-                }
-            };
-        }
-
-        private static VisualElement FlexibleSpace()
-        {
-            return new VisualElement { style = { flexGrow = 1 } };
-        }
     }
 }
-#endif

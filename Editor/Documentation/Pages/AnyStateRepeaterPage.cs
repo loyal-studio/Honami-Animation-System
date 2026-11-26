@@ -13,32 +13,32 @@ namespace HonamiAnimationSystem.Editor.Documentation.Pages
         public void BuildContent(VisualElement root)
         {
             HonamiDocumentationBuilder.AddParagraph(root, HonamiDocLocalization.Get(
-                "Any State and Repeater are virtual nodes: they play nothing themselves and exist only as a source of global transitions — transitions that are evaluated no matter which state is currently active on the layer.",
-                "Any State і Repeater — віртуальні вузли: самі вони нічого не програють та існують лише як джерело глобальних переходів — переходів, що оцінюються незалежно від того, який стан зараз активний на шарі."
+                "Any State and Repeater are virtual nodes: they play nothing themselves and exist only as a source of global transitions - transitions that are evaluated no matter which state is currently active on the layer.",
+                "Any State і Repeater - віртуальні вузли: самі вони нічого не програють та існують лише як джерело глобальних переходів - переходів, що оцінюються незалежно від того, який стан зараз активний на шарі."
             ));
 
             HonamiDocumentationBuilder.AddHeader(root, HonamiDocLocalization.Get("Any State", "Any State"), HonamiEditorIcons.GraphWhite);
             HonamiDocumentationBuilder.AddParagraph(root, HonamiDocLocalization.Get(
-                "Draw transitions from Any State to targets that must be reachable from anywhere — deaths, stuns, teleports. Conditions work exactly like normal transitions; enable Can Transition To Self on a transition if the target should be allowed to restart itself.",
-                "Малюйте переходи з Any State до цілей, які мають бути досяжними звідусіль — смерті, оглушення, телепорти. Умови працюють так само, як у звичайних переходів; увімкніть Can Transition To Self на переході, якщо ціль повинна мати змогу перезапускати саму себе."
+                "Draw transitions from Any State to targets that must be reachable from anywhere - deaths, stuns, teleports. Conditions work exactly like normal transitions; enable Can Transition To Self on a transition if the target should be allowed to restart itself.",
+                "Малюйте переходи з Any State до цілей, які мають бути досяжними звідусіль - смерті, оглушення, телепорти. Умови працюють так само, як у звичайних переходів; увімкніть Can Transition To Self на переході, якщо ціль повинна мати змогу перезапускати саму себе."
             ));
 
             HonamiDocumentationBuilder.AddHeader(root, HonamiDocLocalization.Get("Repeater", "Repeater"), HonamiEditorIcons.TimelineWhite);
             HonamiDocumentationBuilder.AddParagraph(root, HonamiDocLocalization.Get(
                 "The Repeater is an Any State variant built for rapid re-fire: its transitions force-restart the target state every time they trigger. Use it for hit reactions, light attacks and anything that must interrupt itself cleanly.",
-                "Repeater — це варіант Any State для швидких повторів: його переходи примусово перезапускають цільовий стан щоразу при спрацюванні. Використовуйте його для реакцій на влучання, легких ударів і всього, що має чисто переривати саме себе."
+                "Repeater - це варіант Any State для швидких повторів: його переходи примусово перезапускають цільовий стан щоразу при спрацюванні. Використовуйте його для реакцій на влучання, легких ударів і всього, що має чисто переривати саме себе."
             ));
             HonamiDocumentationBuilder.AddPropertyBox(root,
-                (HonamiDocLocalization.Get("Repeat Cooldown", "Repeat Cooldown"), HonamiDocLocalization.Get("Minimum time in seconds between two fires — protects against trigger spam.", "Мінімальний час у секундах між двома спрацюваннями — захист від спаму тригерами.")),
-                (HonamiDocLocalization.Get("Max Repeats", "Max Repeats"), HonamiDocLocalization.Get("Caps how many times the repeater may fire. 0 means infinite.", "Обмежує кількість спрацювань повторювача. 0 — без обмежень."))
+                (HonamiDocLocalization.Get("Repeat Cooldown", "Repeat Cooldown"), HonamiDocLocalization.Get("Minimum time in seconds between two fires - protects against trigger spam.", "Мінімальний час у секундах між двома спрацюваннями - захист від спаму тригерами.")),
+                (HonamiDocLocalization.Get("Max Repeats", "Max Repeats"), HonamiDocLocalization.Get("Caps how many times the repeater may fire. 0 means infinite.", "Обмежує кількість спрацювань повторювача. 0 - без обмежень."))
             );
 
             HonamiDocumentationBuilder.AddNodeVisual(root, "Hit Reaction", "REPEATER", HonamiGraphStyles.Accent);
 
             HonamiDocumentationBuilder.AddHeader(root, HonamiDocLocalization.Get("Combo Mode", "Combo Mode"), HonamiEditorIcons.TimelineWhite);
             HonamiDocumentationBuilder.AddParagraph(root, HonamiDocLocalization.Get(
-                "With Combo Mode enabled the Repeater becomes a melee combo driver: each fire takes the next outgoing transition in order (first transition = first attack, second = second, and so on). A trigger pressed while the current attack is still before its Cancel Window is buffered — it does not interrupt the swing, it fires the next attack the moment the window opens.",
-                "З увімкненим Combo Mode Repeater стає драйвером мілі-комбо: кожне спрацювання бере наступний вихідний транзішн по порядку (перший транзішн = перша атака, другий = друга і так далі). Тригер, натиснутий поки поточна атака ще не дійшла до Cancel Window, буферизується — він не рве замах, а запускає наступну атаку в момент відкриття вікна."
+                "With Combo Mode enabled the Repeater becomes a melee combo driver: each fire takes the next outgoing transition in order (first transition = first attack, second = second, and so on). A trigger pressed while the current attack is still before its Cancel Window is buffered - it does not interrupt the swing, it fires the next attack the moment the window opens.",
+                "З увімкненим Combo Mode Repeater стає драйвером мілі-комбо: кожне спрацювання бере наступний вихідний транзішн по порядку (перший транзішн = перша атака, другий = друга і так далі). Тригер, натиснутий поки поточна атака ще не дійшла до Cancel Window, буферизується - він не рве замах, а запускає наступну атаку в момент відкриття вікна."
             ));
             HonamiDocumentationBuilder.AddPropertyBox(root,
                 (HonamiDocLocalization.Get("Combo Mode", "Combo Mode"), HonamiDocLocalization.Get("Fires outgoing transitions in order, one per trigger, instead of picking the first matching one.", "Запускає вихідні транзішни по порядку, один на тригер, замість вибору першого відповідного.")),
@@ -49,7 +49,7 @@ namespace HonamiAnimationSystem.Editor.Documentation.Pages
 
             HonamiDocumentationBuilder.AddTip(root, HonamiDocLocalization.Get(
                 "Any State fires a target once and stays there until conditions change; the Repeater is the tool when the same target must restart again and again. Pair it with a trigger parameter for mash-friendly combat, and enable Combo Mode when the mashing should walk through an attack chain instead of restarting one clip.",
-                "Any State запускає ціль один раз і залишається там, доки умови не зміняться; Repeater — інструмент, коли та сама ціль має перезапускатися знову і знову. Поєднайте його з trigger-параметром для комбату, дружнього до закликування кнопок, а Combo Mode вмикайте, коли закликування має проходити по ланцюжку атак, а не рестартити один кліп."
+                "Any State запускає ціль один раз і залишається там, доки умови не зміняться; Repeater - інструмент, коли та сама ціль має перезапускатися знову і знову. Поєднайте його з trigger-параметром для комбату, дружнього до закликування кнопок, а Combo Mode вмикайте, коли закликування має проходити по ланцюжку атак, а не рестартити один кліп."
             ));
         }
     }

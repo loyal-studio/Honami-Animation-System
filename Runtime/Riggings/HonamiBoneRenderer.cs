@@ -1,4 +1,3 @@
-using System;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -32,8 +31,9 @@ namespace HonamiAnimationSystem.Runtime.Riggings
         public IReadOnlyList<Transform> Bones => bones;
 
 #if UNITY_EDITOR
-        public static event Action<HonamiBoneRenderer> EditorEnabled;
-        public static event Action<HonamiBoneRenderer> EditorDisabled;
+        private static readonly List<HonamiBoneRenderer> Instances = new();
+
+        public static IReadOnlyList<HonamiBoneRenderer> EditorInstances => Instances;
 
         public int EditorVersion { get; private set; }
 
@@ -47,23 +47,35 @@ namespace HonamiAnimationSystem.Runtime.Riggings
             EditorVersion++;
         }
 
-        private void OnEnable() => EditorEnabled?.Invoke(this);
-        private void OnDisable() => EditorDisabled?.Invoke(this);
-        private void OnValidate() => EditorVersion++;
-
-        private void Reset()
+        public List<Transform> EditorCollectSkinnedMeshBones()
         {
-            bones.Clear();
+            var result = new List<Transform>();
             var seen = new HashSet<Transform>();
             foreach (var skinnedMesh in GetComponentsInChildren<SkinnedMeshRenderer>(true))
             {
                 foreach (var bone in skinnedMesh.bones)
                 {
-                    if (bone != null && seen.Add(bone)) bones.Add(bone);
+                    if (bone != null && seen.Add(bone)) result.Add(bone);
                 }
             }
-            EditorVersion++;
+            return result;
         }
+
+        private void OnEnable()
+        {
+            Instances.Add(this);
+            UnityEditor.SceneView.RepaintAll();
+        }
+
+        private void OnDisable()
+        {
+            Instances.Remove(this);
+            UnityEditor.SceneView.RepaintAll();
+        }
+
+        private void OnValidate() => EditorVersion++;
+
+        private void Reset() => EditorSetBones(EditorCollectSkinnedMeshBones());
 #endif
     }
 }

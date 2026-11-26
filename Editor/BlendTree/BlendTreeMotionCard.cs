@@ -1,4 +1,3 @@
-#if UNITY_EDITOR
 using UnityEditor;
 using UnityEditor.UIElements;
 using UnityEngine;
@@ -64,7 +63,7 @@ namespace HonamiAnimationSystem.Editor.BlendTree
             var avatar = new VisualElement();
             avatar.AddToClassList("honami-node-avatar");
             var ring = new Color(_color.r, _color.g, _color.b, 0.7f);
-            avatar.style.borderTopColor = avatar.style.borderBottomColor = avatar.style.borderLeftColor = avatar.style.borderRightColor = ring;
+            avatar.BorderColor(ring);
             var icon = new VisualElement();
             icon.AddToClassList("honami-node-icon");
             icon.style.backgroundColor = _color;
@@ -306,4 +305,3 @@ namespace HonamiAnimationSystem.Editor.BlendTree
         }
     }
 }
-#endif

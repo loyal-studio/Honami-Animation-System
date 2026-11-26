@@ -25,8 +25,8 @@ namespace HonamiAnimationSystem.Editor.Documentation.Pages
                 });
 
             HonamiDocumentationBuilder.AddParagraph(root, HonamiDocLocalization.Get(
-                "Controller Profiles give runtime controller switching a name and a place. Instead of scattering SetController calls with hardcoded transition settings, you author named profile states — 'Unarmed', 'Rifle', 'Vehicle' — each bundling a controller with its own cross-fade duration, curve and transition mode, and switch by name from anywhere.",
-                "Профілі контролерів дають зміні контролера в рантаймі ім'я та місце. Замість розкиданих викликів SetController із зашитими налаштуваннями переходів ви створюєте іменовані стани профілю — «Unarmed», «Rifle», «Vehicle» — кожен поєднує контролер із власними тривалістю кросфейду, кривою та режимом переходу, а перемикання відбувається за назвою звідусіль."
+                "Controller Profiles give runtime controller switching a name and a place. Instead of scattering SetController calls with hardcoded transition settings, you author named profile states - 'Unarmed', 'Rifle', 'Vehicle' - each bundling a controller with its own cross-fade duration, curve and transition mode, and switch by name from anywhere.",
+                "Профілі контролерів дають зміні контролера в рантаймі ім'я та місце. Замість розкиданих викликів SetController із зашитими налаштуваннями переходів ви створюєте іменовані стани профілю - «Unarmed», «Rifle», «Vehicle» - кожен поєднує контролер із власними тривалістю кросфейду, кривою та режимом переходу, а перемикання відбувається за назвою звідусіль."
             ));
 
             HonamiDocumentationBuilder.AddHeader(root, HonamiDocLocalization.Get("The three pieces", "Три складові"), HonamiEditorIcons.Profile);
@@ -43,7 +43,7 @@ namespace HonamiAnimationSystem.Editor.Documentation.Pages
             HonamiDocumentationBuilder.AddCodeBlock(root,
 @"using HonamiAnimationSystem.Runtime.Core;
 
-// Switch by name — duration/curve/mode come from the profile state.
+// Switch by name - duration/curve/mode come from the profile state.
 profile.SetProfile(""Rifle"");
 
 // Override the authored settings for this one switch.
@@ -55,8 +55,8 @@ profile.SetProfile(""Vehicle"", transitionDuration: 0.6f,
 profile.SetController(pistolController);");
 
             HonamiDocumentationBuilder.AddParagraph(root, HonamiDocLocalization.Get(
-                "Passing a negative transitionDuration (the default) means 'use the value stored in the profile state'. The same applies to the curve and mode arguments — null keeps the authored settings.",
-                "Від'ємний transitionDuration (значення за замовчуванням) означає «взяти значення зі стану профілю». Те саме стосується аргументів кривої та режиму — null залишає авторські налаштування."
+                "Passing a negative transitionDuration (the default) means 'use the value stored in the profile state'. The same applies to the curve and mode arguments - null keeps the authored settings.",
+                "Від'ємний transitionDuration (значення за замовчуванням) означає «взяти значення зі стану профілю». Те саме стосується аргументів кривої та режиму - null залишає авторські налаштування."
             ));
 
             HonamiDocumentationBuilder.AddHeader(root, HonamiDocLocalization.Get("Squad-wide profiles", "Профілі для цілого загону"), HonamiEditorIcons.GraphWhite);
@@ -66,8 +66,8 @@ profile.SetController(pistolController);");
             ));
 
             HonamiDocumentationBuilder.AddTip(root, HonamiDocLocalization.Get(
-                "Profiles versus Override Controllers: an Override Controller creates a content variant of one controller (same structure, different clips). Profiles switch between entirely different controllers at runtime. They combine well — a profile state can point to an override controller.",
-                "Профілі проти Override Controllers: Override Controller створює контентний варіант одного контролера (та сама структура, інші кліпи). Профілі перемикають між цілком різними контролерами в рантаймі. Вони добре поєднуються — стан профілю може вказувати на override controller."
+                "Profiles versus Override Controllers: an Override Controller creates a content variant of one controller (same structure, different clips). Profiles switch between entirely different controllers at runtime. They combine well - a profile state can point to an override controller.",
+                "Профілі проти Override Controllers: Override Controller створює контентний варіант одного контролера (та сама структура, інші кліпи). Профілі перемикають між цілком різними контролерами в рантаймі. Вони добре поєднуються - стан профілю може вказувати на override controller."
             ));
         }
     }

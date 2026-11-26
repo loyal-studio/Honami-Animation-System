@@ -1,111 +1,107 @@
 using UnityEditor;
 using UnityEngine.UIElements;
 using UnityEditor.UIElements;
+using HonamiAnimationSystem.Runtime.Core;
 
 namespace HonamiAnimationSystem.Editor.Handlers
 {
-    public sealed class HonamiLinkedAnimatorGraphHandler : IHonamiGraphModeHandler
+    public sealed class HonamiLinkedAnimatorGraphHandler : HonamiGraphModeHandlerBase
     {
-        private HonamiGraphWindow _window;
         private HonamiLinkedAnimatorGraphView _graphView;
         private HonamiLinkedAnimatorLeftPanel _leftPanel;
 
-        public string ModeId => "LinkedAnimator";
+        public override string ModeId => "LinkedAnimator";
 
-        public void Initialize(HonamiGraphWindow window)
+        protected override void OnInitialize()
         {
-            _window = window;
 
             _graphView = new HonamiLinkedAnimatorGraphView { name = "Honami Linked Animator Graph" };
             _graphView.style.flexGrow = 1;
-            _graphView.InitBrainMode(_window);
+            _graphView.InitBrainMode(Window);
             WireBrainGraphViewEvents();
 
-            _leftPanel = new HonamiLinkedAnimatorLeftPanel(_window);
+            _leftPanel = new HonamiLinkedAnimatorLeftPanel(Window);
             _leftPanel.Root.style.flexGrow = 1;
         }
 
-        public VisualElement GetMainView() => _graphView;
-        public VisualElement GetLeftPanelView() => _leftPanel.Root;
+        public override VisualElement GetMainView() => _graphView;
+        public override VisualElement GetLeftPanelView() => _leftPanel.Root;
 
-        public void OnEnable()
+        public override void OnEnable()
         {
-            if (_window.LinkedGraph == null)
+            if (Window.LinkedGraph == null)
             {
                 string last = EditorPrefs.GetString("Honami_LastOpenedBrainGraphPath", "");
                 if (!string.IsNullOrEmpty(last))
-                    _window.SetLinkedGraph(AssetDatabase.LoadAssetAtPath<Runtime.Core.HonamiLinkedAnimatorGraph>(last), null);
+                    Window.SetLinkedGraph(AssetDatabase.LoadAssetAtPath<HonamiLinkedAnimatorGraph>(last), null);
             }
             else
             {
-                _window.SetLinkedGraph(_window.LinkedGraph, _window.RuntimeLinkedAnimator);
+                Window.SetLinkedGraph(Window.LinkedGraph, Window.RuntimeLinkedAnimator);
             }
         }
 
-        public void OnDisable() { }
 
-        public void ApplySettings() { }
-
-        public void Update()
+        public override void Update()
         {
             if (!UnityEngine.Application.isPlaying) return;
 
-            if (_graphView != null && _window.RuntimeLinkedAnimator != null)
+            if (_graphView != null && Window.RuntimeLinkedAnimator != null)
             {
-                _graphView.UpdateBrainDebugVisuals(_window.RuntimeLinkedAnimator.ActiveNodes);
+                _graphView.UpdateBrainDebugVisuals(Window.RuntimeLinkedAnimator.ActiveNodes);
             }
         }
 
-        public void SwitchToMode()
+        public override void SwitchToMode()
         {
-            _window.SupportLeftPanel(true);
-            _window.SupportRightPanel(true);
+            Window.SupportLeftPanel(true);
+            Window.SupportRightPanel(true);
 
-            if (_window.TitleLabel != null)
-                _window.TitleLabel.text = _window.LinkedGraph != null ? _window.LinkedGraph.name : "No Linked Graph";
+            if (Window.TitleLabel != null)
+                Window.TitleLabel.text = Window.LinkedGraph != null ? Window.LinkedGraph.name : "No Linked Graph";
 
-            if (_window.OverrideBadge != null) _window.OverrideBadge.style.display = DisplayStyle.None;
-            if (_window.LinkedBadge != null) _window.LinkedBadge.style.display = DisplayStyle.Flex;
-            if (_window.Toolbar != null) _window.Toolbar.style.display = DisplayStyle.None;
+            if (Window.OverrideBadge != null) Window.OverrideBadge.style.display = DisplayStyle.None;
+            if (Window.LinkedBadge != null) Window.LinkedBadge.style.display = DisplayStyle.Flex;
+            if (Window.Toolbar != null) Window.Toolbar.style.display = DisplayStyle.None;
 
-            if (_window.LinkedGraph != null)
+            if (Window.LinkedGraph != null)
             {
-                string path = AssetDatabase.GetAssetPath(_window.LinkedGraph);
+                string path = AssetDatabase.GetAssetPath(Window.LinkedGraph);
                 if (!string.IsNullOrEmpty(path)) EditorPrefs.SetString("Honami_LastOpenedBrainGraphPath", path);
             }
 
-            _window.SaveSelection();
-            if (_window.LinkedGraph != null) _graphView.PopulateBrainView(_window.LinkedGraph);
+            Window.SaveSelection();
+            if (Window.LinkedGraph != null) _graphView.PopulateBrainView(Window.LinkedGraph);
 
             _leftPanel?.Rebuild();
-            _window.RestoreSelection();
-            _window.BuildRightPanel();
-            _window.UpdateEmptyState();
+            Window.RestoreSelection();
+            Window.BuildRightPanel();
+            Window.UpdateEmptyState();
         }
 
-        public void BuildRightPanel(VisualElement rightContent)
+        public override void BuildRightPanel(VisualElement rightContent)
         {
             rightContent.Clear();
             rightContent.Unbind();
 
-            if (_window.SelectedLinkedNode != null)
+            if (Window.SelectedLinkedNode != null)
             {
-                var so = new SerializedObject(_window.SelectedLinkedNode);
+                var so = new SerializedObject(Window.SelectedLinkedNode);
                 var inspector = HonamiLinkedAnimatorInspector.BuildNodeInspector(
-                    _window.SelectedLinkedNode,
+                    Window.SelectedLinkedNode,
                     so,
-                    _window.LinkedGraph,
+                    Window.LinkedGraph,
                     _graphView);
 
                 rightContent.Add(inspector);
             }
-            else if (_window.SelectedLinkedEvent != null)
+            else if (Window.SelectedLinkedEvent != null)
             {
-                var so = new SerializedObject(_window.SelectedLinkedEvent);
+                var so = new SerializedObject(Window.SelectedLinkedEvent);
                 var inspector = HonamiLinkedAnimatorInspector.BuildEventInspector(
-                    _window.SelectedLinkedEvent,
+                    Window.SelectedLinkedEvent,
                     so,
-                    _window.LinkedGraph,
+                    Window.LinkedGraph,
                     _graphView,
                     onNameChanged: () => _leftPanel?.Rebuild());
 
@@ -122,56 +118,54 @@ namespace HonamiAnimationSystem.Editor.Handlers
             }
         }
 
-        public void RebuildLeftPanel()
+        public override void RebuildLeftPanel()
         {
             _leftPanel?.Rebuild();
         }
 
-        public void OnSelectionChange()
+        public override void OnSelectionChange()
         {
-            if (_window.IsLocked) return;
+            if (Window.IsLocked) return;
 
             if (Selection.activeGameObject != null)
             {
-                var brain = Selection.activeGameObject.GetComponentInParent<Runtime.Core.HonamiLinkedAnimator>(true);
+                var brain = Selection.activeGameObject.GetComponentInParent<HonamiLinkedAnimator>(true);
                 if (brain != null && brain.Graph != null)
                 {
-                    _window.SetLinkedGraph(brain.Graph, brain);
+                    Window.SetLinkedGraph(brain.Graph, brain);
                     return;
                 }
             }
 
-            if (Selection.activeObject is Runtime.Core.HonamiLinkedAnimatorGraph bg)
+            if (Selection.activeObject is HonamiLinkedAnimatorGraph bg)
             {
-                _window.SetLinkedGraph(bg, null);
+                Window.SetLinkedGraph(bg, null);
             }
         }
 
-        public void OnUndoRedo()
+        public override void OnUndoRedo()
         {
-            _window.SaveSelection();
-            _graphView?.PopulateBrainView(_window.LinkedGraph);
+            Window.SaveSelection();
+            _graphView?.PopulateBrainView(Window.LinkedGraph);
             _leftPanel?.Rebuild();
-            _window.RestoreSelection();
-            _window.BuildRightPanel();
+            Window.RestoreSelection();
+            Window.BuildRightPanel();
         }
 
-        public void FrameAll() => _graphView?.FrameAll();
-        public bool HasContent() => _window.LinkedGraph != null;
+        public override void FrameAll() => _graphView?.FrameAll();
+        public override bool HasContent() => Window.LinkedGraph != null;
 
         private void WireBrainGraphViewEvents()
         {
-            _graphView.OnBrainNodeSelected = (node) =>
+            _graphView.OnBrainNodeSelected = node =>
             {
-                _window.SelectedLinkedNode = node;
-                _window.SelectedLinkedEvent = null;
-                _window.BuildRightPanel();
+                Window.SelectLinkedNode(node);
+                Window.BuildRightPanel();
             };
-            _graphView.OnBrainEventSelected = (evt) =>
+            _graphView.OnBrainEventSelected = evt =>
             {
-                _window.SelectedLinkedEvent = evt;
-                _window.SelectedLinkedNode = null;
-                _window.BuildRightPanel();
+                Window.SelectLinkedEvent(evt);
+                Window.BuildRightPanel();
             };
             _graphView.OnBrainStructureChanged = () => _leftPanel?.Rebuild();
         }

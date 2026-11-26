@@ -23,6 +23,9 @@ namespace HonamiAnimationSystem.Runtime.Core
         public bool AcceleratedWeightDrop;
         public bool DestinationFrozen;
         public bool SourceFrozen;
+        public bool HoldsLastFrame;
+        public bool HoldSuperseded;
+        public int HoldSupersededByLayer;
     }
 
     /// <summary>

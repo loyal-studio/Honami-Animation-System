@@ -10,82 +10,145 @@ using UnityEngine.Playables;
 
 namespace HonamiAnimationSystem.Runtime.Core
 {
-    [BurstCompile]
-    public struct HonamiLayerBlendJob : IAnimationJob
+    public struct HonamiLayerBlend
     {
-        public NativeArray<TransformStreamHandle> bones;
-        public NativeArray<TransformStreamHandle> targets;
-        [ReadOnly] public NativeArray<float>       maskAtlas;
-
         public int   baseMaskOffset;
         public int   prevMaskOffset;
         public int   currMaskOffset;
         public float transitionWeight;
         public float layerWeight;
+    }
+
+    // Input 0 is the bind pose, input N + 1 is layer N.
+    [BurstCompile]
+    public struct HonamiLayerStackJob : IAnimationJob
+    {
+        public const byte SourceBound = 1;
+        public const byte TargetBound = 2;
+
+        public NativeArray<TransformStreamHandle> bones;
+        public NativeArray<TransformStreamHandle> targets;
+        [ReadOnly] public NativeArray<byte>              boneBindings;
+        [ReadOnly] public NativeArray<float>             maskAtlas;
+        [ReadOnly] public NativeArray<HonamiLayerBlend>  layers;
+
+        public NativeArray<float3>     poseP;
+        public NativeArray<quaternion> poseR;
+        public NativeArray<sbyte>      baseLayer;
 
         public void ProcessAnimation(AnimationStream stream)
         {
-            AnimationStream refStream  = stream.GetInputStream(0);
-            AnimationStream animStream = stream.GetInputStream(1);
+            if (!stream.isValid) return;
 
-            int count = bones.Length;
-            for (int i = 0; i < count; i++)
+            int boneCount  = bones.Length;
+            int layerCount = layers.Length;
+
+            AnimationStream refStream = stream.GetInputStream(0);
+            bool refValid = refStream.isValid;
+
+            int lowestActive = -1;
+            for (int li = 0; li < layerCount; li++)
             {
-                float baseW = baseMaskOffset >= 0 ? maskAtlas[baseMaskOffset + i] : 1f;
-                float prevW = prevMaskOffset >= 0 ? maskAtlas[prevMaskOffset + i] : 1f;
-                float currW = currMaskOffset >= 0 ? maskAtlas[currMaskOffset + i] : 1f;
+                if (layers[li].layerWeight > 0f) { lowestActive = li; break; }
+            }
 
-                float stateW = math.lerp(prevW, currW, transitionWeight);
-                float w      = baseW * stateW * layerWeight;
-
-                var h = bones[i];
-                var t = targets[i];
-
-                if (!h.IsValid(stream)) continue;
-
-                bool refValid = h.IsValid(refStream);
-                bool animValid = h.IsValid(animStream);
-
-                if (!refValid && !animValid) continue;
-                if (!refValid) w = 1f;
-                if (!animValid) w = 0f;
-
-                if (w >= 0.999f)
+            // A bone takes its pose outright from the highest layer covering it fully, so layers beneath it are never read.
+            for (int i = 0; i < boneCount; i++)
+            {
+                sbyte start = -1;
+                if ((boneBindings[i] & SourceBound) != 0)
                 {
-                    float3 p = h.GetLocalPosition(animStream);
-                    quaternion q = h.GetLocalRotation(animStream);
-                    h.SetLocalPosition(stream, p);
-                    h.SetLocalRotation(stream, q);
-                    if (t.IsValid(stream)) { t.SetLocalPosition(stream, p); t.SetLocalRotation(stream, q); }
-                    continue;
+                    for (int li = layerCount - 1; li >= 0; li--)
+                    {
+                        if (BoneWeight(li, i) >= 0.999f) { start = (sbyte)li; break; }
+                    }
+
+                    if (start < 0 && !refValid) start = (sbyte)lowestActive;
                 }
+                baseLayer[i] = start;
+            }
 
-                if (w <= 0.001f)
+            if (refValid)
+            {
+                for (int i = 0; i < boneCount; i++)
                 {
-                    float3 p = h.GetLocalPosition(refStream);
-                    quaternion q = h.GetLocalRotation(refStream);
-                    h.SetLocalPosition(stream, p);
-                    h.SetLocalRotation(stream, q);
-                    if (t.IsValid(stream)) { t.SetLocalPosition(stream, p); t.SetLocalRotation(stream, q); }
-                    continue;
-                }
+                    if (baseLayer[i] >= 0 || (boneBindings[i] & SourceBound) == 0) continue;
 
-                float3 p1 = h.GetLocalPosition(refStream);
-                float3 p2 = h.GetLocalPosition(animStream);
-                float3 blendedP = math.lerp(p1, p2, w);
-                h.SetLocalPosition(stream, blendedP);
-
-                quaternion q1 = h.GetLocalRotation(refStream);
-                quaternion q2 = h.GetLocalRotation(animStream);
-                quaternion blendedQ = math.slerp(q1, q2, w);
-                h.SetLocalRotation(stream, blendedQ);
-
-                if (t.IsValid(stream))
-                {
-                    t.SetLocalPosition(stream, blendedP);
-                    t.SetLocalRotation(stream, blendedQ);
+                    var h = bones[i];
+                    h.GetLocalTRS(refStream, out Vector3 p, out Quaternion r, out _);
+                    poseP[i] = p;
+                    poseR[i] = r;
+                    bones[i] = h;
                 }
             }
+
+            for (int li = 0; li < layerCount; li++)
+            {
+                if (layers[li].layerWeight <= 0f) continue;
+
+                AnimationStream animStream = stream.GetInputStream(li + 1);
+                if (!animStream.isValid) continue;
+
+                for (int i = 0; i < boneCount; i++)
+                {
+                    int start = baseLayer[i];
+                    if (start < 0 && !refValid) continue;
+                    if (start > li || (boneBindings[i] & SourceBound) == 0) continue;
+
+                    float w = start == li ? 1f : BoneWeight(li, i);
+                    if (w <= 0.001f) continue;
+
+                    var h = bones[i];
+                    h.GetLocalTRS(animStream, out Vector3 animP, out Quaternion animR, out _);
+                    bones[i] = h;
+                    float3 p = animP;
+                    quaternion r = animR;
+
+                    if (w >= 0.999f)
+                    {
+                        poseP[i] = p;
+                        poseR[i] = r;
+                    }
+                    else
+                    {
+                        poseP[i] = math.lerp(poseP[i], p, w);
+                        poseR[i] = math.slerp(poseR[i], r, w);
+                    }
+                }
+            }
+
+            for (int i = 0; i < boneCount; i++)
+            {
+                byte binding = boneBindings[i];
+                if ((binding & SourceBound) == 0) continue;
+                if (baseLayer[i] < 0 && !refValid) continue;
+
+                float3 p = poseP[i];
+                quaternion r = poseR[i];
+
+                var h = bones[i];
+                h.SetLocalPosition(stream, p);
+                h.SetLocalRotation(stream, r);
+                bones[i] = h;
+
+                if ((binding & TargetBound) == 0) continue;
+
+                var t = targets[i];
+                t.SetLocalPosition(stream, p);
+                t.SetLocalRotation(stream, r);
+                targets[i] = t;
+            }
+        }
+
+        private float BoneWeight(int li, int i)
+        {
+            HonamiLayerBlend layer = layers[li];
+            if (layer.layerWeight <= 0f) return 0f;
+
+            float baseW = layer.baseMaskOffset >= 0 ? maskAtlas[layer.baseMaskOffset + i] : 1f;
+            float prevW = layer.prevMaskOffset >= 0 ? maskAtlas[layer.prevMaskOffset + i] : 1f;
+            float currW = layer.currMaskOffset >= 0 ? maskAtlas[layer.currMaskOffset + i] : 1f;
+            return baseW * math.lerp(prevW, currW, layer.transitionWeight) * layer.layerWeight;
         }
 
         public void ProcessRootMotion(AnimationStream stream) { }
@@ -169,8 +232,14 @@ namespace HonamiAnimationSystem.Runtime.Core
         private int                                _boneCount;
         private Animator                           _animator;
 
+        private NativeArray<byte>                  _boneBindings;
         private AnimationClipPlayable              _bindPosePlayable;
-        private AnimationScriptPlayable[]          _cascadePlayables;
+        private AnimationScriptPlayable            _stackPlayable;
+        private NativeArray<HonamiLayerBlend>      _layerBlends;
+        private bool[]                             _layerInputConnected;
+        private NativeArray<float3>                _poseP;
+        private NativeArray<quaternion>            _poseR;
+        private NativeArray<sbyte>                 _baseLayer;
 
         private NativeArray<float>                 _maskAtlas;
         private Dictionary<HonamiAvatarMask, int>  _maskToOffset = new();
@@ -207,6 +276,7 @@ namespace HonamiAnimationSystem.Runtime.Core
 
             _bones      = new NativeArray<TransformStreamHandle>(count, Allocator.Persistent);
             _targets    = new NativeArray<TransformStreamHandle>(count, Allocator.Persistent);
+            _boneBindings = new NativeArray<byte>(count, Allocator.Persistent);
             _boneCount  = 0;
 
             Transform root = animator.transform;
@@ -231,6 +301,7 @@ namespace HonamiAnimationSystem.Runtime.Core
 
                 _bones[idx]   = sourceBound ? animator.BindStreamTransform(tSource) : default;
                 _targets[idx] = targetBound ? animator.BindStreamTransform(tTarget) : default;
+                _boneBindings[idx] = BindingFlags(sourceBound, targetBound);
 
                 if (sourceBound) _drivenTransforms.Add(tSource);
                 if (targetBound) _drivenTransforms.Add(tTarget);
@@ -346,42 +417,70 @@ namespace HonamiAnimationSystem.Runtime.Core
             return current;
         }
 
+        private static byte BindingFlags(bool sourceBound, bool targetBound)
+            => (byte)((sourceBound ? HonamiLayerStackJob.SourceBound : 0) | (targetBound ? HonamiLayerStackJob.TargetBound : 0));
+
         public void SetupCascade(PlayableGraph graph, List<Playable> perLayerPlayables, AnimationLayerMixerPlayable layerMixer)
         {
             if (_boneCount == 0 || perLayerPlayables == null || perLayerPlayables.Count == 0) return;
 
-            int layerCount          = perLayerPlayables.Count;
-            _cascadePlayables       = new AnimationScriptPlayable[layerCount];
+            int layerCount = perLayerPlayables.Count;
+            DisposeStackBuffers();
 
-            Playable prev = _bindPosePlayable;
+            _layerBlends         = new NativeArray<HonamiLayerBlend>(layerCount, Allocator.Persistent);
+            _layerInputConnected = new bool[layerCount];
+            _poseP               = new NativeArray<float3>(_boneCount, Allocator.Persistent);
+            _poseR               = new NativeArray<quaternion>(_boneCount, Allocator.Persistent);
+            _baseLayer           = new NativeArray<sbyte>(_boneCount, Allocator.Persistent);
 
             for (int li = 0; li < layerCount; li++)
             {
-                var job = new HonamiLayerBlendJob
+                _layerBlends[li] = new HonamiLayerBlend
                 {
-                    bones            = _bones,
-                    targets          = _targets,
-                    maskAtlas        = _maskAtlas,
-                    baseMaskOffset   = -1,
-                    prevMaskOffset   = -1,
-                    currMaskOffset   = -1,
-                    transitionWeight = 0f,
-                    layerWeight      = layerMixer.GetInputWeight(li)
+                    baseMaskOffset = -1,
+                    prevMaskOffset = -1,
+                    currMaskOffset = -1,
+                    layerWeight    = layerMixer.GetInputWeight(li)
                 };
+            }
 
-                var p = AnimationScriptPlayable.Create(graph, job, 2);
-                p.ConnectInput(0, prev,                      0, 1f);
-                p.ConnectInput(1, perLayerPlayables[li],     0, 1f);
+            _stackPlayable = AnimationScriptPlayable.Create(graph, CreateStackJob(), layerCount + 1);
+            _stackPlayable.ConnectInput(0, _bindPosePlayable, 0, 1f);
 
-                _cascadePlayables[li] = p;
-                prev                  = p;
+            for (int li = 0; li < layerCount; li++)
+            {
+                bool active = _layerBlends[li].layerWeight > 0f;
+                _stackPlayable.ConnectInput(li + 1, perLayerPlayables[li], 0, active ? 1f : 0f);
+                _layerInputConnected[li] = active;
             }
 
             var output = graph.GetOutput(0);
             if (output.IsPlayableOutputOfType<AnimationPlayableOutput>())
-                output.SetSourcePlayable(prev);
+                output.SetSourcePlayable(_stackPlayable);
 
             _initialized = true;
+        }
+
+        private HonamiLayerStackJob CreateStackJob() => new HonamiLayerStackJob
+        {
+            bones        = _bones,
+            targets      = _targets,
+            boneBindings = _boneBindings,
+            maskAtlas    = _maskAtlas,
+            layers       = _layerBlends,
+            poseP        = _poseP,
+            poseR        = _poseR,
+            baseLayer    = _baseLayer
+        };
+
+        private void DisposeStackBuffers()
+        {
+            if (_layerBlends.IsCreated) _layerBlends.Dispose();
+            if (_poseP.IsCreated) _poseP.Dispose();
+            if (_poseR.IsCreated) _poseR.Dispose();
+            if (_baseLayer.IsCreated) _baseLayer.Dispose();
+            _layerInputConnected = null;
+            _stackPlayable = default;
         }
 
         private void InitializeMirrors(HonamiAvatar avatar, Transform root)
@@ -486,6 +585,11 @@ namespace HonamiAnimationSystem.Runtime.Core
                     _targets[idx] = targetBound ? _animator.BindStreamTransform(tTarget) : default;
                 }
 
+                if (_boneBindings.IsCreated && idx < _boneBindings.Length)
+                {
+                    _boneBindings[idx] = BindingFlags(sourceBound, targetBound);
+                }
+
                 if (sourceBound) _drivenTransforms.Add(tSource);
                 if (targetBound) _drivenTransforms.Add(tTarget);
 
@@ -585,7 +689,7 @@ namespace HonamiAnimationSystem.Runtime.Core
             int                          transientPortIndex)
         {
             if (!_initialized || states == null || controller == null) return;
-            int layerCount = _cascadePlayables.Length;
+            int layerCount = _layerBlends.Length;
 
             for (int li = 0; li < layerCount; li++)
             {
@@ -603,13 +707,21 @@ namespace HonamiAnimationSystem.Runtime.Core
                 int curOff = (curMask != null && _maskToOffset.TryGetValue(curMask, out int coff)) ? coff : -1;
                 int prvOff = (prvMask != null && _maskToOffset.TryGetValue(prvMask, out int poff)) ? poff : -1;
 
-                var job = _cascadePlayables[li].GetJobData<HonamiLayerBlendJob>();
-                job.layerWeight      = layerW;
-                job.baseMaskOffset   = baseOff;
-                job.currMaskOffset   = curOff;
-                job.prevMaskOffset   = prvOff;
-                job.transitionWeight = layerStates[li].TransitionWeight;
-                _cascadePlayables[li].SetJobData(job);
+                _layerBlends[li] = new HonamiLayerBlend
+                {
+                    layerWeight      = layerW,
+                    baseMaskOffset   = baseOff,
+                    currMaskOffset   = curOff,
+                    prevMaskOffset   = prvOff,
+                    transitionWeight = layerStates[li].TransitionWeight
+                };
+
+                // A zero-weight input is never evaluated, so an idle layer costs nothing.
+                bool active = layerW > 0f;
+                if (_layerInputConnected[li] == active) continue;
+
+                _layerInputConnected[li] = active;
+                _stackPlayable.SetInputWeight(li + 1, active ? 1f : 0f);
             }
         }
 
@@ -677,17 +789,11 @@ namespace HonamiAnimationSystem.Runtime.Core
             for (int bi = 0; bi < _boneCount; bi++)
                 _maskAtlas[oldLen + bi] = mask.GetWeight(_bonePaths[bi].GetHashCode());
 
-            if (_cascadePlayables != null)
+            if (_stackPlayable.IsValid())
             {
-                for (int li = 0; li < _cascadePlayables.Length; li++)
-                {
-                    if (_cascadePlayables[li].IsValid())
-                    {
-                        var job = _cascadePlayables[li].GetJobData<HonamiLayerBlendJob>();
-                        job.maskAtlas = _maskAtlas;
-                        _cascadePlayables[li].SetJobData(job);
-                    }
-                }
+                var job = _stackPlayable.GetJobData<HonamiLayerStackJob>();
+                job.maskAtlas = _maskAtlas;
+                _stackPlayable.SetJobData(job);
             }
         }
 
@@ -695,11 +801,12 @@ namespace HonamiAnimationSystem.Runtime.Core
         {
             if (_bones.IsCreated) _bones.Dispose();
             if (_targets.IsCreated) _targets.Dispose();
+            if (_boneBindings.IsCreated) _boneBindings.Dispose();
             if (_maskAtlas.IsCreated) _maskAtlas.Dispose();
             _maskToOffset.Clear();
             _bonePaths = null;
 
-            _cascadePlayables = null;
+            DisposeStackBuffers();
             _boneCount        = 0;
             _initialized      = false;
             _drivenTransforms.Clear();

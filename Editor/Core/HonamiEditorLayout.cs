@@ -1,4 +1,3 @@
-#if UNITY_EDITOR
 using UnityEngine;
 using UnityEngine.UIElements;
 
@@ -197,8 +196,7 @@ namespace HonamiAnimationSystem.Editor
                     borderBottomRightRadius = 16
                 }
             };
-            box.style.borderTopWidth = box.style.borderBottomWidth = box.style.borderLeftWidth = box.style.borderRightWidth = 1;
-            box.style.borderTopColor = box.style.borderBottomColor = box.style.borderLeftColor = box.style.borderRightColor = new Color(1f, 1f, 1f, 0.05f);
+            box.Border(1, new Color(1f, 1f, 1f, 0.05f));
 
             var iconImage = new Image { image = icon };
             iconImage.style.width = iconImage.style.height = 64;
@@ -231,4 +229,3 @@ namespace HonamiAnimationSystem.Editor
         }
     }
 }
-#endif

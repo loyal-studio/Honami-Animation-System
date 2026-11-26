@@ -83,6 +83,10 @@ namespace HonamiAnimationSystem.Runtime.Core
         private float _lockRotX, _lockRotY, _lockRotZ;
         private float _lockSclX, _lockSclY, _lockSclZ;
 
+        private float _pushedLockPosX = float.NaN, _pushedLockPosY, _pushedLockPosZ;
+        private float _pushedLockRotX, _pushedLockRotY, _pushedLockRotZ;
+        private float _pushedLockSclX, _pushedLockSclY, _pushedLockSclZ;
+
         public bool AnyLockActive =>
             _lockPosX > 0.001f || _lockPosY > 0.001f || _lockPosZ > 0.001f ||
             _lockRotX > 0.001f || _lockRotY > 0.001f || _lockRotZ > 0.001f ||
@@ -92,6 +96,7 @@ namespace HonamiAnimationSystem.Runtime.Core
         {
             Dispose();
             _initialized = false;
+            _pushedLockPosX = float.NaN;
             if (animator == null || !graph.IsValid()) return;
 
             if (avatar != null)
@@ -147,6 +152,8 @@ namespace HonamiAnimationSystem.Runtime.Core
             _initialized = true;
         }
 
+        // The job already holds these arrays and reads the same native memory, so writing the baselines
+        // is all this needs - re-pushing the job struct would only marshal the identical handles back.
         public void UpdateBaselines()
         {
             if (!_initialized) return;
@@ -155,16 +162,11 @@ namespace HonamiAnimationSystem.Runtime.Core
             {
                 var t = _transforms[i];
                 if (t == null) continue;
-                _baselinesPos[i] = t.localPosition;
-                _baselinesRot[i] = t.localRotation;
+                t.GetLocalPositionAndRotation(out Vector3 localPosition, out Quaternion localRotation);
+                _baselinesPos[i] = localPosition;
+                _baselinesRot[i] = localRotation;
                 _baselinesScl[i] = t.localScale;
             }
-
-            var job = _constraintPlayable.GetJobData<HonamiConstraintJob>();
-            job.baselinesPos = _baselinesPos;
-            job.baselinesRot = _baselinesRot;
-            job.baselinesScl = _baselinesScl;
-            _constraintPlayable.SetJobData(job);
         }
 
         public void Apply(
@@ -215,6 +217,15 @@ namespace HonamiAnimationSystem.Runtime.Core
             _lockSclX = math.min(_lockSclX, 1f);
             _lockSclY = math.min(_lockSclY, 1f);
             _lockSclZ = math.min(_lockSclZ, 1f);
+
+            if (_lockPosX == _pushedLockPosX && _lockPosY == _pushedLockPosY && _lockPosZ == _pushedLockPosZ &&
+                _lockRotX == _pushedLockRotX && _lockRotY == _pushedLockRotY && _lockRotZ == _pushedLockRotZ &&
+                _lockSclX == _pushedLockSclX && _lockSclY == _pushedLockSclY && _lockSclZ == _pushedLockSclZ)
+                return;
+
+            _pushedLockPosX = _lockPosX; _pushedLockPosY = _lockPosY; _pushedLockPosZ = _lockPosZ;
+            _pushedLockRotX = _lockRotX; _pushedLockRotY = _lockRotY; _pushedLockRotZ = _lockRotZ;
+            _pushedLockSclX = _lockSclX; _pushedLockSclY = _lockSclY; _pushedLockSclZ = _lockSclZ;
 
             var job = _constraintPlayable.GetJobData<HonamiConstraintJob>();
             job.lockPosX = _lockPosX; job.lockPosY = _lockPosY; job.lockPosZ = _lockPosZ;

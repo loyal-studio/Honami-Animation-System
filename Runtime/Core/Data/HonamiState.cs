@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
+using HonamiAnimationSystem.Runtime.Timeline;
 using UnityEngine;
+using UnityEngine.Serialization;
 
 namespace HonamiAnimationSystem.Runtime.Core
 {
@@ -24,7 +26,7 @@ namespace HonamiAnimationSystem.Runtime.Core
     /// <summary>
     /// Serialized animation state asset evaluated by a Honami controller layer.
     /// </summary>
-    public sealed class HonamiState : ScriptableObject
+    public sealed class HonamiState : ScriptableObject, IHonamiTimelineModuleContainer, ISerializationCallbackReceiver
     {
         public string stateName = "New State";
         public int layerIndex = 0;
@@ -36,6 +38,9 @@ namespace HonamiAnimationSystem.Runtime.Core
         [Tooltip("Does this state loop?")]
         public bool loop = true;
 
+        [Tooltip("If true, a finished non-looping state holds its final frame instead of releasing the layer back to the Initial Pose. The hold lasts only until a state starts on another layer of the same animator; if that happens before this state finishes, the state stops instead of holding.")]
+        public bool holdLastFrame = false;
+
         [Tooltip("Playback speed multiplier.")]
         public float speed = 1f;
 
@@ -45,8 +50,13 @@ namespace HonamiAnimationSystem.Runtime.Core
         [Range(0f, 1f)]
         public float weight = 1f;
 
-        [Tooltip("Events that fire during this state.")]
-        public List<HonamiEventMarker> events = new();
+        [Tooltip("Timeline modules (events, activation, parameter curves...) evaluated while this state is the layer's current state.")]
+        [SerializeField] private List<HonamiTimelineModule> modules = new();
+
+        [SerializeField, HideInInspector, FormerlySerializedAs("events")]
+        private List<HonamiEventMarker> legacyEvents = new();
+
+        [NonSerialized] private int _moduleRevision;
 
         [Tooltip("Parameters applied when entering or exiting this state.")]
         public List<HonamiParameterAssignment> parameterAssignments = new();
@@ -89,6 +99,25 @@ namespace HonamiAnimationSystem.Runtime.Core
             }
         }
 
+        public HonamiTimelineModuleHost Host => HonamiTimelineModuleHost.State;
+
+        public List<HonamiTimelineModule> Modules
+        {
+            get => modules;
+            set => modules = value;
+        }
+
+        public int ModuleRevision => _moduleRevision;
+
+        public void MarkModulesChanged() => _moduleRevision++;
+
+        void ISerializationCallbackReceiver.OnBeforeSerialize() { }
+
+        void ISerializationCallbackReceiver.OnAfterDeserialize()
+        {
+            modules ??= new List<HonamiTimelineModule>();
+        }
+
         private void OnValidate()
         {
 #if UNITY_EDITOR
@@ -100,6 +129,8 @@ namespace HonamiAnimationSystem.Runtime.Core
             if (node != null)
             {
                 node.OnValidateNode();
+                if (node.EnsureMotionIds())
+                    UnityEditor.EditorUtility.SetDirty(node);
             }
 #endif
         }

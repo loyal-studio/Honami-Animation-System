@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System;
 using HonamiAnimationSystem.Runtime.Core;
+using HonamiAnimationSystem.Runtime.Timeline;
 
 namespace HonamiAnimationSystem.Editor
 {
@@ -165,7 +166,7 @@ namespace HonamiAnimationSystem.Editor
 
                 if (newState.subNodes != null)
                 {
-                    var copiedSubNodes = new List<Runtime.Core.HonamiSubNodeBase>();
+                    var copiedSubNodes = new List<HonamiSubNodeBase>();
                     foreach (var sn in newState.subNodes)
                     {
                         if (sn != null)
@@ -178,6 +179,24 @@ namespace HonamiAnimationSystem.Editor
                         }
                     }
                     newState.subNodes = copiedSubNodes;
+                }
+
+                if (newState.Modules != null)
+                {
+                    var copiedModules = new List<HonamiTimelineModule>();
+                    foreach (var mod in newState.Modules)
+                    {
+                        if (mod != null)
+                        {
+                            var nmod = ScriptableObject.Instantiate(mod);
+                            nmod.name = mod.name;
+                            nmod.RegenerateId();
+                            AssetDatabase.AddObjectToAsset(nmod, _controller);
+                            Undo.RegisterCreatedObjectUndo(nmod, "Paste State Module");
+                            copiedModules.Add(nmod);
+                        }
+                    }
+                    newState.Modules = copiedModules;
                 }
 
                 guidMap[s.guid] = newState.guid;
@@ -259,7 +278,7 @@ namespace HonamiAnimationSystem.Editor
                 }
                 catch (System.Exception ex)
                 {
-                    Debug.LogWarning($"[HonamiGraphView] Failed to collect parameter strings for state {s.stateName}: {ex.Message}");
+                    Debug.LogWarning($"[Honami] Failed to collect parameter strings for state {s.stateName}: {ex.Message}");
                 }
             }
 

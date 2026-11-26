@@ -22,7 +22,7 @@ namespace HonamiAnimationSystem.Runtime.Core
                 int currentIdx = anim._layerStates[layer].CurrentStateIndex;
                 bool isTransitioning = anim._layerStates[layer].PreviousStateIndex != -1;
                 bool hasCurrent = currentIdx != -1;
-                bool isCurrentExit = hasCurrent && anim._runtimeStates[currentIdx].node is { IsExit: true };
+                bool isCurrentExit = hasCurrent && anim.IsExitState(currentIdx);
 
                 if (EvaluateAnyStateTransitions(anim, layer, currentIdx, isTransitioning, isCurrentExit)) continue;
 
@@ -30,10 +30,10 @@ namespace HonamiAnimationSystem.Runtime.Core
                 if (isTransitioning)
                 {
                     int prevIdx = anim._layerStates[layer].PreviousStateIndex;
-                    if (prevIdx != -1 && prevIdx != anim.TransientPortIndex)
+                    if (prevIdx != -1 && prevIdx != anim.TransientPortIndex && !anim.IsExternalPort(prevIdx))
                     {
-                        bool isPrevExit = anim._runtimeStates[prevIdx].node is { IsExit: true };
-                        if (!isPrevExit)
+                        bool isPrevExit = anim.IsExitState(prevIdx);
+                        if (!isPrevExit && prevIdx < anim._activeStatesCount)
                         {
                             if (EvaluateCurrentStateTransitions(anim, layer, prevIdx, true, false))
                                 interrupted = true;
@@ -41,7 +41,7 @@ namespace HonamiAnimationSystem.Runtime.Core
                     }
                 }
 
-                if (!interrupted && hasCurrent && !isCurrentExit)
+                if (!interrupted && hasCurrent && !isCurrentExit && currentIdx < anim._activeStatesCount)
                     EvaluateCurrentStateTransitions(anim, layer, currentIdx, isTransitioning, isCurrentExit);
             }
         }
@@ -258,15 +258,15 @@ namespace HonamiAnimationSystem.Runtime.Core
 
                 int currIdx = anim._layerStates[layer].CurrentStateIndex;
                 var layerMixer = anim._layerMixers[layer];
-                if (currIdx < 0 || currIdx >= anim._activeStatesCount) continue;
+                if (currIdx < 0 || currIdx >= anim.TotalPortCount) continue;
 
-                float currTargetWeight = anim._runtimeStates[currIdx].weight;
+                float currTargetWeight = anim.GetPortTargetWeight(layer, currIdx);
                 if (currTargetWeight < 0.01f) continue;
 
                 int portCount = layerMixer.GetInputCount();
                 int prevIdx = anim._layerStates[layer].PreviousStateIndex;
-                bool isPrevExit = prevIdx == -1 || (prevIdx != anim.TransientPortIndex && anim._runtimeStates[prevIdx].node is { IsExit: true });
-                bool isCurrExit = anim._runtimeStates[currIdx].node is { IsExit: true };
+                bool isPrevExit = prevIdx == -1 || (prevIdx != anim.TransientPortIndex && anim.IsExitState(prevIdx));
+                bool isCurrExit = anim.IsExitState(currIdx);
 
                 float startLW = anim._layerStates[layer].TransitionStartLayerWeight;
                 if (prevIdx != -1 && isPrevExit && !isCurrExit && startLW > 0.01f)
@@ -282,7 +282,7 @@ namespace HonamiAnimationSystem.Runtime.Core
 
                 if (anim._layerMixer.IsValid())
                 {
-                    float configWeight = (layer < anim.controller.ActiveLayers.Count) ? anim.controller.ActiveLayers[layer].weight : (layer == 0 ? 1f : 0f);
+                    float configWeight = (anim.controller != null && layer < anim.controller.ActiveLayers.Count) ? anim.controller.ActiveLayers[layer].weight : (layer == 0 ? 1f : 0f);
                     float targetLW = isCurrExit ? 0f : configWeight;
                     anim._layerMixer.SetInputWeight(layer, Mathf.Lerp(startLW, targetLW, weightT));
                 }
@@ -316,8 +316,7 @@ namespace HonamiAnimationSystem.Runtime.Core
                                 if (vPlayable.IsValid())
                                 {
                                     int realVIdx = (i == anim.TransientPortIndex) ? anim._layerStates[layer].TransientStateIndex : i;
-                                    float bSpd = anim._runtimeStates[realVIdx].speed;
-                                    if (anim._runtimeStates[realVIdx].isReversed) bSpd = -bSpd;
+                                    float bSpd = anim.GetPortSpeed(layer, realVIdx);
                                     vPlayable.SetSpeed(bSpd * victimSpeed);
                                 }
                             }
@@ -355,8 +354,7 @@ namespace HonamiAnimationSystem.Runtime.Core
                         var frozenPlayable = layerMixer.GetInput(currIdx);
                         if (frozenPlayable.IsValid())
                         {
-                            var frozenState = anim._runtimeStates[currIdx];
-                            frozenPlayable.SetSpeed(frozenState.isReversed ? -frozenState.speed : frozenState.speed);
+                            frozenPlayable.SetSpeed(anim.GetPortSpeed(layer, currIdx));
                         }
                     }
 
@@ -365,10 +363,11 @@ namespace HonamiAnimationSystem.Runtime.Core
                     for (int i = 0; i < portCount; i++)
                     {
                         if (i == currIdx && !isCurrExit) continue;
-                        if (layerMixer.GetInputWeight(i) > 0.0001f || (prevIdx != -1 && i == prevIdx) || i == anim.TransientPortIndex)
+                        if (layerMixer.GetInputWeight(i) > 0.0001f || (prevIdx != -1 && i == prevIdx) || i == anim.TransientPortIndex || anim.IsExternalPort(i))
                         {
                             layerMixer.SetInputWeight(i, 0f);
                             if (i == anim.TransientPortIndex) anim.ClearTransientPort(layer);
+                            else if (anim.IsExternalPort(i)) anim.ClearExternalPort(layer, i);
                             else if (i != currIdx) anim.ResetTime(i, layer);
                         }
                     }

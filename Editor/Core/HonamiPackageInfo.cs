@@ -9,6 +9,21 @@ namespace HonamiAnimationSystem.Editor
     {
         private const string PackageName = "com.loyalstudio.honami-animation-system";
 
+        [Serializable]
+        private sealed class Manifest
+        {
+            public string name;
+            public string version;
+            public string displayName;
+            public RepositoryInfo repository;
+        }
+
+        [Serializable]
+        private sealed class RepositoryInfo
+        {
+            public string url;
+        }
+
         private static string _version;
         private static string _repositoryUrl;
         private static string _displayName;
@@ -31,78 +46,40 @@ namespace HonamiAnimationSystem.Editor
             _repositoryUrl = string.Empty;
             _displayName = "Honami";
 
-            try
-            {
-                var packageInfo = UnityEditor.PackageManager.PackageInfo.FindForAssembly(typeof(HonamiPackageInfo).Assembly);
-                if (packageInfo != null)
-                {
-                    var absolutePath = Path.Combine(packageInfo.resolvedPath, "package.json");
-                    if (File.Exists(absolutePath))
-                    {
-                        var json = File.ReadAllText(absolutePath);
-                        _version = ExtractString(json, "version") ?? _version;
-                        _repositoryUrl = ExtractNestedString(json, "repository", "url") ?? _repositoryUrl;
-                        _displayName = ExtractString(json, "displayName") ?? _displayName;
-                        return;
-                    }
-                }
+            var manifest = ReadManifest();
+            if (manifest == null) return;
 
-                var guids = AssetDatabase.FindAssets("package");
-                foreach (var guid in guids)
-                {
-                    var path = AssetDatabase.GUIDToAssetPath(guid);
-                    if (!path.EndsWith("package.json", StringComparison.OrdinalIgnoreCase)) continue;
-
-                    var absolutePath = Path.GetFullPath(path);
-                    if (!File.Exists(absolutePath)) continue;
-
-                    var json = File.ReadAllText(absolutePath);
-                    if (ExtractString(json, "name") != PackageName) continue;
-
-                    _version = ExtractString(json, "version") ?? _version;
-                    _repositoryUrl = ExtractNestedString(json, "repository", "url") ?? _repositoryUrl;
-                    _displayName = ExtractString(json, "displayName") ?? _displayName;
-                    break;
-                }
-            }
-            catch (Exception e)
-            {
-                Debug.LogWarning($"[HonamiPackageInfo] Failed to parse package.json: {e.Message}");
-            }
+            if (!string.IsNullOrEmpty(manifest.version)) _version = manifest.version;
+            if (!string.IsNullOrEmpty(manifest.displayName)) _displayName = manifest.displayName;
+            if (manifest.repository != null && !string.IsNullOrEmpty(manifest.repository.url)) _repositoryUrl = manifest.repository.url;
         }
 
-        private static string ExtractString(string json, string key)
+        private static Manifest ReadManifest()
         {
-            var search = $"\"{key}\"";
-            var keyIndex = json.IndexOf(search, StringComparison.Ordinal);
-            if (keyIndex < 0) return null;
+            var packageInfo = UnityEditor.PackageManager.PackageInfo.FindForAssembly(typeof(HonamiPackageInfo).Assembly);
+            if (packageInfo != null)
+            {
+                var packageJson = Path.Combine(packageInfo.resolvedPath, "package.json");
+                if (File.Exists(packageJson)) return JsonUtility.FromJson<Manifest>(File.ReadAllText(packageJson));
+            }
 
-            var colon = json.IndexOf(':', keyIndex + search.Length);
-            if (colon < 0) return null;
+            // Embedded in Assets/ rather than installed as a package: find our own package.json.
+            foreach (var guid in AssetDatabase.FindAssets("package"))
+            {
+                var path = AssetDatabase.GUIDToAssetPath(guid);
+                if (!path.EndsWith("package.json", StringComparison.OrdinalIgnoreCase)) continue;
 
-            var open = json.IndexOf('"', colon + 1);
-            if (open < 0) return null;
+                var absolutePath = Path.GetFullPath(path);
+                if (!File.Exists(absolutePath)) continue;
 
-            var close = json.IndexOf('"', open + 1);
-            if (close < 0) return null;
+                var json = File.ReadAllText(absolutePath);
+                if (!json.Contains(PackageName)) continue;
 
-            return json.Substring(open + 1, close - open - 1);
-        }
+                var manifest = JsonUtility.FromJson<Manifest>(json);
+                if (manifest.name == PackageName) return manifest;
+            }
 
-        private static string ExtractNestedString(string json, string objectKey, string fieldKey)
-        {
-            var search = $"\"{objectKey}\"";
-            var objIndex = json.IndexOf(search, StringComparison.Ordinal);
-            if (objIndex < 0) return null;
-
-            var openBrace = json.IndexOf('{', objIndex + search.Length);
-            if (openBrace < 0) return null;
-
-            var closeBrace = json.IndexOf('}', openBrace);
-            if (closeBrace < 0) return null;
-
-            var nested = json.Substring(openBrace, closeBrace - openBrace + 1);
-            return ExtractString(nested, fieldKey);
+            return null;
         }
 
         private static string SemVerBase(string version)

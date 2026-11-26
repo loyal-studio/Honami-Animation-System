@@ -488,10 +488,11 @@ namespace HonamiAnimationSystem.Runtime.Core
                 virtualState.isDefaultState = sourceState.isDefaultState;
                 virtualState.node = sourceState.node;
                 virtualState.loop = sourceState.loop;
+                virtualState.holdLastFrame = sourceState.holdLastFrame;
                 virtualState.speed = sourceState.speed;
                 virtualState.isReversed = sourceState.isReversed;
                 virtualState.weight = sourceState.weight;
-                virtualState.events = sourceState.events;
+                virtualState.Modules = sourceState.Modules;
                 virtualState.parameterAssignments = sourceState.parameterAssignments;
                 virtualState.subNodes = sourceState.subNodes;
                 virtualState.constraints = sourceState.constraints;

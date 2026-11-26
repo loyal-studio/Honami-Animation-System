@@ -1,13 +1,12 @@
-#if UNITY_EDITOR
 using UnityEngine;
 
 namespace HonamiAnimationSystem.Editor.Timeline
 {
-    internal static class TimelineTheme
+    public static class TimelineTheme
     {
         public const float ToolbarHeight = 38f;
         public const float TransportBarHeight = 32f;
-        public const float RulerHeight = 24f;
+        public const float RulerHeight = 42f;
         public const float RowHeight = 40f;
         public const float ClipHeight = 32f;
         public const float PropsWidth = 280f;
@@ -72,4 +71,3 @@ namespace HonamiAnimationSystem.Editor.Timeline
         public static Color MutedText => HonamiEditorTheme.MutedText;
     }
 }
-#endif

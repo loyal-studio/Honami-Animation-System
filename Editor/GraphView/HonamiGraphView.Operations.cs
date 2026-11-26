@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using UnityEditor;
@@ -237,6 +237,13 @@ namespace HonamiAnimationSystem.Editor
 
         private static void CopyPrimaryClip(HonamiNodeBase oldNode, HonamiNodeBase newNode)
         {
+            // Blend nodes carry a whole motion list, so converting between them keeps every clip
+            // rather than falling back to the single-clip transfer below.
+            if (TransferBlendMotions(oldNode, newNode))
+            {
+                return;
+            }
+
             AnimationClip clip = null;
             if (oldNode != null)
             {
@@ -250,6 +257,9 @@ namespace HonamiAnimationSystem.Editor
                         break;
                     case HonamiBlendTreeNode bn when bn.blendMotions.Count > 0:
                         clip = bn.blendMotions[0].clip;
+                        break;
+                    case HonamiBlendSpaceNode bsn when bsn.blendMotions.Count > 0:
+                        clip = bsn.blendMotions[0].clip;
                         break;
                     case HonamiSequencerNode sn when sn.sequencedClips.Count > 0:
                         clip = sn.sequencedClips[0].clip;
@@ -268,15 +278,72 @@ namespace HonamiAnimationSystem.Editor
                     dan.clip = clip;
                     break;
                 case HonamiRandomAnimationNode drn:
-                    drn.randomClips.Add(new HonamiRandomAnimationClip { clip = clip });
+                    drn.randomClips.Add(new HonamiRandomAnimationClip { id = HonamiNodeBase.NewMotionId(), clip = clip });
                     break;
                 case HonamiBlendTreeNode dbn:
                     dbn.blendMotions.Add(new HonamiBlendTreeMotion { clip = clip });
                     break;
+                case HonamiBlendSpaceNode dbsn:
+                    if (dbsn.blendParameters.Count == 0) dbsn.blendParameters.Add(string.Empty);
+                    dbsn.blendMotions.Add(new HonamiBlendSpaceMotion { clip = clip });
+                    dbsn.OnValidateNode();
+                    break;
                 case HonamiSequencerNode dsn:
-                    dsn.sequencedClips.Add(new HonamiSequencedAnimationClip { clip = clip });
+                    dsn.sequencedClips.Add(new HonamiSequencedAnimationClip { id = HonamiNodeBase.NewMotionId(), clip = clip });
                     break;
             }
+        }
+
+        private static bool TransferBlendMotions(HonamiNodeBase oldNode, HonamiNodeBase newNode)
+        {
+            if (oldNode is HonamiBlendTreeNode tree && newNode is HonamiBlendSpaceNode space)
+            {
+                // The 1D threshold becomes the first axis, so the converted node starts out behaving
+                // exactly like the tree it replaced; further axes are the author's next step.
+                space.blendParameters.Clear();
+                space.blendParameters.Add(tree.blendParameter ?? string.Empty);
+                space.blendParameterDampTime = tree.blendParameterDampTime;
+                space.synchronizeSpeed = tree.blendType != HonamiBlendTreeType.Simple1D;
+
+                space.blendMotions.Clear();
+                foreach (var motion in tree.blendMotions)
+                {
+                    space.blendMotions.Add(new HonamiBlendSpaceMotion
+                    {
+                        clip = motion.clip,
+                        position = new[] { motion.threshold },
+                        speed = motion.speed,
+                        mirror = motion.mirror
+                    });
+                }
+
+                space.OnValidateNode();
+                return true;
+            }
+
+            if (oldNode is HonamiBlendSpaceNode source && newNode is HonamiBlendTreeNode target)
+            {
+                target.blendParameter = source.AxisCount > 0 ? source.blendParameters[0] : string.Empty;
+                target.blendParameterDampTime = source.blendParameterDampTime;
+                target.blendType = source.synchronizeSpeed ? HonamiBlendTreeType.Standard1D : HonamiBlendTreeType.Simple1D;
+
+                target.blendMotions.Clear();
+                foreach (var motion in source.blendMotions)
+                {
+                    target.blendMotions.Add(new HonamiBlendTreeMotion
+                    {
+                        clip = motion.clip,
+                        threshold = HonamiBlendSpaceSolver.GetAxis(motion, 0),
+                        speed = motion.speed,
+                        mirror = motion.mirror
+                    });
+                }
+
+                target.blendMotions.Sort((a, b) => a.threshold.CompareTo(b.threshold));
+                return true;
+            }
+
+            return false;
         }
 
         public void SplitRandomIntoAnimationStates(HonamiNode node)

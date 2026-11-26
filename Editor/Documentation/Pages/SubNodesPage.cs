@@ -14,7 +14,7 @@ namespace HonamiAnimationSystem.Editor.Documentation.Pages
         {
             HonamiDocumentationBuilder.AddParagraph(root, HonamiDocLocalization.Get(
                 "Sub-Nodes are one of Honami's most powerful features. They allow you to attach logic directly to a state, ensuring that it only runs when that state is active.",
-                "Підвузли (Sub-Nodes) — одна з найпотужніших функцій Honami. Вони дозволяють приєднувати логіку безпосередньо до стану, гарантуючи, що вона працює лише тоді, коли цей стан активний."
+                "Підвузли (Sub-Nodes) - одна з найпотужніших функцій Honami. Вони дозволяють приєднувати логіку безпосередньо до стану, гарантуючи, що вона працює лише тоді, коли цей стан активний."
             ));
 
             HonamiDocumentationBuilder.AddHeader(root, HonamiDocLocalization.Get("Clean Architecture", "Чиста архітектура"), HonamiEditorIcons.GraphWhite);
@@ -38,12 +38,12 @@ namespace HonamiAnimationSystem.Editor.Documentation.Pages
                 ("Smooth Bone Weight", HonamiDocLocalization.Get("Eases per-bone mask weights in and out instead of switching instantly.", "Плавно вводить і виводить ваги кісток маски замість миттєвого перемикання."), ""),
                 ("Jitter Speed", HonamiDocLocalization.Get("Randomizes playback speed over time for organic variation. Has its own page.", "Випадково змінює швидкість відтворення в часі для органічної варіативності. Має власну сторінку."), ""),
                 ("Jitter Weight", HonamiDocLocalization.Get("Randomizes the state's weight over time. Has its own page.", "Випадково змінює вагу стану в часі. Має власну сторінку."), ""),
-                ("Log", HonamiDocLocalization.Get("Prints messages on enter/update/exit — a debugging probe. Has its own page.", "Друкує повідомлення на вході/оновленні/виході — зонд для налагодження. Має власну сторінку."), "")
+                ("Log", HonamiDocLocalization.Get("Prints messages on enter/update/exit - a debugging probe. Has its own page.", "Друкує повідомлення на вході/оновленні/виході - зонд для налагодження. Має власну сторінку."), "")
             );
 
             HonamiDocumentationBuilder.AddTip(root, HonamiDocLocalization.Get(
                 "You can stack multiple Sub-Nodes on a single state to combine different behaviors. Custom sub-nodes are just ScriptableObjects extending HonamiSubNodeBase: override UpdateRuntime (required) plus optional OnEnter / OnExit.",
-                "Ви можете додавати кілька підвузлів до одного стану, щоб комбінувати різні типи поведінки. Власні підвузли — це просто ScriptableObject, успадковані від HonamiSubNodeBase: перевизначте UpdateRuntime (обов'язково) та опційні OnEnter / OnExit."
+                "Ви можете додавати кілька підвузлів до одного стану, щоб комбінувати різні типи поведінки. Власні підвузли - це просто ScriptableObject, успадковані від HonamiSubNodeBase: перевизначте UpdateRuntime (обов'язково) та опційні OnEnter / OnExit."
             ));
         }
     }

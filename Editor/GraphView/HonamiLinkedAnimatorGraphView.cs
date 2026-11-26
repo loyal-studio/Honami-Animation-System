@@ -60,9 +60,7 @@ namespace HonamiAnimationSystem.Editor
             this.AddManipulator(new SelectionDragger());
             this.AddManipulator(new RectangleSelector());
 
-            var styleSheet = Resources.Load<StyleSheet>("HonamiGraphStyle");
-            if (styleSheet != null)
-                styleSheets.Add(styleSheet);
+            HonamiGraphStyleSheets.Apply(this);
 
             _brainWatermark = new Label("LINKED ANIMATOR GRAPH");
             _brainWatermark.style.position = Position.Absolute;

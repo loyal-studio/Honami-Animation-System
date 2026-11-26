@@ -14,7 +14,7 @@ namespace HonamiAnimationSystem.Editor.Documentation.Pages
         {
             HonamiDocumentationBuilder.AddParagraph(root, HonamiDocLocalization.Get(
                 "The Animation Node is the most basic building block of your graph. It plays a single AnimationClip and lets you trim the played range without touching the asset.",
-                "Вузол анімації — це базовий будівельний блок вашого графа. Він відтворює один анімаційний кліп і дозволяє обрізати діапазон відтворення, не чіпаючи сам ассет."
+                "Вузол анімації - це базовий будівельний блок вашого графа. Він відтворює один анімаційний кліп і дозволяє обрізати діапазон відтворення, не чіпаючи сам ассет."
             ));
 
             HonamiDocumentationBuilder.AddHeader(root, HonamiDocLocalization.Get("Node Properties", "Властивості вузла"), HonamiEditorIcons.Controller);
@@ -32,6 +32,7 @@ namespace HonamiAnimationSystem.Editor.Documentation.Pages
             HonamiDocumentationBuilder.AddPropertyBox(root,
                 (HonamiDocLocalization.Get("Speed", "Speed"), HonamiDocLocalization.Get("Playback speed multiplier.", "Множник швидкості відтворення.")),
                 (HonamiDocLocalization.Get("Loop", "Loop"), HonamiDocLocalization.Get("Whether the animation repeats when it reaches the end. Non-loop states raise OnStateFinished when done.", "Чи повторюється анімація після завершення. Non-loop стани викликають OnStateFinished після завершення.")),
+                (HonamiDocLocalization.Get("Freeze Last Frame", "Freeze Last Frame"), HonamiDocLocalization.Get("Holds the final frame when a non-loop state finishes with nowhere to go, instead of releasing the layer back to the Initial Pose. The hold is local to that state: it is dropped as soon as any state starts on another layer, and a state that has not finished yet stops right there instead of holding later, so the held pose never sits on top of whatever plays next.", "Утримує останній кадр, коли non-loop стан завершився і йому нікуди переходити, замість повернення шару до Initial Pose. Утримання локальне для цього стану: воно скидається, щойно будь-який стан стартує на іншому шарі, а стан, що ще не догрався, зупиняється одразу, а не замерзає пізніше, тож заморожена поза ніколи не перекриває те, що грає наступним.")),
                 (HonamiDocLocalization.Get("Reversed", "Reversed"), HonamiDocLocalization.Get("Plays the clip backwards; event markers fire in reverse order too.", "Відтворює кліп у зворотному напрямку; маркери подій також спрацьовують у зворотному порядку.")),
                 (HonamiDocLocalization.Get("Mirror", "Mirror"), HonamiDocLocalization.Get("Mirrors the animation across the avatar (requires a Honami Avatar).", "Віддзеркалює анімацію через аватар (потрібен Honami Avatar).")),
                 (HonamiDocLocalization.Get("Weight", "Weight"), HonamiDocLocalization.Get("Output weight of this state inside its layer.", "Вихідна вага цього стану всередині його шару."))
@@ -40,8 +41,8 @@ namespace HonamiAnimationSystem.Editor.Documentation.Pages
             HonamiDocumentationBuilder.AddNodeVisual(root, "Run", "ANIMATION", HonamiGraphStyles.Accent);
 
             HonamiDocumentationBuilder.AddTip(root, HonamiDocLocalization.Get(
-                "Use the Reversed checkbox instead of a negative speed to play a state backwards — duration math, finish detection and event markers all account for it.",
-                "Використовуйте чекбокс Reversed замість від'ємної швидкості для зворотного відтворення — розрахунок тривалості, визначення завершення та маркери подій враховують саме його."
+                "Use the Reversed checkbox instead of a negative speed to play a state backwards - duration math, finish detection and event markers all account for it.",
+                "Використовуйте чекбокс Reversed замість від'ємної швидкості для зворотного відтворення - розрахунок тривалості, визначення завершення та маркери подій враховують саме його."
             ));
         }
     }

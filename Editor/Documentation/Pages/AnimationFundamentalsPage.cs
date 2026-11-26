@@ -5,7 +5,7 @@ namespace HonamiAnimationSystem.Editor.Documentation.Pages
     public sealed class AnimationFundamentalsPage : IHonamiDocumentationPage
     {
         public string Title => HonamiDocLocalization.Get("Animation Fundamentals", "Основи анімації");
-        public string Category => HonamiDocLocalization.Get("09. Theory & Background", "09. Теорія та довідка");
+        public string Category => HonamiDocLocalization.Get("10. Theory & Background", "10. Теорія та довідка");
         public string SearchKeywords => "fundamentals theory logic states transitions normalized time poses основы теорія логіка";
         public int Order => 800;
         public int EstimatedReadTime => 4;
@@ -20,7 +20,7 @@ namespace HonamiAnimationSystem.Editor.Documentation.Pages
             HonamiDocumentationBuilder.AddHeader(root, HonamiDocLocalization.Get("What is an Animation Graph Really?", "Що таке граф анімації насправді?"), HonamiEditorIcons.Controller);
             HonamiDocumentationBuilder.AddParagraph(root, HonamiDocLocalization.Get(
                 "A Graph is far more than just a visual tool for playing clips; it is a profound logic engine. It represents a continuous Decision Tree for Motion. Sixty times a second, it answers a fundamental question: 'Given the character's current velocity, the player's input, and the physics of the world, what exact pose should the skeleton assume right now?'",
-                "Граф — це набагато більше, ніж просто візуальний інструмент для відтворення кліпів; це потужний логічний рушій. Він є безперервним деревом рішень для руху. Шістдесят разів на секунду він відповідає на фундаментальне питання: «Враховуючи поточну швидкість персонажа, введення гравця та фізику світу, яку саме позу має прийняти скелет прямо зараз?»"
+                "Граф - це набагато більше, ніж просто візуальний інструмент для відтворення кліпів; це потужний логічний рушій. Він є безперервним деревом рішень для руху. Шістдесят разів на секунду він відповідає на фундаментальне питання: «Враховуючи поточну швидкість персонажа, введення гравця та фізику світу, яку саме позу має прийняти скелет прямо зараз?»"
             ));
 
             HonamiDocumentationBuilder.AddHeader(root, HonamiDocLocalization.Get("Key Terminology", "Ключова термінологія"), HonamiEditorIcons.BlendTreeWhite);
@@ -37,13 +37,13 @@ namespace HonamiAnimationSystem.Editor.Documentation.Pages
             HonamiDocumentationBuilder.AddHeader(root, HonamiDocLocalization.Get("The Illusion of Weight & Impact", "Ілюзія ваги та впливу"), HonamiEditorIcons.GraphWhite);
             HonamiDocumentationBuilder.AddParagraph(root, HonamiDocLocalization.Get(
                 "Outstanding game animation isn't just about moving bones mathematically; it's about conveying physics, momentum, and anticipation. When a heavy character stops running, they shouldn't just freeze - they should 'overshoot' slightly, absorb the momentum, and settle.",
-                "Видатна ігрова анімація — це не лише математичне переміщення кісток; це передача фізики, імпульсу та передчуття дії (anticipation). Коли важкий персонаж зупиняє біг, він не повинен просто завмерти — він має трохи «проскочити» вперед, поглинути імпульс і стабілізуватися."
+                "Видатна ігрова анімація - це не лише математичне переміщення кісток; це передача фізики, імпульсу та передчуття дії (anticipation). Коли важкий персонаж зупиняє біг, він не повинен просто завмерти - він має трохи «проскочити» вперед, поглинути імпульс і стабілізуватися."
             ));
 
             HonamiDocumentationBuilder.AddCallout(root,
                 HonamiDocLocalization.Get(
-                    "To see these terms in practice, go through the '02. Tutorial' series — every concept on this page appears there on a live character.",
-                    "Щоб побачити ці терміни на практиці, пройдіть серію «02. Туторіал» — кожен концепт із цієї сторінки з'являється там на живому персонажі."
+                    "To see these terms in practice, go through the '02. Tutorial' series - every concept on this page appears there on a live character.",
+                    "Щоб побачити ці терміни на практиці, пройдіть серію «02. Туторіал» - кожен концепт із цієї сторінки з'являється там на живому персонажі."
                 ),
                 HonamiDocumentationBuilder.CalloutType.Info);
         }

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using Unity.Collections;
 using UnityEngine;
@@ -25,6 +25,8 @@ namespace HonamiAnimationSystem.Runtime.Core
         private readonly HashSet<int> _indicesToConsume = new();
         private readonly List<int> _randomParameterIndices = new();
 
+        private IReadOnlyList<HonamiParameter> _definitions = System.Array.Empty<HonamiParameter>();
+
         /// <summary>
         /// Rebuilds parameter storage from a runtime controller.
         /// </summary>
@@ -38,6 +40,7 @@ namespace HonamiAnimationSystem.Runtime.Core
             }
 
             var activeParameters = controller.ActiveParameters;
+            _definitions = activeParameters;
             CountParameters(activeParameters, out int floatCount, out int intCount, out int boolCount, out int triggerCount);
             AllocateStorage(floatCount, intCount, boolCount, triggerCount);
             SeedParameterDefaults(activeParameters);
@@ -118,6 +121,50 @@ namespace HonamiAnimationSystem.Runtime.Core
 
         public bool IsTriggerSet(int hash) => _triggerHashToIndex.TryGetValue(hash, out int index) && _triggerValues[index];
         public bool IsBoolSet(int hash) => _boolHashToIndex.TryGetValue(hash, out int index) && _boolValues[index];
+
+        public bool TryGetFloat(int hash, out float value)
+        {
+            bool found = _floatHashToIndex.TryGetValue(hash, out int index);
+            value = found ? _floatValues[index] : 0f;
+            return found;
+        }
+
+        public bool TryGetFloat(string name, out float value) => TryGetFloat(HonamiAnimator.StringToHash(name), out value);
+
+        public bool TryGetInteger(int hash, out int value)
+        {
+            bool found = _intHashToIndex.TryGetValue(hash, out int index);
+            value = found ? _intValues[index] : 0;
+            return found;
+        }
+
+        public bool TryGetInteger(string name, out int value) => TryGetInteger(HonamiAnimator.StringToHash(name), out value);
+
+        public bool TryGetBool(int hash, out bool value)
+        {
+            bool found = _boolHashToIndex.TryGetValue(hash, out int index);
+            value = found && _boolValues[index];
+            return found;
+        }
+
+        public bool TryGetBool(string name, out bool value) => TryGetBool(HonamiAnimator.StringToHash(name), out value);
+
+        /// <summary>
+        /// The parameter definitions this store was built from, in controller order.
+        /// Empty until <see cref="Initialize"/> runs with a controller.
+        /// </summary>
+        public IReadOnlyList<HonamiParameter> Definitions => _definitions;
+
+        /// <summary>
+        /// True when a parameter of any type is registered under this hash.
+        /// </summary>
+        public bool Contains(int hash)
+            => _floatHashToIndex.ContainsKey(hash)
+               || _intHashToIndex.ContainsKey(hash)
+               || _boolHashToIndex.ContainsKey(hash)
+               || _triggerHashToIndex.ContainsKey(hash);
+
+        public bool Contains(string name) => Contains(HonamiAnimator.StringToHash(name));
 
         public bool ContainsFloat(int hash) => _floatHashToIndex.ContainsKey(hash);
         public bool ContainsInt(int hash) => _intHashToIndex.ContainsKey(hash);
@@ -278,6 +325,7 @@ namespace HonamiAnimationSystem.Runtime.Core
             _pendingIndices.Clear();
             _activeIndices.Clear();
             _indicesToConsume.Clear();
+            _definitions = System.Array.Empty<HonamiParameter>();
         }
 
         private static void CountParameters(

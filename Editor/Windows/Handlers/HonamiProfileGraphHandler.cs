@@ -1,91 +1,87 @@
 using UnityEditor;
 using UnityEngine.UIElements;
 using UnityEditor.UIElements;
+using HonamiAnimationSystem.Runtime.Core;
 
 namespace HonamiAnimationSystem.Editor.Handlers
 {
-    public sealed class HonamiProfileGraphHandler : IHonamiGraphModeHandler
+    public sealed class HonamiProfileGraphHandler : HonamiGraphModeHandlerBase
     {
-        private HonamiGraphWindow _window;
         private HonamiProfileGraphView _graphView;
 
-        public string ModeId => "Profile";
+        public override string ModeId => "Profile";
 
-        public void Initialize(HonamiGraphWindow window)
+        protected override void OnInitialize()
         {
-            _window = window;
 
             _graphView = new HonamiProfileGraphView { name = "Honami Profile Graph" };
             _graphView.style.flexGrow = 1;
-            _graphView.Init(_window);
+            _graphView.Init(Window);
             WireProfileGraphViewEvents();
         }
 
-        public VisualElement GetMainView() => _graphView;
-        public VisualElement GetLeftPanelView() => null; // Profile doesn't have a left panel
+        public override VisualElement GetMainView() => _graphView;
 
-        public void OnEnable()
+        public override void OnEnable()
         {
-            if (_window.ProfileGraph == null)
+            if (Window.ProfileGraph == null)
             {
                 string last = EditorPrefs.GetString("Honami_LastOpenedProfileGraphPath", "");
                 if (!string.IsNullOrEmpty(last))
-                    _window.SetProfileGraph(AssetDatabase.LoadAssetAtPath<Runtime.Core.HonamiControllerProfileGraph>(last));
+                    Window.SetProfileGraph(AssetDatabase.LoadAssetAtPath<HonamiControllerProfileGraph>(last));
             }
             else
             {
-                _window.SetProfileGraph(_window.ProfileGraph);
+                Window.SetProfileGraph(Window.ProfileGraph);
             }
             ApplySettings();
         }
 
-        public void OnDisable() { }
-        public void Update() { }
 
-        public void SwitchToMode()
+        public override void SwitchToMode()
         {
-            _window.SupportLeftPanel(false);
-            _window.SupportRightPanel(true);
+            Window.SupportLeftPanel(false);
+            Window.SupportRightPanel(true);
 
-            if (_window.TitleLabel != null)
-                _window.TitleLabel.text = _window.ProfileGraph != null ? _window.ProfileGraph.name : "No Profile Graph";
+            if (Window.TitleLabel != null)
+                Window.TitleLabel.text = Window.ProfileGraph != null ? Window.ProfileGraph.name : "No Profile Graph";
 
-            if (_window.OverrideBadge != null) _window.OverrideBadge.style.display = DisplayStyle.None;
-            if (_window.LinkedBadge != null) _window.LinkedBadge.style.display = DisplayStyle.None;
-            if (_window.Toolbar != null) _window.Toolbar.style.display = DisplayStyle.None;
+            if (Window.OverrideBadge != null) Window.OverrideBadge.style.display = DisplayStyle.None;
+            if (Window.LinkedBadge != null) Window.LinkedBadge.style.display = DisplayStyle.None;
+            if (Window.Toolbar != null) Window.Toolbar.style.display = DisplayStyle.None;
 
-            if (_window.ProfileGraph != null)
+            if (Window.ProfileGraph != null)
             {
-                string path = AssetDatabase.GetAssetPath(_window.ProfileGraph);
+                string path = AssetDatabase.GetAssetPath(Window.ProfileGraph);
                 if (!string.IsNullOrEmpty(path)) EditorPrefs.SetString("Honami_LastOpenedProfileGraphPath", path);
             }
 
-            _window.SaveSelection();
-            if (_window.ProfileGraph != null) _graphView.PopulateView(_window.ProfileGraph);
+            Window.SaveSelection();
+            if (Window.ProfileGraph != null) _graphView.PopulateView(Window.ProfileGraph);
 
-            _window.RestoreSelection();
-            _window.BuildRightPanel();
-            _window.UpdateEmptyState();
+            Window.RestoreSelection();
+            Window.BuildRightPanel();
+            Window.UpdateEmptyState();
         }
 
-        public void BuildRightPanel(VisualElement rightContent)
+        public override void BuildRightPanel(VisualElement rightContent)
         {
             rightContent.Clear();
             rightContent.Unbind();
 
-            if (_window.SelectedProfileState != null && _window.SerializedState?.targetObject != null)
+            if (Window.SelectedProfileState != null && Window.SerializedState?.targetObject != null)
             {
                 var pad = HonamiEditorLayout.PaddedInspectorRoot();
                 pad.Add(HonamiGraphStyles.Title("Profile State"));
                 pad.Add(HonamiGraphStyles.MiniLabel("State Configuration", HonamiGraphStyles.SubTitleClr));
 
                 var box = HonamiGraphStyles.Box();
-                var inspector = new InspectorElement(_window.SerializedState);
+                var inspector = new InspectorElement(Window.SerializedState);
                 inspector.style.paddingTop = 4;
 
-                inspector.TrackPropertyValue(_window.SerializedState.FindProperty("stateName"), _ =>
+                inspector.TrackPropertyValue(Window.SerializedState.FindProperty("stateName"), _ =>
                 {
-                    _graphView.PopulateView(_window.ProfileGraph);
+                    _graphView.PopulateView(Window.ProfileGraph);
                 });
 
                 box.Add(inspector);
@@ -104,30 +100,29 @@ namespace HonamiAnimationSystem.Editor.Handlers
             }
         }
 
-        public void RebuildLeftPanel() { }
 
-        public void OnSelectionChange()
+        public override void OnSelectionChange()
         {
-            if (_window.IsLocked) return;
+            if (Window.IsLocked) return;
 
-            if (Selection.activeObject is Runtime.Core.HonamiControllerProfileGraph pg)
+            if (Selection.activeObject is HonamiControllerProfileGraph pg)
             {
-                if (_window.ProfileGraph != pg) _window.SetProfileGraph(pg);
+                if (Window.ProfileGraph != pg) Window.SetProfileGraph(pg);
             }
         }
 
-        public void OnUndoRedo()
+        public override void OnUndoRedo()
         {
-            _window.SaveSelection();
-            _graphView?.PopulateView(_window.ProfileGraph);
-            _window.RestoreSelection();
-            _window.BuildRightPanel();
+            Window.SaveSelection();
+            _graphView?.PopulateView(Window.ProfileGraph);
+            Window.RestoreSelection();
+            Window.BuildRightPanel();
         }
 
-        public void FrameAll() => _graphView?.FrameAll();
-        public bool HasContent() => _window.ProfileGraph != null;
+        public override void FrameAll() => _graphView?.FrameAll();
+        public override bool HasContent() => Window.ProfileGraph != null;
 
-        public void ApplySettings()
+        public override void ApplySettings()
         {
             if (_graphView != null)
             {
@@ -137,13 +132,12 @@ namespace HonamiAnimationSystem.Editor.Handlers
 
         private void WireProfileGraphViewEvents()
         {
-            _graphView.OnStateSelected = (state) =>
+            _graphView.OnStateSelected = state =>
             {
-                _window.SelectedProfileState = state;
-                _window.SerializedState = state != null ? new SerializedObject(state) : null;
-                _window.BuildRightPanel();
+                Window.SelectProfileState(state);
+                Window.BuildRightPanel();
             };
-            _graphView.OnGraphChanged = () => _window.BuildRightPanel();
+            _graphView.OnGraphChanged = () => Window.BuildRightPanel();
         }
     }
 }

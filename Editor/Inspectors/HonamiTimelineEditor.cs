@@ -1,98 +1,130 @@
+using System.Collections.Generic;
+using HonamiAnimationSystem.Editor.Timeline;
+using HonamiAnimationSystem.Runtime.Timeline;
 using UnityEditor;
 using UnityEngine;
-using HonamiAnimationSystem.Runtime.Timeline;
+using HonamiEditorController = HonamiAnimationSystem.Editor.Core.HonamiEditorController;
 
-namespace HonamiAnimationSystem.Editor.Sequence
+namespace HonamiAnimationSystem.Editor.Timeline
 {
     [CustomEditor(typeof(HonamiTimeline))]
     public sealed class HonamiTimelineEditor : UnityEditor.Editor
     {
+        private static readonly HashSet<string> HeaderFields = new() { nameof(HonamiTimelineModule.moduleName), nameof(HonamiTimelineModule.muted) };
+        private static readonly GUIContent MuteContent = new("M", "Mute module");
+
         private SerializedProperty _timelineName;
         private SerializedProperty _durationOverride;
-        private SerializedProperty _tracks;
-
-        private static readonly GUIContent _durationOverrideContent = new GUIContent("Duration Override", "0 = auto from tracks");
-        private static readonly GUIContent _muteContent = new GUIContent("M", "Mute track");
-        private static readonly GUIContent _targetContent = new GUIContent("Target GameObject");
-        private static readonly GUIContent _clipsContent = new GUIContent("Clips");
-        private static readonly GUIContent _eventsContent = new GUIContent("Events");
+        private SerializedProperty _modules;
 
         private void OnEnable()
         {
             _timelineName = serializedObject.FindProperty("timelineName");
             _durationOverride = serializedObject.FindProperty("durationOverride");
-            _tracks = serializedObject.FindProperty("tracks");
+            _modules = serializedObject.FindProperty("modules");
         }
 
         public override void OnInspectorGUI()
         {
             serializedObject.Update();
-
-            var tl = (HonamiTimeline)target;
+            var timeline = (HonamiTimeline)target;
 
             EditorGUILayout.Space(4);
             if (GUILayout.Button("Open in Timeline Window", GUILayout.Height(30)))
-                HonamiAnimationSystem.Editor.Timeline.HonamiTimelineWindow.InspectTimeline(tl);
+                HonamiTimelineWindow.InspectTimeline(timeline);
 
             EditorGUILayout.Space(8);
             EditorGUILayout.PropertyField(_timelineName);
-            EditorGUILayout.PropertyField(_durationOverride, _durationOverrideContent);
+            EditorGUILayout.PropertyField(_durationOverride);
 
             EditorGUILayout.Space(8);
-            EditorGUILayout.LabelField("Tracks", EditorStyles.boldLabel);
+            EditorGUILayout.LabelField("Modules", EditorStyles.boldLabel);
 
-            for (int i = 0; i < _tracks.arraySize; i++)
+            for (int i = 0; i < _modules.arraySize; i++)
             {
-                var tp = _tracks.GetArrayElementAtIndex(i);
-                using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox))
-                {
-                    var trackTypeProp = tp.FindPropertyRelative("trackType");
-                    var mutedProp = tp.FindPropertyRelative("muted");
-
-                    EditorGUILayout.BeginHorizontal();
-                    EditorGUILayout.PropertyField(tp.FindPropertyRelative("trackName"), GUIContent.none, GUILayout.ExpandWidth(true));
-                    EditorGUILayout.PropertyField(trackTypeProp, GUIContent.none, GUILayout.Width(100));
-                    mutedProp.boolValue = GUILayout.Toggle(mutedProp.boolValue, _muteContent, GUILayout.Width(20));
-                    if (GUILayout.Button(HonamiEditorSymbols.Remove, GUILayout.Width(22)))
-                    {
-                        _tracks.DeleteArrayElementAtIndex(i);
-                        serializedObject.ApplyModifiedProperties();
-                        return;
-                    }
-                    EditorGUILayout.EndHorizontal();
-
-                    if (trackTypeProp.enumValueIndex == (int)HonamiTimelineTrackType.Animation)
-                    {
-                        EditorGUILayout.PropertyField(tp.FindPropertyRelative("target"), _targetContent);
-                        EditorGUILayout.PropertyField(tp.FindPropertyRelative("clips"), _clipsContent, true);
-                    }
-                    else
-                    {
-                        EditorGUILayout.PropertyField(tp.FindPropertyRelative("events"), _eventsContent, true);
-                    }
-                }
+                if (DrawModule(timeline, _modules.GetArrayElementAtIndex(i), i))
+                    break;
                 EditorGUILayout.Space(2);
             }
 
-            EditorGUILayout.Space(4);
-            EditorGUILayout.BeginHorizontal();
-            if (GUILayout.Button("+ Animation Track"))
-            {
-                _tracks.InsertArrayElementAtIndex(_tracks.arraySize);
-                var np = _tracks.GetArrayElementAtIndex(_tracks.arraySize - 1);
-                np.FindPropertyRelative("trackName").stringValue = "Animation Track";
-                np.FindPropertyRelative("trackType").enumValueIndex = (int)HonamiTimelineTrackType.Animation;
-            }
-            if (GUILayout.Button("+ Event Track"))
-            {
-                _tracks.InsertArrayElementAtIndex(_tracks.arraySize);
-                var np = _tracks.GetArrayElementAtIndex(_tracks.arraySize - 1);
-                np.FindPropertyRelative("trackName").stringValue = "Event Track";
-                np.FindPropertyRelative("trackType").enumValueIndex = (int)HonamiTimelineTrackType.Event;
-            }
-            EditorGUILayout.EndHorizontal();
-
             serializedObject.ApplyModifiedProperties();
+
+            EditorGUILayout.Space(4);
+            if (GUILayout.Button("+ Add Module"))
+                ShowAddModuleMenu(timeline);
+        }
+
+        private bool DrawModule(HonamiTimeline timeline, SerializedProperty moduleProperty, int index)
+        {
+            var module = index < timeline.Modules.Count ? timeline.Modules[index] : null;
+
+            using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox))
+            {
+                if (module == null)
+                {
+                    EditorGUILayout.BeginHorizontal();
+                    EditorGUILayout.HelpBox("This module's type no longer exists (renamed or deleted class).", MessageType.Warning);
+                    bool removeMissing = GUILayout.Button(HonamiEditorSymbols.Remove, GUILayout.Width(22));
+                    EditorGUILayout.EndHorizontal();
+                    if (!removeMissing) return false;
+
+                    _modules.DeleteArrayElementAtIndex(index);
+                    serializedObject.ApplyModifiedProperties();
+                    return true;
+                }
+
+                var editor = HonamiTimelineModuleEditorRegistry.GetEditor(module);
+                var moduleSerializedObject = new SerializedObject(module);
+                moduleSerializedObject.Update();
+
+                var muted = moduleSerializedObject.FindProperty(nameof(HonamiTimelineModule.muted));
+                var moduleName = moduleSerializedObject.FindProperty(nameof(HonamiTimelineModule.moduleName));
+
+                EditorGUILayout.BeginHorizontal();
+                if (moduleName != null)
+                    EditorGUILayout.PropertyField(moduleName, GUIContent.none, GUILayout.ExpandWidth(true));
+                GUILayout.Label(editor.DisplayName, EditorStyles.miniLabel, GUILayout.Width(80));
+                if (muted != null)
+                    muted.boolValue = GUILayout.Toggle(muted.boolValue, MuteContent, GUILayout.Width(20));
+                bool remove = GUILayout.Button(HonamiEditorSymbols.Remove, GUILayout.Width(22));
+                EditorGUILayout.EndHorizontal();
+
+                if (remove)
+                {
+                    moduleSerializedObject.ApplyModifiedProperties();
+                    serializedObject.ApplyModifiedProperties();
+                    HonamiEditorController.DeleteModule(timeline, module);
+                    serializedObject.Update();
+                    return true;
+                }
+
+                // Root iterator: NextVisible(false) is the correct termination condition.
+                // GetEndProperty() would throw "Invalid iteration" until the iterator has advanced
+                // past the initial state, so it is not used here.
+                var iterator = moduleSerializedObject.GetIterator();
+                if (iterator.NextVisible(true))
+                {
+                    do
+                    {
+                        if (!HeaderFields.Contains(iterator.name) && iterator.name != "m_Script")
+                            EditorGUILayout.PropertyField(iterator, true);
+                    }
+                    while (iterator.NextVisible(false));
+                }
+                moduleSerializedObject.ApplyModifiedProperties();
+            }
+            return false;
+        }
+
+        private static void ShowAddModuleMenu(HonamiTimeline timeline)
+        {
+            var menu = new GenericMenu();
+            foreach (var moduleType in HonamiTimelineModuleEditorRegistry.ModuleTypesFor(HonamiTimelineModuleHost.Timeline))
+            {
+                var editor = HonamiTimelineModuleEditorRegistry.GetEditor(moduleType);
+                menu.AddItem(new GUIContent(editor.MenuPath), false, () => HonamiEditorController.AddModule(timeline, moduleType));
+            }
+            menu.ShowAsContext();
         }
     }
 }

@@ -16,10 +16,7 @@ namespace HonamiAnimationSystem.Editor.Inspectors
 
         private readonly HonamiSharedAnimatorInspector _shared = new HonamiSharedAnimatorInspector();
 
-        private static GUIStyle _headerStyle;
-        private static GUIStyle _subtitleStyle;
-        private static GUIStyle _buttonStyle;
-        private static GUIStyle _debugHeaderStyle;
+       private static GUIStyle _buttonStyle;
 
         private static readonly GUIContent _controllerContent = new GUIContent("Controller", "The HonamiController asset that defines states and transitions.");
         private static readonly GUIContent _avatarContent = new GUIContent("Avatar", "Optional skeleton definition. Required to use Avatar Masks on states.");
@@ -71,29 +68,8 @@ namespace HonamiAnimationSystem.Editor.Inspectors
             serializedObject.ApplyModifiedProperties();
         }
 
-        private void DrawCustomHeader()
-        {
-            _headerStyle ??= new GUIStyle(EditorStyles.boldLabel)
-            {
-                fontSize = 16,
-                alignment = TextAnchor.MiddleCenter,
-                normal = { textColor = new Color(0.18f, 0.76f, 0.9f) }
-            };
-
-            EditorGUILayout.Space(10);
-            GUILayout.Label("HONAMI ANIMATOR", _headerStyle);
-
-            _subtitleStyle ??= new GUIStyle(EditorStyles.centeredGreyMiniLabel)
-            {
-                fontSize = 11,
-                alignment = TextAnchor.MiddleCenter
-            };
-            GUILayout.Label("Advanced Playable Animation System", _subtitleStyle);
-
-            Rect rect = EditorGUILayout.GetControlRect(false, 2);
-            EditorGUI.DrawRect(rect, new Color(0.18f, 0.76f, 0.9f, 0.5f));
-            EditorGUILayout.Space(5);
-        }
+       private static void DrawCustomHeader()
+            => HonamiInspectorGUI.Title("HONAMI ANIMATOR", "Advanced Playable Animation System");
 
         private void DrawRequiredSection()
         {
@@ -165,8 +141,7 @@ namespace HonamiAnimationSystem.Editor.Inspectors
         private void DrawRuntimeDebugInfo(HonamiAnimator animator)
         {
             EditorGUILayout.BeginVertical(EditorStyles.helpBox);
-            _debugHeaderStyle ??= new GUIStyle(EditorStyles.boldLabel) { normal = { textColor = new Color(0.9f, 0.6f, 0.2f) } };
-            GUILayout.Label(" Runtime Debug", _debugHeaderStyle);
+           HonamiInspectorGUI.SubHeader(" Runtime Debug");
             EditorGUILayout.Space(3);
 
             var controller = animator.CurrentController;

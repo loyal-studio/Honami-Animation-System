@@ -19,7 +19,6 @@ namespace HonamiAnimationSystem.Editor
 
         private ScrollView _boneListView;
         private IMGUIContainer _dropZone;
-        private Label _dropLabel;
         private VisualElement _mainContent;
         private Label _statusLabel;
         private string _searchString = "";
@@ -202,12 +201,8 @@ namespace HonamiAnimationSystem.Editor
             zone.style.marginBottom = 4;
             zone.style.height = 52;
             zone.style.backgroundColor = HonamiGraphStyles.ListBoxBg;
-            zone.style.borderTopColor = zone.style.borderBottomColor =
-            zone.style.borderLeftColor = zone.style.borderRightColor = HonamiGraphStyles.ListBoxBorder;
-            zone.style.borderTopWidth = zone.style.borderBottomWidth =
-            zone.style.borderLeftWidth = zone.style.borderRightWidth = 1;
-            zone.style.borderTopLeftRadius = zone.style.borderTopRightRadius =
-            zone.style.borderBottomLeftRadius = zone.style.borderBottomRightRadius = 6;
+            zone.Border(1, HonamiGraphStyles.ListBoxBorder);
+            zone.Radius(6);
 
             return zone;
         }
@@ -399,10 +394,8 @@ namespace HonamiAnimationSystem.Editor
             row.style.backgroundColor = displayIndex % 2 == 0 ? new Color(0.18f, 0.19f, 0.21f) : new Color(0.15f, 0.16f, 0.18f);
             row.style.borderBottomColor = new Color(0.12f, 0.12f, 0.13f);
             row.style.borderBottomWidth = 1;
-            row.style.paddingTop = row.style.paddingBottom = 6;
-            row.style.paddingLeft = row.style.paddingRight = 8;
-            row.style.borderTopLeftRadius = row.style.borderTopRightRadius =
-            row.style.borderBottomLeftRadius = row.style.borderBottomRightRadius = 4;
+            row.Padding(6, 8);
+            row.Radius(4);
             row.style.marginBottom = 2;
 
             var indent = new VisualElement();
@@ -413,10 +406,8 @@ namespace HonamiAnimationSystem.Editor
             expandBtn.style.width = 16;
             expandBtn.style.height = 16;
             expandBtn.style.backgroundColor = Color.clear;
-            expandBtn.style.borderTopWidth = expandBtn.style.borderBottomWidth =
-            expandBtn.style.borderLeftWidth = expandBtn.style.borderRightWidth = 0;
-            expandBtn.style.paddingLeft = expandBtn.style.paddingRight = 0;
-            expandBtn.style.paddingTop = expandBtn.style.paddingBottom = 0;
+            expandBtn.BorderWidth(0);
+            expandBtn.Padding(0);
             expandBtn.style.fontSize = 10;
             expandBtn.name = "expandBtn";
             if (node.children.Count > 0)
@@ -470,10 +461,8 @@ namespace HonamiAnimationSystem.Editor
             var enabledBtn = new Button();
             enabledBtn.style.width = 22;
             enabledBtn.style.height = 22;
-            enabledBtn.style.borderTopLeftRadius = enabledBtn.style.borderTopRightRadius =
-            enabledBtn.style.borderBottomLeftRadius = enabledBtn.style.borderBottomRightRadius = 11;
-            enabledBtn.style.paddingLeft = enabledBtn.style.paddingRight = 0;
-            enabledBtn.style.paddingTop = enabledBtn.style.paddingBottom = 0;
+            enabledBtn.Radius(11);
+            enabledBtn.Padding(0);
             enabledBtn.style.fontSize = 10;
             enabledBtn.tooltip = "Click to toggle\nShift-Click to toggle this and all children";
             RefreshToggleBtn(enabledBtn, entry.enabled);
@@ -522,11 +511,9 @@ namespace HonamiAnimationSystem.Editor
             delBtn.style.width = 22;
             delBtn.style.height = 22;
             delBtn.style.fontSize = 11;
-            delBtn.style.paddingLeft = delBtn.style.paddingRight = 0;
-            delBtn.style.paddingTop = delBtn.style.paddingBottom = 0;
+            delBtn.Padding(0);
             delBtn.style.color = new Color(0.9f, 0.4f, 0.4f);
-            delBtn.style.borderTopLeftRadius = delBtn.style.borderTopRightRadius =
-            delBtn.style.borderBottomLeftRadius = delBtn.style.borderBottomRightRadius = 4;
+            delBtn.Radius(4);
             row.Add(delBtn);
 
             row.AddManipulator(new ContextualMenuManipulator(menuEvent =>
@@ -548,11 +535,9 @@ namespace HonamiAnimationSystem.Editor
             row.style.backgroundColor = index % 2 == 0 ? new Color(0.18f, 0.19f, 0.21f) : new Color(0.15f, 0.16f, 0.18f);
             row.style.borderBottomColor = new Color(0.12f, 0.12f, 0.13f);
             row.style.borderBottomWidth = 1;
-            row.style.paddingTop = row.style.paddingBottom = 6;
-            row.style.paddingLeft = row.style.paddingRight = 8;
+            row.Padding(6, 8);
             row.style.marginBottom = 2;
-            row.style.borderTopLeftRadius = row.style.borderTopRightRadius =
-            row.style.borderBottomLeftRadius = row.style.borderBottomRightRadius = 4;
+            row.Radius(4);
 
             var allPaths = new List<string> { "None" };
             for (int i = 0; i < _avatar.bones.Count; i++) allPaths.Add(_avatar.bones[i].bonePath);
@@ -609,11 +594,9 @@ namespace HonamiAnimationSystem.Editor
             delBtn.style.width = 22;
             delBtn.style.height = 22;
             delBtn.style.fontSize = 11;
-            delBtn.style.paddingLeft = delBtn.style.paddingRight = 0;
-            delBtn.style.paddingTop = delBtn.style.paddingBottom = 0;
+            delBtn.Padding(0);
             delBtn.style.color = new Color(0.9f, 0.4f, 0.4f);
-            delBtn.style.borderTopLeftRadius = delBtn.style.borderTopRightRadius =
-            delBtn.style.borderBottomLeftRadius = delBtn.style.borderBottomRightRadius = 4;
+            delBtn.Radius(4);
             row.Add(delBtn);
 
             return row;
@@ -747,35 +730,16 @@ namespace HonamiAnimationSystem.Editor
                 string targetPath = AssetDatabase.GenerateUniqueAssetPath($"{dir}/{_modelSource.name}_Avatar.asset");
                 var newAvatar = CreateInstance<HonamiAvatar>();
                 AssetDatabase.CreateAsset(newAvatar, targetPath);
-                AssetDatabase.SaveAssets();
+                if (HonamiAvatarBuilder.IsModelAsset(assetPath)) HonamiAvatarBuilder.LinkToModel(newAvatar, assetPath);
+                AssetDatabase.SaveAssetIfDirty(newAvatar);
                 LoadAvatar(newAvatar);
                 SetStatus($"Auto-created avatar at {targetPath}");
             }
 
-            var allTransforms = _modelSource.GetComponentsInChildren<Transform>(true);
-            Transform root = _modelSource.transform;
-
             Undo.RecordObject(_avatar, "Extract Bones");
 
-            var existingPaths = new HashSet<string>();
-            for (int i = 0; i < _avatar.bones.Count; i++)
-                existingPaths.Add(_avatar.bones[i].bonePath);
-
-            int added = 0;
-            foreach (var t in allTransforms)
-            {
-                if (t == root) continue;
-                string path = GetRelativePath(root, t);
-                if (existingPaths.Contains(path)) continue;
-
-                _avatar.bones.Add(new HonamiAvatar.BoneEntry
-                {
-                    boneName = t.name,
-                    bonePath = path,
-                    enabled = true
-                });
-                added++;
-            }
+            var options = HonamiAvatarBuildOptions.From(_avatar.modelSource);
+            int added = HonamiAvatarBuilder.AddBones(_avatar, _modelSource, options);
 
             EditorUtility.SetDirty(_avatar);
             RebuildBoneList();
@@ -818,7 +782,7 @@ namespace HonamiAnimationSystem.Editor
 
             var asset = CreateInstance<HonamiAvatar>();
             AssetDatabase.CreateAsset(asset, path);
-            AssetDatabase.SaveAssets();
+            AssetDatabase.SaveAssetIfDirty(asset);
             LoadAvatar(asset);
         }
 
@@ -826,7 +790,7 @@ namespace HonamiAnimationSystem.Editor
         {
             if (_avatar == null) return;
             EditorUtility.SetDirty(_avatar);
-            AssetDatabase.SaveAssets();
+            AssetDatabase.SaveAssetIfDirty(_avatar);
             SetStatus("Saved.");
         }
 
@@ -835,29 +799,7 @@ namespace HonamiAnimationSystem.Editor
             if (_avatar == null) return;
             Undo.RecordObject(_avatar, "Auto Bind Mirrors");
 
-            var existingSet = new HashSet<string>();
-            foreach (var entry in _avatar.mirrorBones)
-            {
-                if (!string.IsNullOrEmpty(entry.boneA)) existingSet.Add(entry.boneA);
-                if (!string.IsNullOrEmpty(entry.boneB)) existingSet.Add(entry.boneB);
-            }
-
-            int addedPairs = 0;
-            for (int i = 0; i < _avatar.bones.Count; i++)
-            {
-                var b = _avatar.bones[i];
-                if (!existingSet.Contains(b.bonePath))
-                {
-                    string m = FindMirrorBone(b.boneName, b.bonePath);
-                    if (!string.IsNullOrEmpty(m) && !existingSet.Contains(m))
-                    {
-                        _avatar.mirrorBones.Add(new HonamiAvatar.MirrorEntry { boneA = b.bonePath, boneB = m });
-                        existingSet.Add(b.bonePath);
-                        existingSet.Add(m);
-                        addedPairs++;
-                    }
-                }
-            }
+            int addedPairs = HonamiAvatarBuilder.BindMirrors(_avatar);
             EditorUtility.SetDirty(_avatar);
             RebuildBoneList();
             SetStatus($"Auto-bound {addedPairs} mirror pairs.");
@@ -873,46 +815,6 @@ namespace HonamiAnimationSystem.Editor
             SetStatus("Cleared mirror bones.");
         }
 
-        private string FindMirrorBone(string name, string path)
-        {
-            string searchName = name.ToLower();
-            string mirrorName = null;
-
-            if (searchName.EndsWith("_l")) mirrorName = name.Substring(0, name.Length - 2) + "_r";
-            else if (searchName.EndsWith("_r")) mirrorName = name.Substring(0, name.Length - 2) + "_l";
-            else if (searchName.EndsWith(".l")) mirrorName = name.Substring(0, name.Length - 2) + ".r";
-            else if (searchName.EndsWith(".r")) mirrorName = name.Substring(0, name.Length - 2) + ".l";
-            else if (searchName.StartsWith("left")) mirrorName = "Right" + name.Substring(4);
-            else if (searchName.StartsWith("right")) mirrorName = "Left" + name.Substring(5);
-            else if (searchName.StartsWith("l_")) mirrorName = "R_" + name.Substring(2);
-            else if (searchName.StartsWith("r_")) mirrorName = "L_" + name.Substring(2);
-
-            if (mirrorName != null)
-            {
-                for (int i = 0; i < _avatar.bones.Count; i++)
-                {
-                    if (_avatar.bones[i].boneName.Equals(mirrorName, System.StringComparison.OrdinalIgnoreCase))
-                    {
-                        return _avatar.bones[i].bonePath;
-                    }
-                }
-            }
-            return "";
-        }
-
         private void SetStatus(string msg) => _statusLabel.text = msg;
-
-        private static string GetRelativePath(Transform root, Transform bone)
-        {
-            if (bone == root) return "";
-            string path = bone.name;
-            Transform p = bone.parent;
-            while (p != null && p != root)
-            {
-                path = p.name + "/" + path;
-                p = p.parent;
-            }
-            return path;
-        }
     }
 }

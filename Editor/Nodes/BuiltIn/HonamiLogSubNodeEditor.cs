@@ -1,4 +1,3 @@
-#if UNITY_EDITOR
 using UnityEditor;
 using UnityEditor.UIElements;
 using UnityEngine;
@@ -80,4 +79,3 @@ namespace HonamiAnimationSystem.Editor
         }
     }
 }
-#endif

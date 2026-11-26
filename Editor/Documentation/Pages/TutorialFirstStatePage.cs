@@ -32,16 +32,16 @@ namespace HonamiAnimationSystem.Editor.Documentation.Pages
 
             HonamiDocumentationBuilder.AddHeader(root, HonamiDocLocalization.Get("What a state actually is", "Що таке стейт"), HonamiEditorIcons.GraphWhite);
             HonamiDocumentationBuilder.AddParagraph(root, HonamiDocLocalization.Get(
-                "A state is a node in the graph that the layer can be 'in'. What it plays depends on the node type: an Animation Node plays one clip, a Blend Tree mixes several, Random and Sequencer nodes pick or chain clips — the full catalogue lives in the '04. Node Library' section. The rules are the same for every type: at any moment each layer has exactly one current state, and that is what you see on the character (during a transition there are briefly two — the old one fading out, the new one fading in). The state owns its playback settings — Loop, Speed, Weight — and can carry event markers on its timeline.",
-                "Стейт — це вузол графа, в якому шар може «перебувати». Що саме він грає — залежить від типу вузла: Animation Node відтворює один кліп, Blend Tree змішує кілька, Random і Sequencer обирають кліп або грають ланцюжок — повний каталог є в розділі «04. Бібліотека вузлів». Правила однакові для всіх типів: у кожного шару в будь-який момент є рівно один поточний стейт, і саме його ви бачите на персонажі (під час транзішна їх коротко два — старий виблендується, новий вблендується). Стейт володіє своїми налаштуваннями відтворення — Loop, Speed, Weight — і може нести маркери івентів на своєму таймлайні."
+                "A state is a node in the graph that the layer can be 'in'. What it plays depends on the node type: an Animation Node plays one clip, a Blend Tree mixes several, Random and Sequencer nodes pick or chain clips - the full catalogue lives in the '04. Node Library' section. The rules are the same for every type: at any moment each layer has exactly one current state, and that is what you see on the character (during a transition there are briefly two - the old one fading out, the new one fading in). The state owns its playback settings - Loop, Speed, Weight - and can carry event markers on its timeline.",
+                "Стейт - це вузол графа, в якому шар може «перебувати». Що саме він грає - залежить від типу вузла: Animation Node відтворює один кліп, Blend Tree змішує кілька, Random і Sequencer обирають кліп або грають ланцюжок - повний каталог є в розділі «04. Бібліотека вузлів». Правила однакові для всіх типів: у кожного шару в будь-який момент є рівно один поточний стейт, і саме його ви бачите на персонажі (під час транзішна їх коротко два - старий виблендується, новий вблендується). Стейт володіє своїми налаштуваннями відтворення - Loop, Speed, Weight - і може нести маркери івентів на своєму таймлайні."
             ));
 
             HonamiDocumentationBuilder.AddParagraph(root, HonamiDocLocalization.Get(
-                "In this tutorial we start with the simplest type — the Animation Node.",
-                "У цьому туторіалі починаємо з найпростішого типу — Animation Node."
+                "In this tutorial we start with the simplest type - the Animation Node.",
+                "У цьому туторіалі починаємо з найпростішого типу - Animation Node."
             ));
 
-            HonamiDocumentationBuilder.AddHeader(root, HonamiDocLocalization.Get("Step 1 — Create and assign a controller", "Крок 1 — Створіть і призначте контролер"), HonamiEditorIcons.Controller);
+            HonamiDocumentationBuilder.AddHeader(root, HonamiDocLocalization.Get("Step 1 - Create and assign a controller", "Крок 1 - Створіть і призначте контролер"), HonamiEditorIcons.Controller);
             HonamiDocumentationBuilder.AddBulletPoint(root, HonamiDocLocalization.Get(
                 "In the Project window: right-click → Create → Honami Animation → Controller. Name it after your character.",
                 "У вікні Project: правий клік → Create → Honami Animation → Controller. Назвіть його на честь персонажа."));
@@ -49,26 +49,26 @@ namespace HonamiAnimationSystem.Editor.Documentation.Pages
                 "Drag the asset into the Controller field of the Honami Animator component on your character.",
                 "Перетягніть ассет у поле Controller компонента Honami Animator на персонажі."));
 
-            HonamiDocumentationBuilder.AddHeader(root, HonamiDocLocalization.Get("Step 2 — Add the Idle state", "Крок 2 — Додайте Idle-стейт"), HonamiEditorIcons.GraphWhite);
+            HonamiDocumentationBuilder.AddHeader(root, HonamiDocLocalization.Get("Step 2 - Add the Idle state", "Крок 2 - Додайте Idle-стейт"), HonamiEditorIcons.GraphWhite);
             HonamiDocumentationBuilder.AddBulletPoint(root, HonamiDocLocalization.Get(
                 "Open the controller in the Graph Editor (double-click the asset or the Open button in the inspector).",
                 "Відкрийте контролер у Graph Editor (подвійний клік по ассету або кнопка Open в інспекторі)."));
             HonamiDocumentationBuilder.AddBulletPoint(root, HonamiDocLocalization.Get(
-                "The fastest way to add a state: drag your Idle AnimationClip from the Project window straight onto the canvas — an Animation Node is created with the clip already assigned. Alternatively right-click → Animation Node and assign the Clip in the inspector.",
-                "Найшвидший спосіб додати стейт: перетягніть Idle-кліп із вікна Project прямо на полотно — створиться Animation Node з уже призначеним кліпом. Або правий клік → Animation Node і призначте Clip в інспекторі."));
+                "The fastest way to add a state: drag your Idle AnimationClip from the Project window straight onto the canvas - an Animation Node is created with the clip already assigned. Alternatively right-click → Animation Node and assign the Clip in the inspector.",
+                "Найшвидший спосіб додати стейт: перетягніть Idle-кліп із вікна Project прямо на полотно - створиться Animation Node з уже призначеним кліпом. Або правий клік → Animation Node і призначте Clip в інспекторі."));
             HonamiDocumentationBuilder.AddBulletPoint(root, HonamiDocLocalization.Get(
-                "Select the node and enable Loop in its state properties — idle must repeat forever.",
-                "Виберіть вузол і увімкніть Loop у властивостях стану — idle має повторюватися нескінченно."));
+                "Select the node and enable Loop in its state properties - idle must repeat forever.",
+                "Виберіть вузол і увімкніть Loop у властивостях стану - idle має повторюватися нескінченно."));
             HonamiDocumentationBuilder.AddBulletPoint(root, HonamiDocLocalization.Get(
-                "Mark the node as the default state — this is the state the character enters on startup.",
-                "Позначте вузол стейтом за замовчуванням — саме в нього персонаж увійде на старті."));
+                "Mark the node as the default state - this is the state the character enters on startup.",
+                "Позначте вузол стейтом за замовчуванням - саме в нього персонаж увійде на старті."));
 
             HonamiDocumentationBuilder.AddNodeVisual(root, "Idle", "ANIMATION", HonamiGraphStyles.Accent);
 
-            HonamiDocumentationBuilder.AddHeader(root, HonamiDocLocalization.Get("Step 3 — Press Play", "Крок 3 — Натисніть Play"), HonamiEditorIcons.TimelineWhite);
+            HonamiDocumentationBuilder.AddHeader(root, HonamiDocLocalization.Get("Step 3 - Press Play", "Крок 3 - Натисніть Play"), HonamiEditorIcons.TimelineWhite);
             HonamiDocumentationBuilder.AddParagraph(root, HonamiDocLocalization.Get(
-                "Enter Play mode. The default state starts automatically and the character breathes in its idle loop. Keep the Graph Editor open: the active state is highlighted and shows its weight in real time — this live view is your main debugging tool from now on.",
-                "Запустіть Play mode. Стейт за замовчуванням стартує автоматично, і персонаж «дихає» у своєму idle-циклі. Тримайте Graph Editor відкритим: активний стейт підсвічується та показує свою вагу в реальному часі — це ваш головний інструмент дебагу надалі."
+                "Enter Play mode. The default state starts automatically and the character breathes in its idle loop. Keep the Graph Editor open: the active state is highlighted and shows its weight in real time - this live view is your main debugging tool from now on.",
+                "Запустіть Play mode. Стейт за замовчуванням стартує автоматично, і персонаж «дихає» у своєму idle-циклі. Тримайте Graph Editor відкритим: активний стейт підсвічується та показує свою вагу в реальному часі - це ваш головний інструмент дебагу надалі."
             ));
 
             HonamiDocumentationBuilder.AddTip(root, HonamiDocLocalization.Get(
@@ -78,8 +78,8 @@ namespace HonamiAnimationSystem.Editor.Documentation.Pages
 
             HonamiDocumentationBuilder.AddSeparator(root);
             HonamiDocumentationBuilder.AddParagraph(root, HonamiDocLocalization.Get(
-                "Next: the character stands — let's make it move. In part 2 we replace the single Idle state with a locomotion blend tree driven by a Speed parameter.",
-                "Далі: персонаж стоїть — навчімо його рухатися. У частині 2 ми замінимо одиночний Idle на локомоушн-blend tree, керований параметром Speed."
+                "Next: the character stands - let's make it move. In part 2 we replace the single Idle state with a locomotion blend tree driven by a Speed parameter.",
+                "Далі: персонаж стоїть - навчімо його рухатися. У частині 2 ми замінимо одиночний Idle на локомоушн-blend tree, керований параметром Speed."
             ));
         }
     }

@@ -21,6 +21,22 @@ namespace HonamiAnimationSystem.Runtime.Riggings
         Additive
     }
 
+    public enum HonamiPoseBakeMode
+    {
+        Auto,
+        Absolute,
+        Additive
+    }
+
+    public enum HonamiPoseAdditiveReference
+    {
+        ReferenceClip = 0,
+        CurrentClipFrame = 1,
+        CurrentTransform = 2,
+        ClipFrameZero = 1
+
+    }
+
     [Serializable]
     public struct HonamiPoseBoneTarget
     {
@@ -177,7 +193,7 @@ namespace HonamiAnimationSystem.Runtime.Riggings
     {
         public HonamiLookAtTargetSource targetSource = HonamiLookAtTargetSource.Manual;
         public HonamiPoseType poseType = HonamiPoseType.Absolute;
-        public HonamiPoseSpace poseSpace = HonamiPoseSpace.World;
+        public HonamiPoseSpace poseSpace = HonamiPoseSpace.Local;
         
         [Header("Objects")]
         public HonamiPoseBoneTarget[] targets;
@@ -186,6 +202,20 @@ namespace HonamiAnimationSystem.Runtime.Riggings
         public HonamiAnimator honamiAnimator;
         public HonamiAvatar avatar;
         public HonamiAvatarPoseTarget[] avatarTargets;
+
+        [Header("Bake From Clip")]
+        public AnimationClip bakeClip;
+        public int bakeFrame;
+        public float bakeTime;
+        public HonamiPoseBakeMode bakeMode = HonamiPoseBakeMode.Auto;
+        public HonamiPoseAdditiveReference bakeAdditiveRef = HonamiPoseAdditiveReference.ReferenceClip;
+        public AnimationClip bakeReferenceClip;
+        public int bakeRefFrame;
+        public float bakeRefTime;
+        public Transform bakeSampleRoot;
+        public bool bakePositions = true;
+        public bool bakeRotations = true;
+        public bool bakeSelectedOnly;
 
         private AnimationScriptPlayable _playable;
         private NativeArray<TransformStreamHandle> _boneHandles;
@@ -205,10 +235,13 @@ namespace HonamiAnimationSystem.Runtime.Riggings
         private HonamiAnimator _cachedHonamiAnimator;
         private HonamiBoneReplacer _cachedBoneReplacer;
         private bool _avatarComponentsCached;
+        private Transform[] _resolvedAvatarBones;
+        private bool _avatarBonesResolved;
 
         public override void ResetRig()
         {
             _avatarComponentsCached = false;
+            _avatarBonesResolved = false;
             _cachedHonamiAnimator = null;
             _cachedBoneReplacer = null;
         }
@@ -269,7 +302,7 @@ namespace HonamiAnimationSystem.Runtime.Riggings
         {
             if (!_playable.IsValid()) return;
 
-            float effectiveWeight = (enabled && gameObject.activeInHierarchy && _boundBoneCount > 0) ? weight : 0f;
+            float effectiveWeight = (enabled && gameObject.activeInHierarchy && _boundBoneCount > 0) ? EffectiveWeight : 0f;
 
             _nativeParams[0] = effectiveWeight;
             _nativeParams[1] = _boundBoneCount;
@@ -328,7 +361,7 @@ namespace HonamiAnimationSystem.Runtime.Riggings
 
             HonamiPoseBoneTarget[] activeTargets = ResolveActiveTargets(out int count);
 
-            if (weight <= 0.001f || activeTargets == null || count == 0) return;
+            if (EffectiveWeight <= 0.001f || activeTargets == null || count == 0) return;
 
             bool isAdditive = poseType == HonamiPoseType.Additive;
 
@@ -340,8 +373,8 @@ namespace HonamiAnimationSystem.Runtime.Riggings
                 ref readonly var data = ref span[i];
                 if (data.bone == null) continue;
 
-                float pWeight = data.positionWeight * weight;
-                float rWeight = data.rotationWeight * weight;
+                float pWeight = data.positionWeight * EffectiveWeight;
+                float rWeight = data.rotationWeight * EffectiveWeight;
 
                 if (data.target != null)
                 {
@@ -425,6 +458,8 @@ namespace HonamiAnimationSystem.Runtime.Riggings
             if (_resolvedAvatarTargets == null || _resolvedAvatarTargets.Length < avatarTargets.Length)
                 System.Array.Resize(ref _resolvedAvatarTargets, avatarTargets.Length);
 
+            EnsureAvatarBoneCache();
+
             int count = 0;
             var span = new ReadOnlySpan<HonamiAvatarPoseTarget>(avatarTargets);
             for (int i = 0; i < span.Length; i++)
@@ -432,7 +467,7 @@ namespace HonamiAnimationSystem.Runtime.Riggings
                 ref readonly var entry = ref span[i];
                 if (!entry.enabled) continue;
 
-                Transform bone = ResolveAvatarBone(in entry);
+                Transform bone = _resolvedAvatarBones[i];
                 if (bone == null) continue;
 
                 Transform resolvedTarget = entry.target;
@@ -449,6 +484,36 @@ namespace HonamiAnimationSystem.Runtime.Riggings
             }
 
             return count;
+        }
+
+        // Resolving a bone walks the hierarchy by path and scans the replacer list by name, so it is
+        // done once per binding instead of per frame; ResetRig drops the cache when either can change.
+        private void EnsureAvatarBoneCache()
+        {
+            bool rebuild = !_avatarBonesResolved
+                           || _resolvedAvatarBones == null
+                           || _resolvedAvatarBones.Length != avatarTargets.Length;
+
+            if (rebuild)
+            {
+                if (_resolvedAvatarBones == null || _resolvedAvatarBones.Length != avatarTargets.Length)
+                    _resolvedAvatarBones = new Transform[avatarTargets.Length];
+
+                _avatarBonesResolved = true;
+            }
+
+            for (int i = 0; i < avatarTargets.Length; i++)
+            {
+                if (!avatarTargets[i].enabled)
+                {
+                    _resolvedAvatarBones[i] = null;
+                    continue;
+                }
+
+                // an entry that stayed unresolved keeps retrying, so a bone spawned later still binds
+                if (rebuild || _resolvedAvatarBones[i] == null)
+                    _resolvedAvatarBones[i] = ResolveAvatarBone(in avatarTargets[i]);
+            }
         }
 
         public Transform ResolveAvatarBone(in HonamiAvatarPoseTarget entry)

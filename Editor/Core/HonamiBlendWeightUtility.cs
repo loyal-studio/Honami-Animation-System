@@ -8,7 +8,7 @@ namespace HonamiAnimationSystem.Editor
     /// Allocation-free 1D blend weight solver shared by the Timeline preview and the Blend Tree
     /// editor: linearly interpolates motion weights around the parameter value between neighbours.
     /// </summary>
-    internal static class HonamiBlendWeightUtility
+    public static class HonamiBlendWeightUtility
     {
         // Assumes the weights span is pre-zeroed by the caller.
         public static void CalculateWeights(IReadOnlyList<HonamiBlendTreeMotion> motions, float parameterValue, Span<float> weights, Span<(float threshold, int index)> sorted)

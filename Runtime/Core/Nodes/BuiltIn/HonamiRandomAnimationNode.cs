@@ -28,6 +28,22 @@ namespace HonamiAnimationSystem.Runtime.Core
 
         public override HonamiNodeRuntime CreateRuntime() => new Runtime();
 
+        public override int MotionCount => randomClips?.Count ?? 0;
+
+        public override string GetMotionId(int index) => randomClips[index]?.id;
+
+        public override string GetMotionName(int index)
+        {
+            var clip = randomClips[index]?.clip;
+            return clip != null ? clip.name : $"Empty Slot {index}";
+        }
+
+        public override bool IsMotionPlaying(int index, HonamiNodeRuntime runtime) =>
+            runtime is Runtime randomRuntime && randomRuntime.PickedIndex == index;
+
+        public override bool EnsureMotionIds() =>
+            EnsureUniqueMotionIds(randomClips, clip => clip.id, (clip, id) => clip.id = id);
+
         public override Playable CreatePlayable(PlayableGraph graph, HonamiState state)
             => CreatePlayable(graph, state, null);
 

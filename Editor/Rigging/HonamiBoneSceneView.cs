@@ -2,10 +2,9 @@ using System.Collections.Generic;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.Rendering;
-using HonamiAnimationSystem.Runtime.Core;
 using HonamiAnimationSystem.Runtime.Riggings;
 
-namespace HonamiAnimationSystem.Editor.Rigging
+namespace HonamiAnimationSystem.Editor.Riggings
 {
     [InitializeOnLoad]
     internal static class HonamiBoneSceneView
@@ -25,74 +24,49 @@ namespace HonamiAnimationSystem.Editor.Rigging
         private const float OctahedronPivotRatio = 0.15f;
         private const float JointScreenRatio = 0.05f;
         private const float TipScreenRatio = 0.07f;
+        private const float FillAlpha = 0.35f;
+
+        // Octahedron points: 0 start, 1 end, 2..5 ring. Pyramid points: 0 end, 1..4 base.
+        private static readonly int[] OctahedronTriangles =
+        {
+            0, 2, 3, 0, 3, 4, 0, 4, 5, 0, 5, 2,
+            1, 2, 3, 1, 3, 4, 1, 4, 5, 1, 5, 2,
+        };
+        private static readonly int[] OctahedronEdges =
+        {
+            0, 2, 0, 3, 0, 4, 0, 5,
+            1, 2, 1, 3, 1, 4, 1, 5,
+            2, 3, 3, 4, 4, 5, 5, 2,
+        };
+        private static readonly int[] PyramidTriangles = { 0, 1, 2, 0, 2, 3, 0, 3, 4, 0, 4, 1 };
+        private static readonly int[] PyramidEdges = { 0, 1, 0, 2, 0, 3, 0, 4, 1, 2, 2, 3, 3, 4, 4, 1 };
 
         private static readonly int ControlHint = "HonamiBoneHandle".GetHashCode();
-        private static readonly List<HonamiBoneRenderer> Renderers = new();
         private static readonly Dictionary<HonamiBoneRenderer, BoneCache> Caches = new();
         private static readonly HashSet<Transform> BoneSet = new();
+        private static readonly Vector3[] OctahedronPoints = new Vector3[6];
+        private static readonly Vector3[] PyramidPoints = new Vector3[5];
         private static readonly Vector3[] TriangleBuffer = new Vector3[3];
         private static readonly Vector3[] QuadBuffer = new Vector3[4];
         private static readonly List<Object> SelectionBuffer = new();
 
-        private static bool _rescanPending;
-
         static HonamiBoneSceneView()
         {
-            HonamiBoneRenderer.EditorEnabled += OnRendererEnabled;
-            HonamiBoneRenderer.EditorDisabled += OnRendererDisabled;
-            EditorApplication.hierarchyChanged += InvalidateCaches;
-            Undo.undoRedoPerformed += InvalidateCaches;
+            EditorApplication.hierarchyChanged += Caches.Clear;
+            Undo.undoRedoPerformed += Caches.Clear;
             SceneView.duringSceneGui += OnSceneGUI;
-            _rescanPending = true;
-        }
-
-        private static void OnRendererEnabled(HonamiBoneRenderer renderer)
-        {
-            if (!Renderers.Contains(renderer)) Renderers.Add(renderer);
-            SceneView.RepaintAll();
-        }
-
-        private static void OnRendererDisabled(HonamiBoneRenderer renderer)
-        {
-            Renderers.Remove(renderer);
-            Caches.Remove(renderer);
-            SceneView.RepaintAll();
-        }
-
-        private static void InvalidateCaches()
-        {
-            Caches.Clear();
-            _rescanPending = true;
-        }
-
-        private static void RescanIfPending()
-        {
-            if (!_rescanPending) return;
-            _rescanPending = false;
-
-            var found = Object.FindObjectsByType<HonamiBoneRenderer>(FindObjectsInactive.Exclude, FindObjectsSortMode.None);
-            for (int i = 0; i < found.Length; i++)
-            {
-                if (found[i].isActiveAndEnabled && !Renderers.Contains(found[i])) Renderers.Add(found[i]);
-            }
         }
 
         private static void OnSceneGUI(SceneView sceneView)
         {
-            RescanIfPending();
-            if (Renderers.Count == 0) return;
+            var renderers = HonamiBoneRenderer.EditorInstances;
+            if (renderers.Count == 0) return;
             if (Tools.viewToolActive && Event.current.type != EventType.Repaint && Event.current.type != EventType.Layout) return;
 
-            for (int i = Renderers.Count - 1; i >= 0; i--)
+            for (int i = 0; i < renderers.Count; i++)
             {
-                var renderer = Renderers[i];
-                if (renderer == null)
-                {
-                    Renderers.RemoveAt(i);
-                    continue;
-                }
-                if (!renderer.isActiveAndEnabled || renderer.Bones.Count == 0) continue;
-
+                var renderer = renderers[i];
+                if (renderer.Bones.Count == 0) continue;
                 DoRenderer(renderer);
             }
         }
@@ -176,60 +150,47 @@ namespace HonamiAnimationSystem.Editor.Rigging
             return cache;
         }
 
-        private static void DoBoneHandle(HonamiBoneRenderer renderer, Transform bone, Vector3 endPosition)
+        private static void DoBoneHandle(HonamiBoneRenderer renderer, Transform bone, Vector3 end)
         {
             int id = GUIUtility.GetControlID(ControlHint, FocusType.Passive);
-            var evt = Event.current;
             Vector3 start = bone.position;
+            var eventType = Event.current.GetTypeForControl(id);
 
-            switch (evt.GetTypeForControl(id))
-            {
-                case EventType.Layout:
-                case EventType.MouseMove:
-                    HandleUtility.AddControl(id, HandleUtility.DistanceToLine(start, endPosition) - PickTolerancePixels(renderer, start, endPosition));
-                    break;
-
-                case EventType.MouseDown:
-                    if (HandleUtility.nearestControl == id && evt.button == 0 && !evt.alt)
-                    {
-                        SelectBone(bone, evt);
-                        evt.Use();
-                    }
-                    break;
-
-                case EventType.Repaint:
-                    DrawBone(renderer, start, endPosition, ResolveColor(renderer, bone, id));
-                    break;
-            }
+            if (eventType == EventType.Repaint)
+                DrawBone(renderer, start, end, ResolveColor(renderer, bone, id));
+            else if (IsPickLayout(eventType))
+                HandleUtility.AddControl(id, HandleUtility.DistanceToLine(start, end) - PickTolerancePixels(renderer, start, end));
+            else
+                TrySelect(id, bone, eventType);
         }
 
         private static void DoJointHandle(HonamiBoneRenderer renderer, Transform bone, float screenRatio)
         {
             int id = GUIUtility.GetControlID(ControlHint, FocusType.Passive);
-            var evt = Event.current;
             Vector3 position = bone.position;
             float radius = HandleUtility.GetHandleSize(position) * screenRatio * renderer.JointSize;
+            var eventType = Event.current.GetTypeForControl(id);
 
-            switch (evt.GetTypeForControl(id))
+            if (eventType == EventType.Repaint)
             {
-                case EventType.Layout:
-                case EventType.MouseMove:
-                    HandleUtility.AddControl(id, HandleUtility.DistanceToCircle(position, radius));
-                    break;
-
-                case EventType.MouseDown:
-                    if (HandleUtility.nearestControl == id && evt.button == 0 && !evt.alt)
-                    {
-                        SelectBone(bone, evt);
-                        evt.Use();
-                    }
-                    break;
-
-                case EventType.Repaint:
-                    Handles.color = ResolveColor(renderer, bone, id);
-                    Handles.SphereHandleCap(id, position, Quaternion.identity, radius * 2f, EventType.Repaint);
-                    break;
+                Handles.color = ResolveColor(renderer, bone, id);
+                Handles.SphereHandleCap(id, position, Quaternion.identity, radius * 2f, EventType.Repaint);
             }
+            else if (IsPickLayout(eventType))
+                HandleUtility.AddControl(id, HandleUtility.DistanceToCircle(position, radius));
+            else
+                TrySelect(id, bone, eventType);
+        }
+
+        private static bool IsPickLayout(EventType eventType) => eventType == EventType.Layout || eventType == EventType.MouseMove;
+
+        private static void TrySelect(int id, Transform bone, EventType eventType)
+        {
+            var evt = Event.current;
+            if (eventType != EventType.MouseDown || HandleUtility.nearestControl != id || evt.button != 0 || evt.alt) return;
+
+            SelectBone(bone, evt);
+            evt.Use();
         }
 
         private static float PickTolerancePixels(HonamiBoneRenderer renderer, Vector3 start, Vector3 end)
@@ -249,34 +210,33 @@ namespace HonamiAnimationSystem.Editor.Rigging
 
         private static void SelectBone(Transform bone, Event evt)
         {
+            var target = bone.gameObject;
+
             if (evt.control || evt.command)
             {
                 SelectionBuffer.Clear();
-                var current = Selection.objects;
                 bool removed = false;
-                for (int i = 0; i < current.Length; i++)
+                foreach (var selected in Selection.objects)
                 {
-                    if (current[i] == bone.gameObject) { removed = true; continue; }
-                    SelectionBuffer.Add(current[i]);
+                    if (selected == target) removed = true;
+                    else SelectionBuffer.Add(selected);
                 }
-                if (!removed) SelectionBuffer.Add(bone.gameObject);
+                if (!removed) SelectionBuffer.Add(target);
                 Selection.objects = SelectionBuffer.ToArray();
                 SelectionBuffer.Clear();
             }
             else if (evt.shift)
             {
-                if (!Selection.Contains(bone.gameObject))
-                {
-                    SelectionBuffer.Clear();
-                    SelectionBuffer.AddRange(Selection.objects);
-                    SelectionBuffer.Add(bone.gameObject);
-                    Selection.objects = SelectionBuffer.ToArray();
-                    SelectionBuffer.Clear();
-                }
+                if (Selection.Contains(target)) return;
+                SelectionBuffer.Clear();
+                SelectionBuffer.AddRange(Selection.objects);
+                SelectionBuffer.Add(target);
+                Selection.objects = SelectionBuffer.ToArray();
+                SelectionBuffer.Clear();
             }
             else
             {
-                Selection.activeGameObject = bone.gameObject;
+                Selection.activeGameObject = target;
             }
         }
 
@@ -297,97 +257,70 @@ namespace HonamiAnimationSystem.Editor.Rigging
             }
         }
 
-        private static void GetPerpendicularAxes(Vector3 direction, out Vector3 u, out Vector3 v)
+        private static bool TryGetBasis(Vector3 start, Vector3 end, out Vector3 direction, out float length, out Vector3 u, out Vector3 v)
         {
+            Vector3 offset = end - start;
+            length = offset.magnitude;
+            direction = default;
+            u = default;
+            v = default;
+            if (length < 0.0001f) return false;
+
+            direction = offset / length;
             u = Vector3.Cross(direction, Vector3.up);
             if (u.sqrMagnitude < 0.0001f) u = Vector3.Cross(direction, Vector3.right);
             u.Normalize();
             v = Vector3.Cross(direction, u);
+            return true;
         }
 
         private static void DrawOctahedron(HonamiBoneRenderer renderer, Vector3 start, Vector3 end, Color color)
         {
-            Vector3 offset = end - start;
-            float length = offset.magnitude;
-            if (length < 0.0001f) return;
-
-            Vector3 direction = offset / length;
-            GetPerpendicularAxes(direction, out var u, out var v);
+            if (!TryGetBasis(start, end, out var direction, out float length, out var u, out var v)) return;
 
             float radius = length * BoneRadiusRatio * renderer.BoneSize;
             Vector3 pivot = start + direction * (length * OctahedronPivotRatio);
-            Vector3 m0 = pivot + u * radius;
-            Vector3 m1 = pivot + v * radius;
-            Vector3 m2 = pivot - u * radius;
-            Vector3 m3 = pivot - v * radius;
+            OctahedronPoints[0] = start;
+            OctahedronPoints[1] = end;
+            OctahedronPoints[2] = pivot + u * radius;
+            OctahedronPoints[3] = pivot + v * radius;
+            OctahedronPoints[4] = pivot - u * radius;
+            OctahedronPoints[5] = pivot - v * radius;
 
-            var fillColor = new Color(color.r, color.g, color.b, color.a * 0.35f);
-            Handles.color = fillColor;
-            FillTriangle(start, m0, m1);
-            FillTriangle(start, m1, m2);
-            FillTriangle(start, m2, m3);
-            FillTriangle(start, m3, m0);
-            FillTriangle(end, m0, m1);
-            FillTriangle(end, m1, m2);
-            FillTriangle(end, m2, m3);
-            FillTriangle(end, m3, m0);
-
+            FillTriangles(OctahedronPoints, OctahedronTriangles, color);
             Handles.color = color;
-            Handles.DrawLine(start, m0);
-            Handles.DrawLine(start, m1);
-            Handles.DrawLine(start, m2);
-            Handles.DrawLine(start, m3);
-            Handles.DrawLine(end, m0);
-            Handles.DrawLine(end, m1);
-            Handles.DrawLine(end, m2);
-            Handles.DrawLine(end, m3);
-            Handles.DrawLine(m0, m1);
-            Handles.DrawLine(m1, m2);
-            Handles.DrawLine(m2, m3);
-            Handles.DrawLine(m3, m0);
+            Handles.DrawLines(OctahedronPoints, OctahedronEdges);
         }
 
         private static void DrawPyramid(HonamiBoneRenderer renderer, Vector3 start, Vector3 end, Color color)
         {
-            Vector3 offset = end - start;
-            float length = offset.magnitude;
-            if (length < 0.0001f) return;
-
-            Vector3 direction = offset / length;
-            GetPerpendicularAxes(direction, out var u, out var v);
+            if (!TryGetBasis(start, end, out _, out float length, out var u, out var v)) return;
 
             float radius = length * BoneRadiusRatio * renderer.BoneSize;
-            Vector3 b0 = start + (u + v) * radius;
-            Vector3 b1 = start + (u - v) * radius;
-            Vector3 b2 = start - (u + v) * radius;
-            Vector3 b3 = start - (u - v) * radius;
+            PyramidPoints[0] = end;
+            PyramidPoints[1] = start + (u + v) * radius;
+            PyramidPoints[2] = start + (u - v) * radius;
+            PyramidPoints[3] = start - (u + v) * radius;
+            PyramidPoints[4] = start - (u - v) * radius;
 
-            var fillColor = new Color(color.r, color.g, color.b, color.a * 0.35f);
-            Handles.color = fillColor;
-            FillTriangle(end, b0, b1);
-            FillTriangle(end, b1, b2);
-            FillTriangle(end, b2, b3);
-            FillTriangle(end, b3, b0);
-            QuadBuffer[0] = b0; QuadBuffer[1] = b1; QuadBuffer[2] = b2; QuadBuffer[3] = b3;
+            FillTriangles(PyramidPoints, PyramidTriangles, color);
+            for (int i = 0; i < QuadBuffer.Length; i++) QuadBuffer[i] = PyramidPoints[i + 1];
             Handles.DrawAAConvexPolygon(QuadBuffer);
 
             Handles.color = color;
-            Handles.DrawLine(end, b0);
-            Handles.DrawLine(end, b1);
-            Handles.DrawLine(end, b2);
-            Handles.DrawLine(end, b3);
-            Handles.DrawLine(b0, b1);
-            Handles.DrawLine(b1, b2);
-            Handles.DrawLine(b2, b3);
-            Handles.DrawLine(b3, b0);
+            Handles.DrawLines(PyramidPoints, PyramidEdges);
         }
 
-        private static void FillTriangle(Vector3 a, Vector3 b, Vector3 c)
+        private static void FillTriangles(Vector3[] points, int[] triangles, Color color)
         {
-            TriangleBuffer[0] = a;
-            TriangleBuffer[1] = b;
-            TriangleBuffer[2] = c;
-            Handles.DrawAAConvexPolygon(TriangleBuffer);
+            Handles.color = new Color(color.r, color.g, color.b, color.a * FillAlpha);
+            for (int i = 0; i < triangles.Length; i += 3)
+            {
+                TriangleBuffer[0] = points[triangles[i]];
+                TriangleBuffer[1] = points[triangles[i + 1]];
+                TriangleBuffer[2] = points[triangles[i + 2]];
+                Handles.DrawAAConvexPolygon(TriangleBuffer);
+            }
         }
     }
 }

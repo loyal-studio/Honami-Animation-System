@@ -27,8 +27,7 @@ namespace HonamiAnimationSystem.Editor
         public static VisualElement Build(List<Entry> entries)
         {
             var root = new VisualElement();
-            root.style.paddingLeft = root.style.paddingRight = 10;
-            root.style.paddingTop = root.style.paddingBottom = 12;
+            root.Padding(12, 10);
 
             root.Add(HonamiGraphStyles.Title($"{entries.Count} Transitions"));
             root.Add(HonamiGraphStyles.MiniLabel("Multi-Edit Mode", HonamiGraphStyles.SubTitleClr));
@@ -101,7 +100,7 @@ namespace HonamiAnimationSystem.Editor
 
             var freezeField = BindField(new EnumField("Freeze Mode", entries[0].Transition.freezeMode), entries, "Edit Transitions Freeze Mode",
                 t => (Enum)t.freezeMode, (t, v) => t.freezeMode = (HonamiTransitionFreezeMode)v);
-            freezeField.tooltip = "Destination: the target holds its first frame during the blend and starts playing when the transition completes — keeps fast attacks crisp. Source: the state being left freezes on its current pose and fades out static.";
+            freezeField.tooltip = "Destination: the target holds its first frame during the blend and starts playing when the transition completes - keeps fast attacks crisp. Source: the state being left freezes on its current pose and fades out static.";
             timingBox.Add(freezeField);
 
             smartContainer = new VisualElement();

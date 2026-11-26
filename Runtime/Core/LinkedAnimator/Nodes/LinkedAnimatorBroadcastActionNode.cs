@@ -1,9 +1,8 @@
-using UnityEngine;
+﻿using UnityEngine;
 
 namespace HonamiAnimationSystem.Runtime.Core
 {
     [CreateAssetMenu(fileName = "BroadcastAction", menuName = "Honami Animation/Linked Animator Nodes/Broadcast Action")]
-    [UnityEngine.Scripting.APIUpdating.MovedFrom("BrainBroadcastActionNode")]
     public sealed class LinkedAnimatorBroadcastActionNode : HonamiLinkedAnimatorNodeBase
     {
         public HonamiActionID actionId;
@@ -15,10 +14,7 @@ namespace HonamiAnimationSystem.Runtime.Core
         {
             if (actionId == null || ctx.Brain == null) return LinkedAnimatorNodeResult.Done;
 
-            if (targetMode == HonamiBroadcastTargetMode.AllLinked)
-                ctx.Brain.SetActionID(actionId, transitionDuration);
-            else
-                ctx.Brain.SetActionID(actionId, transitionDuration, targetMode, targetTag);
+            ctx.Brain.SetActionID(actionId, transitionDuration, new HonamiLinkedTarget(targetMode, targetTag));
 
             return LinkedAnimatorNodeResult.Done;
         }

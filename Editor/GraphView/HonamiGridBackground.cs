@@ -56,8 +56,8 @@ namespace HonamiAnimationSystem.Editor
             if (rect.width <= 0f || rect.height <= 0f) return;
             if (!TryGetViewTransform(out Vector2 offset, out float zoom)) return;
 
-            if (!IsFinite(zoom) || zoom <= 0f) zoom = 1f;
-            if (!IsFinite(offset.x) || !IsFinite(offset.y)) offset = Vector2.zero;
+            if (!float.IsFinite(zoom) || zoom <= 0f) zoom = 1f;
+            if (!float.IsFinite(offset.x) || !float.IsFinite(offset.y)) offset = Vector2.zero;
 
             LineMaterial.SetPass(0);
 
@@ -119,6 +119,5 @@ namespace HonamiAnimationSystem.Editor
             GL.End();
         }
 
-        private static bool IsFinite(float value) => !float.IsNaN(value) && !float.IsInfinity(value);
     }
 }

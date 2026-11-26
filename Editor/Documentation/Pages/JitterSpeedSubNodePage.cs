@@ -29,8 +29,8 @@ namespace HonamiAnimationSystem.Editor.Documentation.Pages
             ));
 
             HonamiDocumentationBuilder.AddTip(root, HonamiDocLocalization.Get(
-                "Keep Scale small (0.05–0.2). The modifier multiplies the state's base speed (respecting Reversed), so large values make timing feel unstable.",
-                "Тримайте Scale малим (0.05–0.2). Модифікатор множиться на базову швидкість стану (враховуючи Reversed), тож великі значення роблять таймінг нестабільним."
+                "Keep Scale small (0.05-0.2). The modifier multiplies the state's base speed (respecting Reversed), so large values make timing feel unstable.",
+                "Тримайте Scale малим (0.05-0.2). Модифікатор множиться на базову швидкість стану (враховуючи Reversed), тож великі значення роблять таймінг нестабільним."
             ));
         }
     }

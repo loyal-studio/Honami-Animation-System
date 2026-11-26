@@ -15,7 +15,7 @@ namespace HonamiAnimationSystem.Editor.Timeline
         {
             if (!s.PreviewEnabled) return;
 
-            GameObject root = GetAnimationRoot(s, Selection.activeGameObject);
+            GameObject root = SampleRoot(s);
             if (s.Mode == TimelineMode.HonamiState && root == null)
                 return;
 
@@ -37,7 +37,24 @@ namespace HonamiAnimationSystem.Editor.Timeline
             if (s.Mode == TimelineMode.HonamiState && root != null)
                 ApplyConstraints(s, root);
 
-            SceneView.RepaintAll();
+            RepaintViews(s);
+        }
+
+        // A timeline drives scene objects through its bindings, so the selection's animator is left alone.
+        private static GameObject SampleRoot(TimelineState s) =>
+            s.Mode == TimelineMode.HonamiTimeline ? null : GetAnimationRoot(s, Selection.activeGameObject);
+
+        // Camera shots and screen fades only show in the Game view, which does not repaint on its own in edit mode.
+        private static void RepaintViews(TimelineState s)
+        {
+            bool changed = s.IsPlaying || !Mathf.Approximately(s.PlayheadTime, s.LastSampledTime);
+            s.LastSampledTime = s.PlayheadTime;
+            if (!changed) return;
+
+            if (s.Mode == TimelineMode.HonamiTimeline)
+                UnityEditorInternal.InternalEditorUtility.RepaintAllViews();
+            else
+                SceneView.RepaintAll();
         }
 
         private static readonly List<GameObject> RootBuffer = new();
@@ -63,7 +80,7 @@ namespace HonamiAnimationSystem.Editor.Timeline
             bool anyStateMode = false;
             for (int i = 0; i < states.Count; i++)
             {
-                GameObject root = GetAnimationRoot(states[i], Selection.activeGameObject);
+                GameObject root = SampleRoot(states[i]);
                 RootBuffer.Add(root);
                 if (root != null) anyRoot = true;
                 if (states[i].Mode == TimelineMode.HonamiState) anyStateMode = true;
@@ -113,7 +130,8 @@ namespace HonamiAnimationSystem.Editor.Timeline
                     ApplyConstraints(s, RootBuffer[i]);
             }
 
-            SceneView.RepaintAll();
+            for (int i = 0; i < states.Count; i++)
+                RepaintViews(states[i]);
         }
 
         // Lower layers sample first so higher layers and masked states override them; insertion sort keeps equal keys stable
@@ -157,9 +175,12 @@ namespace HonamiAnimationSystem.Editor.Timeline
             if (mask != null && root != null)
                 SampleHonamiStateWithMask(s, root, mask);
             else if (s.Mode == TimelineMode.HonamiTimeline)
-                SampleTimeline(s);
+                SampleModules(s);
             else
+            {
                 SampleHonamiState(s);
+                SampleModules(s);
+            }
         }
 
         private static HonamiAvatarMask ResolveEffectiveMask(TimelineState s)
@@ -215,8 +236,8 @@ namespace HonamiAnimationSystem.Editor.Timeline
                 savedRot[i] = item.t.localRotation;
             }
 
-            if (s.Mode == TimelineMode.HonamiTimeline) SampleTimeline(s);
-            else SampleHonamiState(s);
+            if (s.Mode != TimelineMode.HonamiTimeline) SampleHonamiState(s);
+            SampleModules(s);
 
             for (int i = 0; i < count; i++)
             {
@@ -276,7 +297,7 @@ namespace HonamiAnimationSystem.Editor.Timeline
             }
         }
 
-        private static GameObject ResolvePrefabInstance(GameObject target)
+        internal static GameObject ResolvePrefabInstance(GameObject target)
         {
             if (target == null || !PrefabUtility.IsPartOfPrefabAsset(target)) return target;
 
@@ -291,29 +312,89 @@ namespace HonamiAnimationSystem.Editor.Timeline
 
         internal static void SampleBlendTree(TimelineState s, GameObject rootTarget, float internalT)
         {
-            if (s.BlendNode?.blendMotions == null || s.BlendNode.blendMotions.Count == 0)
-                return;
+            var motions = s.BlendNode?.blendMotions;
+            if (motions == null || motions.Count == 0) return;
 
-            int motionsCount = s.BlendNode.blendMotions.Count;
-            if (s.BlendCache.BlendWeights == null || s.BlendCache.BlendWeights.Length < motionsCount)
-            {
-                s.BlendCache.BlendWeights = new float[motionsCount];
-                s.BlendCache.BlendSorted = new (float threshold, int index)[motionsCount];
-            }
+            int motionsCount = motions.Count;
+            EnsureBlendBuffers(s, motionsCount);
 
             var weightsSpan = s.BlendCache.BlendWeights.AsSpan(0, motionsCount);
             weightsSpan.Clear();
             var sortedSpan = s.BlendCache.BlendSorted.AsSpan(0, motionsCount);
+            HonamiBlendWeightUtility.CalculateWeights(motions, s.BlendPreviewValue, weightsSpan, sortedSpan);
 
-            HonamiBlendWeightUtility.CalculateWeights(s.BlendNode.blendMotions, s.BlendPreviewValue, weightsSpan, sortedSpan);
+            for (int i = 0; i < motionsCount; i++)
+            {
+                s.BlendCache.MotionClips[i] = motions[i].clip;
+                s.BlendCache.MotionSpeeds[i] = motions[i].speed;
+                s.BlendCache.MotionMirrors[i] = motions[i].mirror;
+            }
 
-            var motions = s.BlendNode.blendMotions;
+            float avgDur = HonamiBlendTreeEvaluator.GetDurationFromMotions(motions, s.BlendPreviewValue);
+            SampleWeightedMotions(s, rootTarget, internalT, weightsSpan, motionsCount, avgDur);
+        }
+
+        internal static void SampleBlendSpace(TimelineState s, GameObject rootTarget, float internalT)
+        {
+            if (s.SelectedState?.node is not HonamiBlendSpaceNode node) return;
+
+            var motions = node.blendMotions;
+            if (motions == null || motions.Count == 0) return;
+
+            int motionsCount = motions.Count;
+            EnsureBlendBuffers(s, motionsCount);
+
+            var weightsSpan = s.BlendCache.BlendWeights.AsSpan(0, motionsCount);
+            weightsSpan.Clear();
+
+            int axisCount = node.AxisCount;
+            var axes = s.NodePreviewAxes != null && s.NodePreviewAxes.Length >= axisCount
+                ? s.NodePreviewAxes.AsSpan(0, axisCount)
+                : ReadOnlySpan<float>.Empty;
+
+            HonamiBlendSpaceSolver.CalculateWeights(motions, axisCount, node.spaceType, axes, weightsSpan);
+
+            for (int i = 0; i < motionsCount; i++)
+            {
+                s.BlendCache.MotionClips[i] = motions[i].clip;
+                s.BlendCache.MotionSpeeds[i] = motions[i].speed;
+                s.BlendCache.MotionMirrors[i] = motions[i].mirror;
+            }
+
+            float avgDur = HonamiBlendSpaceSolver.GetBlendedDuration(motions, weightsSpan);
+            SampleWeightedMotions(s, rootTarget, internalT, weightsSpan, motionsCount, avgDur);
+        }
+
+        private static void EnsureBlendBuffers(TimelineState s, int motionsCount)
+        {
+            if (s.BlendCache.BlendWeights != null && s.BlendCache.BlendWeights.Length >= motionsCount) return;
+
+            s.BlendCache.BlendWeights = new float[motionsCount];
+            s.BlendCache.BlendSorted = new (float threshold, int index)[motionsCount];
+            s.BlendCache.MotionClips = new AnimationClip[motionsCount];
+            s.BlendCache.MotionSpeeds = new float[motionsCount];
+            s.BlendCache.MotionMirrors = new bool[motionsCount];
+        }
+
+        // Shared by the 1D blend tree and the N-dimensional blend space: sample every weighted clip
+        // onto the scene target and accumulate the result into one pose.
+        private static void SampleWeightedMotions(
+            TimelineState s,
+            GameObject rootTarget,
+            float internalT,
+            ReadOnlySpan<float> weights,
+            int motionsCount,
+            float avgDur)
+        {
+            var clips = s.BlendCache.MotionClips;
+            var speeds = s.BlendCache.MotionSpeeds;
+            var mirrors = s.BlendCache.MotionMirrors;
+
             GameObject sampleTarget = null;
             for (int i = 0; i < motionsCount; i++)
             {
-                var motion = motions[i];
-                if (motion.clip == null || weightsSpan[i] <= 0.0001f) continue;
-                sampleTarget = FindBestTargetForClip(s, rootTarget, motion.clip);
+                if (clips[i] == null || weights[i] <= 0.0001f) continue;
+                sampleTarget = FindBestTargetForClip(s, rootTarget, clips[i]);
                 break;
             }
 
@@ -359,33 +440,31 @@ namespace HonamiAnimationSystem.Editor.Timeline
             Array.Clear(hasRotation, 0, transformCount);
 
             float totalWeight = 0f;
-            float avgDur = HonamiBlendTreeEvaluator.GetDurationFromMotions(motions, s.BlendPreviewValue);
 
             for (int motionIndex = 0; motionIndex < motionsCount; motionIndex++)
             {
-                var motion = motions[motionIndex];
-                float weight = weightsSpan[motionIndex];
-                if (motion.clip == null || weight <= 0.0001f) continue;
+                AnimationClip clip = clips[motionIndex];
+                float weight = weights[motionIndex];
+                if (clip == null || weight <= 0.0001f) continue;
 
-                float speed;
-                if (avgDur > 0.0001f && motion.clip.length > 0f)
-                    speed = motion.clip.length / avgDur;
-                else
-                    speed = motion.speed != 0f ? Mathf.Abs(motion.speed) : 1f;
+                float motionSpeed = speeds[motionIndex];
+                float speed = avgDur > 0.0001f && clip.length > 0f
+                    ? clip.length / avgDur
+                    : (motionSpeed != 0f ? Mathf.Abs(motionSpeed) : 1f);
 
                 float sampleTime = internalT * speed;
                 if (s.SelectedState.isReversed)
-                    sampleTime = motion.clip.length - sampleTime;
+                    sampleTime = clip.length - sampleTime;
 
                 bool isLoop = s.SelectedState.loop || s.ForceLoop;
-                sampleTime = motion.clip.length > 0f
+                sampleTime = clip.length > 0f
                     ? (isLoop
-                        ? Mathf.Repeat(sampleTime, motion.clip.length)
-                        : Mathf.Clamp(sampleTime, 0f, motion.clip.length))
+                        ? Mathf.Repeat(sampleTime, clip.length)
+                        : Mathf.Clamp(sampleTime, 0f, clip.length))
                     : 0f;
 
-                SafeSample(s, sampleTarget, motion.clip, sampleTime);
-                if (motion.mirror) ApplyManualMirror(sampleTarget);
+                SafeSample(s, sampleTarget, clip, sampleTime);
+                if (mirrors[motionIndex]) ApplyManualMirror(sampleTarget);
 
                 float nextTotal = totalWeight + weight;
                 float rotationBlend = nextTotal > 0f ? weight / nextTotal : 1f;
@@ -481,34 +560,47 @@ namespace HonamiAnimationSystem.Editor.Timeline
             return result;
         }
 
-        private static void SampleTimeline(TimelineState s)
+        private static readonly HonamiTimelinePreviewContext PreviewContext = new();
+
+        private static void SampleModules(TimelineState s)
         {
-            if (s.ActiveTimeline == null) return;
-            float time = s.PlayheadTime;
+            var container = s.ActiveContainer;
+            if (container == null || container.Modules.Count == 0) return;
 
-            var tracks = s.ActiveTimeline.tracks;
-            for (int i = 0; i < tracks.Count; i++)
+            var context = PreviewContext;
+            context.State = s;
+            context.Container = container;
+            context.Director = s.Mode == TimelineMode.HonamiTimeline ? s.ResolveDirector() : null;
+            context.PreviewRoot = GetAnimationRoot(s, Selection.activeGameObject);
+            context.Time = s.PlayheadTime;
+            context.IsPlaying = s.IsPlaying;
+            context.IsScrubbing = s.IsDraggingPlayhead;
+            context.PlaybackSpeed = s.PlaybackSpeed;
+            context.FrameRate = s.FrameRate;
+
+            var modules = container.Modules;
+            for (int i = 0; i < modules.Count; i++)
             {
-                var track = tracks[i];
-                if (track.muted || track.trackType != HonamiTimelineTrackType.Animation) continue;
+                var module = modules[i];
+                if (module == null || module.muted || !module.SupportsHost(container.Host) || !s.IsModuleActiveAt(module, s.PlayheadTime)) continue;
 
-                GameObject target = track.target;
-                if (target == null)
-                    target = GetAnimationRoot(s, Selection.activeGameObject);
-
-                target = ResolvePrefabInstance(target);
-                if (target == null) continue;
-
-                var clips = track.clips;
-                for (int clipIdx = 0; clipIdx < clips.Count; clipIdx++)
+                context.Module = module;
+                context.TimeOffset = s.GetModuleTimeOffset(module);
+                context.Time = s.PlayheadTime - context.TimeOffset;
+                context.Binding = HonamiTimelineEditContext.ResolveBinding(container, module, context.Director, context.PreviewRoot);
+                try
                 {
-                    var clip = clips[clipIdx];
-                    if (clip.clip == null) continue;
-                    float local = time - clip.startTime;
-                    if (local < 0f || local > clip.GetDuration()) continue;
-                    SafeSample(s, target, clip.clip, clip.GetSampleTime(local));
+                    HonamiTimelineModuleEditorRegistry.GetEditor(module).Preview(context);
+                }
+                catch (Exception exception)
+                {
+                    Debug.LogException(exception);
                 }
             }
+
+            context.State = null;
+            context.Module = null;
+            context.Binding = null;
         }
 
         private static void ApplyConstraints(TimelineState s, GameObject target)

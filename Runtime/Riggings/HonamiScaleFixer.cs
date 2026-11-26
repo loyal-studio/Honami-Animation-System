@@ -152,7 +152,7 @@ namespace HonamiAnimationSystem.Runtime.Riggings
                 return;
             }
 
-            float effectiveWeight = (enabled && gameObject.activeInHierarchy) ? weight : 0f;
+            float effectiveWeight = (enabled && gameObject.activeInHierarchy) ? EffectiveWeight : 0f;
 
             _nativeTargetScale[0] = GetDesiredScale();
 
@@ -173,7 +173,7 @@ namespace HonamiAnimationSystem.Runtime.Riggings
 
         public override void ProcessRig(float deltaTime)
         {
-            if (bone == null || weight <= 0.001f) return;
+            if (bone == null || EffectiveWeight <= 0.001f) return;
 
             if (!_restCaptured) CaptureRestScale();
 
@@ -196,12 +196,12 @@ namespace HonamiAnimationSystem.Runtime.Riggings
             float3 result;
             if (fixMode == HonamiScaleFixMode.Smooth && Application.isPlaying)
             {
-                float t = math.saturate(deltaTime * smoothSpeed * weight);
+                float t = math.saturate(deltaTime * smoothSpeed * EffectiveWeight);
                 result  = math.lerp(current3, locked, t);
             }
             else
             {
-                result = math.lerp(current3, locked, weight);
+                result = math.lerp(current3, locked, EffectiveWeight);
             }
 
             bone.localScale = result;

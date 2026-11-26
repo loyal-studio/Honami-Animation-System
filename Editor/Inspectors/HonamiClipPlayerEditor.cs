@@ -13,9 +13,7 @@ namespace HonamiAnimationSystem.Editor.Inspectors
 
         private readonly HonamiSharedAnimatorInspector _shared = new HonamiSharedAnimatorInspector();
 
-        private static GUIStyle _headerStyle;
-        private static GUIStyle _subtitleStyle;
-        private static GUIStyle _debugHeaderStyle;
+
 
         private static readonly GUIContent _clipsContent = new GUIContent(" Clips", "Clips this player can play by name. Order defines the mixer input order.");
         private static readonly GUIContent _playAutomaticallyContent = new GUIContent("Play Automatically", "Play the default clip as soon as the player starts.");
@@ -350,29 +348,8 @@ namespace HonamiAnimationSystem.Editor.Inspectors
             serializedObject.ApplyModifiedProperties();
         }
 
-        private void DrawCustomHeader()
-        {
-            _headerStyle ??= new GUIStyle(EditorStyles.boldLabel)
-            {
-                fontSize = 16,
-                alignment = TextAnchor.MiddleCenter,
-                normal = { textColor = new Color(0.18f, 0.76f, 0.9f) }
-            };
-
-            EditorGUILayout.Space(10);
-            GUILayout.Label("HONAMI CLIP PLAYER", _headerStyle);
-
-            _subtitleStyle ??= new GUIStyle(EditorStyles.centeredGreyMiniLabel)
-            {
-                fontSize = 11,
-                alignment = TextAnchor.MiddleCenter
-            };
-            GUILayout.Label("Clip List Playback Without a Controller", _subtitleStyle);
-
-            Rect rect = EditorGUILayout.GetControlRect(false, 2);
-            EditorGUI.DrawRect(rect, new Color(0.18f, 0.76f, 0.9f, 0.5f));
-            EditorGUILayout.Space(5);
-        }
+       private static void DrawCustomHeader()
+            => HonamiInspectorGUI.Title("HONAMI CLIP PLAYER", "Clip List Playback Without a Controller");
 
         private void DrawClipsSection()
         {
@@ -414,8 +391,7 @@ namespace HonamiAnimationSystem.Editor.Inspectors
         private void DrawRuntimeDebugInfo(HonamiClipPlayer player)
         {
             EditorGUILayout.BeginVertical(EditorStyles.helpBox);
-            _debugHeaderStyle ??= new GUIStyle(EditorStyles.boldLabel) { normal = { textColor = new Color(0.9f, 0.6f, 0.2f) } };
-            GUILayout.Label(" Runtime Debug", _debugHeaderStyle);
+           HonamiInspectorGUI.SubHeader(" Runtime Debug");
             EditorGUILayout.Space(3);
 
             var states = player.States;

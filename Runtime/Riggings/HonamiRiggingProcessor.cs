@@ -1,103 +1,134 @@
-using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Playables;
 using HonamiAnimationSystem.Runtime.Core;
 
 namespace HonamiAnimationSystem.Runtime.Riggings
 {
+    /// <summary>
+    /// Collects the <see cref="HonamiRig"/> components under one animator and drives them, either as
+    /// playables spliced into the animation graph or, for rigs that produce no playable, as a
+    /// post-evaluation pass.
+    /// </summary>
     [AddComponentMenu("Honami Animation/Honami Rigging Processor")]
     [ExecuteAlways]
     public sealed class HonamiRiggingProcessor : MonoBehaviour
     {
-        private HonamiRig[] _rigs = new HonamiRig[8];
-        private int _rigsCount;
-        
-        private HonamiRig[] _graphBoundRigs = new HonamiRig[8];
-        private int _graphBoundRigsCount;
-        
-        private HonamiRig[] _legacyRigs = new HonamiRig[8];
-        private int _legacyRigsCount;
-        
+        private readonly List<HonamiRig> _rigs = new();
+        private readonly List<HonamiRig> _graphBoundRigs = new();
+        private readonly List<HonamiRig> _postEvaluationRigs = new();
+
         private bool _boundToGraph;
         private static readonly List<HonamiRig> s_RigBuffer = new();
+
+        private readonly List<HonamiRig> _sweepBuffer = new();
+        private int _sweepDepth;
+
+        // Rig callbacks are user code and may enable, disable or reparent rigs, which mutates the very
+        // list being walked. Every driving loop iterates a snapshot instead; only the outermost sweep
+        // owns the reusable buffer, so a nested one allocates rather than corrupting the outer walk.
+        private List<HonamiRig> BeginSweep(List<HonamiRig> source)
+        {
+            List<HonamiRig> buffer = _sweepDepth == 0 ? _sweepBuffer : new List<HonamiRig>(source.Count);
+            buffer.Clear();
+            buffer.AddRange(source);
+            _sweepDepth++;
+            return buffer;
+        }
+
+        private void EndSweep(List<HonamiRig> buffer)
+        {
+            buffer.Clear();
+            _sweepDepth--;
+        }
+
+        /// <summary>
+        /// Every rig this processor owns, in evaluation order.
+        /// </summary>
+        public IReadOnlyList<HonamiRig> Rigs => _rigs;
+
+        /// <summary>
+        /// The rigs that produced an animation playable and run inside the graph.
+        /// </summary>
+        public IReadOnlyList<HonamiRig> GraphBoundRigs => _graphBoundRigs;
+
+        /// <summary>
+        /// The rigs with no playable, driven from <see cref="ProcessPostEvaluationRigs"/> after the graph evaluates.
+        /// </summary>
+        public IReadOnlyList<HonamiRig> PostEvaluationRigs => _postEvaluationRigs;
+
+        /// <summary>
+        /// True once an animator has spliced this processor into its playable graph.
+        /// </summary>
+        public bool IsBoundToGraph => _boundToGraph;
 
         private void OnEnable()
         {
             RefreshRigs();
         }
 
-        private static bool ContainsRig(HonamiRig[] array, int count, HonamiRig rig)
+        private static int IndexOfRig(List<HonamiRig> rigs, HonamiRig rig)
         {
-            var span = new ReadOnlySpan<HonamiRig>(array, 0, count);
-            for (int i = 0; i < span.Length; i++)
+            for (int i = 0; i < rigs.Count; i++)
             {
-                if (object.ReferenceEquals(span[i], rig)) return true;
+                if (ReferenceEquals(rigs[i], rig)) return i;
             }
-            return false;
+
+            return -1;
         }
 
-        private static void AddRig(ref HonamiRig[] array, ref int count, HonamiRig rig)
+        private static void RemoveRig(List<HonamiRig> rigs, HonamiRig rig)
         {
-            if (count == array.Length)
-                System.Array.Resize(ref array, array.Length == 0 ? 4 : array.Length * 2);
-            array[count++] = rig;
-        }
-
-        private static void RemoveRig(HonamiRig[] array, ref int count, HonamiRig rig)
-        {
-            var span = new Span<HonamiRig>(array, 0, count);
-            for (int i = 0; i < span.Length; i++)
-            {
-                if (object.ReferenceEquals(span[i], rig))
-                {
-                    array[i] = array[count - 1];
-                    array[count - 1] = null;
-                    count--;
-                    return;
-                }
-            }
+            int index = IndexOfRig(rigs, rig);
+            if (index >= 0) rigs.RemoveAt(index);
         }
 
         public void RegisterRig(HonamiRig rig)
         {
-            if (rig == null || ContainsRig(_rigs, _rigsCount, rig)) return;
-            
-            AddRig(ref _rigs, ref _rigsCount, rig);
+            if (rig == null || IndexOfRig(_rigs, rig) >= 0) return;
+
+            _rigs.Add(rig);
             rig.ResetRig();
-            
-            if (_boundToGraph)
+
+            if (_boundToGraph && IndexOfRig(_postEvaluationRigs, rig) < 0 && IndexOfRig(_graphBoundRigs, rig) < 0)
             {
-                if (!ContainsRig(_legacyRigs, _legacyRigsCount, rig) && !ContainsRig(_graphBoundRigs, _graphBoundRigsCount, rig))
-                {
-                    AddRig(ref _legacyRigs, ref _legacyRigsCount, rig);
-                }
+                _postEvaluationRigs.Add(rig);
             }
         }
 
+        // ReferenceEquals, not Unity's ==: a rig already torn down on the native side still has to be
+        // pulled out of these lists, and the == overload would report it as null and skip the removal.
         public void UnregisterRig(HonamiRig rig)
         {
-            if (rig == null) return;
-            
-            RemoveRig(_rigs, ref _rigsCount, rig);
-            RemoveRig(_graphBoundRigs, ref _graphBoundRigsCount, rig);
-            RemoveRig(_legacyRigs, ref _legacyRigsCount, rig);
+            if (ReferenceEquals(rig, null)) return;
+
+            RemoveRig(_rigs, rig);
+            RemoveRig(_graphBoundRigs, rig);
+            RemoveRig(_postEvaluationRigs, rig);
         }
 
         private void LateUpdate()
         {
             if (_boundToGraph && Application.isPlaying) return;
 
-            float dt = Time.deltaTime;
-            var span = new ReadOnlySpan<HonamiRig>(_rigs, 0, _rigsCount);
-            for (int i = 0; i < span.Length; i++)
+            float deltaTime = Time.deltaTime;
+            List<HonamiRig> sweep = BeginSweep(_rigs);
+
+            try
             {
-                var rig = span[i];
-                if (rig && rig.enabled && rig.gameObject.activeInHierarchy)
-                    rig.ProcessRig(dt);
+                for (int i = 0; i < sweep.Count; i++)
+                {
+                    HonamiRig rig = sweep[i];
+                    if (rig && rig.enabled && rig.gameObject.activeInHierarchy)
+                        rig.ProcessRig(deltaTime);
+                }
+            }
+            finally
+            {
+                EndSweep(sweep);
             }
         }
-        
+
         private void OnDestroy()
         {
             DisposeAllJobs();
@@ -109,28 +140,35 @@ namespace HonamiAnimationSystem.Runtime.Riggings
             RefreshRigs();
 
             Playable current = previousPlayable;
+            List<HonamiRig> sweep = BeginSweep(_rigs);
 
-            var span = new ReadOnlySpan<HonamiRig>(_rigs, 0, _rigsCount);
-            for (int i = 0; i < span.Length; i++)
+            try
             {
-                var rig = span[i];
-                if (rig == null || !rig.gameObject.activeInHierarchy) continue;
-
-                Playable rigPlayable = rig.CreatePlayable(animator, graph);
-                if (!rigPlayable.IsValid())
+                for (int i = 0; i < sweep.Count; i++)
                 {
-                    AddRig(ref _legacyRigs, ref _legacyRigsCount, rig);
-                    continue;
+                    HonamiRig rig = sweep[i];
+                    if (rig == null || !rig.gameObject.activeInHierarchy) continue;
+
+                    Playable rigPlayable = rig.CreatePlayable(animator, graph);
+                    if (!rigPlayable.IsValid())
+                    {
+                        _postEvaluationRigs.Add(rig);
+                        continue;
+                    }
+
+                    graph.Connect(current, 0, rigPlayable, 0);
+                    rigPlayable.SetInputWeight(0, 1f);
+                    current = rigPlayable;
+
+                    _graphBoundRigs.Add(rig);
                 }
-
-                graph.Connect(current, 0, rigPlayable, 0);
-                rigPlayable.SetInputWeight(0, 1f);
-                current = rigPlayable;
-
-                AddRig(ref _graphBoundRigs, ref _graphBoundRigsCount, rig);
+            }
+            finally
+            {
+                EndSweep(sweep);
             }
 
-            // the animator drives every rig from here on, even when none of them produced a playable —
+            // the animator drives every rig from here on, even when none of them produced a playable -
             // letting LateUpdate run them too would tick stateful rigs twice per frame
             _boundToGraph = true;
             return current;
@@ -138,80 +176,110 @@ namespace HonamiAnimationSystem.Runtime.Riggings
 
         public void PrepareAllRigs(float deltaTime)
         {
-            var span = new ReadOnlySpan<HonamiRig>(_graphBoundRigs, 0, _graphBoundRigsCount);
-            for (int i = 0; i < span.Length; i++)
+            List<HonamiRig> sweep = BeginSweep(_graphBoundRigs);
+
+            try
             {
-                var rig = span[i];
-                if (rig != null)
-                    rig.PrepareJobData(deltaTime);
+                for (int i = 0; i < sweep.Count; i++)
+                {
+                    HonamiRig rig = sweep[i];
+                    if (rig != null) rig.PrepareJobData(deltaTime);
+                }
+            }
+            finally
+            {
+                EndSweep(sweep);
             }
         }
 
-        public void ProcessLegacyRigs(float deltaTime)
+        public void ProcessPostEvaluationRigs(float deltaTime)
         {
-            var span = new ReadOnlySpan<HonamiRig>(_legacyRigs, 0, _legacyRigsCount);
-            for (int i = 0; i < span.Length; i++)
-            {
-                var rig = span[i];
-                if (rig != null && rig.enabled)
-                    rig.ProcessRig(deltaTime);
-            }
-        }
+            List<HonamiRig> sweep = BeginSweep(_postEvaluationRigs);
 
-        private bool IsMyRig(HonamiRig rig)
-        {
-            Transform p = rig.transform;
-            while (p != null)
+            try
             {
-                if (p == transform) return true;
-                if (p.TryGetComponent<HonamiRiggingProcessor>(out _) || p.TryGetComponent<HonamiAnimatorBase>(out _)) return false;
-                p = p.parent;
+                for (int i = 0; i < sweep.Count; i++)
+                {
+                    HonamiRig rig = sweep[i];
+                    if (rig != null && rig.enabled) rig.ProcessRig(deltaTime);
+                }
             }
-            return false;
+            finally
+            {
+                EndSweep(sweep);
+            }
         }
 
         public void RefreshRigs()
         {
             if (!this) return;
-            
+
             s_RigBuffer.Clear();
             GetComponentsInChildren<HonamiRig>(true, s_RigBuffer);
-            
-            if (_rigs.Length < s_RigBuffer.Count)
-                System.Array.Resize(ref _rigs, s_RigBuffer.Count);
-                
-            _rigsCount = 0;
+
+            _rigs.Clear();
             for (int i = 0; i < s_RigBuffer.Count; i++)
             {
-                var rig = s_RigBuffer[i];
-                if (rig == null || !IsMyRig(rig)) continue;
-                _rigs[_rigsCount++] = rig;
-                
-                rig.ResetRig();
-                if (rig is IEarlyInitRig earlyInit) earlyInit.EarlyInit();
+                HonamiRig rig = s_RigBuffer[i];
+                if (rig != null && IsMyRig(rig)) _rigs.Add(rig);
+            }
+
+            s_RigBuffer.Clear();
+
+            // Second pass only after the shared scan buffer is released: ResetRig and EarlyInit run
+            // user code, and a nested RefreshRigs would otherwise walk a buffer we are still reading.
+            List<HonamiRig> sweep = BeginSweep(_rigs);
+
+            try
+            {
+                for (int i = 0; i < sweep.Count; i++)
+                {
+                    HonamiRig rig = sweep[i];
+                    if (rig == null) continue;
+
+                    rig.ResetRig();
+                    if (rig is IEarlyInitRig earlyInit) earlyInit.EarlyInit();
+                }
+            }
+            finally
+            {
+                EndSweep(sweep);
             }
         }
 
-        public void RebuildGraphRigs(Animator animator, PlayableGraph graph)
+        // A nested processor or animator claims the rigs below it, so stop the walk there.
+        private bool IsMyRig(HonamiRig rig)
         {
-            DisposeAllJobs();
+            Transform current = rig.transform;
+            while (current != null)
+            {
+                if (current == transform) return true;
+                if (current.TryGetComponent<HonamiRiggingProcessor>(out _) || current.TryGetComponent<HonamiAnimatorBase>(out _)) return false;
+                current = current.parent;
+            }
+
+            return false;
         }
 
         private void DisposeAllJobs()
         {
-            var span = new ReadOnlySpan<HonamiRig>(_graphBoundRigs, 0, _graphBoundRigsCount);
-            for (int i = 0; i < span.Length; i++)
+            List<HonamiRig> sweep = BeginSweep(_graphBoundRigs);
+
+            try
             {
-                if (!object.ReferenceEquals(span[i], null))
-                    span[i].DisposeJobData();
+                // ReferenceEquals: a destroyed rig still owns native job memory that must be released.
+                for (int i = 0; i < sweep.Count; i++)
+                {
+                    if (!ReferenceEquals(sweep[i], null)) sweep[i].DisposeJobData();
+                }
             }
-            
-            for (int i = 0; i < _graphBoundRigsCount; i++) _graphBoundRigs[i] = null;
-            _graphBoundRigsCount = 0;
-            
-            for (int i = 0; i < _legacyRigsCount; i++) _legacyRigs[i] = null;
-            _legacyRigsCount = 0;
-            
+            finally
+            {
+                EndSweep(sweep);
+            }
+
+            _graphBoundRigs.Clear();
+            _postEvaluationRigs.Clear();
             _boundToGraph = false;
         }
     }

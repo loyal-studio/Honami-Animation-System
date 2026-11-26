@@ -1,4 +1,3 @@
-#if UNITY_EDITOR
 using System.Collections.Generic;
 using UnityEditor;
 using UnityEngine;
@@ -36,8 +35,9 @@ namespace HonamiAnimationSystem.Editor.Timeline
 
             EnsureCurveCache();
             _keyColumns.Clear();
+            DrawCurrentFrameBand(_canvasHeight);
 
-            var rows = GetRows();
+            var rows = _cachedRows;
             for (int i = 0; i < rows.Count; i++)
             {
                 var row = rows[i];
@@ -98,8 +98,7 @@ namespace HonamiAnimationSystem.Editor.Timeline
             {
                 header.style.backgroundColor = TimelineTheme.SummaryHeaderBg;
                 var sdot = RectElement(10f, 16f, 8f, 8f, row.Color);
-                sdot.style.borderTopLeftRadius = sdot.style.borderTopRightRadius =
-                    sdot.style.borderBottomLeftRadius = sdot.style.borderBottomRightRadius = 2;
+                sdot.Radius(2);
                 IgnorePicking(sdot);
                 header.Add(sdot);
 
@@ -127,8 +126,7 @@ namespace HonamiAnimationSystem.Editor.Timeline
             }
 
             var dot = RectElement(labelLeft, 16f, 8f, 8f, row.Color);
-            dot.style.borderTopLeftRadius = dot.style.borderTopRightRadius =
-                dot.style.borderBottomLeftRadius = dot.style.borderBottomRightRadius = 2;
+            dot.Radius(2);
             IgnorePicking(dot);
             header.Add(dot);
             labelLeft += 14f;
@@ -140,7 +138,7 @@ namespace HonamiAnimationSystem.Editor.Timeline
             if (muted) label.style.opacity = 0.4f;
             header.Add(label);
 
-            var lockToggle = ChannelIconToggle("AssemblyLock", locked, "▪", locked ? "Locked — protected from edits" : "Lock channel", () =>
+            var lockToggle = ChannelIconToggle("AssemblyLock", locked, "▪", locked ? "Locked: protected from edits" : "Lock channel", () =>
             {
                 ToggleChannel(_state.LockedChannels, RowChannelKey(row));
                 _rebuild();
@@ -148,7 +146,7 @@ namespace HonamiAnimationSystem.Editor.Timeline
             lockToggle.style.right = 6;
             header.Add(lockToggle);
 
-            var eyeToggle = ChannelIconToggle(muted ? "animationvisibilitytoggleoff" : "animationvisibilitytoggleon", !muted, muted ? "○" : "◉", muted ? "Hidden — click to show keys" : "Visible — click to hide keys", () =>
+            var eyeToggle = ChannelIconToggle(muted ? "animationvisibilitytoggleoff" : "animationvisibilitytoggleon", !muted, muted ? "○" : "◉", muted ? "Hidden. Click to show keys" : "Visible. Click to hide keys", () =>
             {
                 ToggleChannel(_state.MutedChannels, RowChannelKey(row));
                 _rebuild();
@@ -204,9 +202,8 @@ namespace HonamiAnimationSystem.Editor.Timeline
             _playheadBand = null;
             if (_state.Mode != TimelineMode.HonamiClipEdit) return;
 
-            float rulerHeight = TimelineTheme.RulerHeight;
             float frameW = CurrentFrameWidth();
-            _playheadBand = RectElement(_state.PlayheadTime * _state.TimeScale - frameW * 0.5f, rulerHeight, frameW, Mathf.Max(0f, height - rulerHeight), TimelineTheme.CurrentFrameBand);
+            _playheadBand = RectElement(_state.PlayheadTime * _state.TimeScale - frameW * 0.5f, 0f, frameW, height, TimelineTheme.CurrentFrameBand);
             IgnorePicking(_playheadBand);
             _canvas.Add(_playheadBand);
         }
@@ -264,8 +261,7 @@ namespace HonamiAnimationSystem.Editor.Timeline
 
             var diamond = RectElement(x, top, size, size, Color.clear);
             diamond.style.rotate = new Rotate(45);
-            diamond.style.borderTopLeftRadius = diamond.style.borderTopRightRadius =
-                diamond.style.borderBottomLeftRadius = diamond.style.borderBottomRightRadius = 2;
+            diamond.Radius(2);
 
             bool selected = AnyMemberSelected(members);
             StyleDiamond(diamond, rowColor, selected, isSummary);
@@ -298,10 +294,7 @@ namespace HonamiAnimationSystem.Editor.Timeline
             Color fill = selected ? TimelineTheme.KeyframeSelected : (isSummary ? Color.clear : TimelineTheme.KeyframeFill);
 
             diamond.style.backgroundColor = fill;
-            diamond.style.borderTopWidth = diamond.style.borderRightWidth =
-                diamond.style.borderBottomWidth = diamond.style.borderLeftWidth = isSummary ? 1.5f : 2f;
-            diamond.style.borderTopColor = diamond.style.borderRightColor =
-                diamond.style.borderBottomColor = diamond.style.borderLeftColor = border;
+            diamond.Border(isSummary ? 1.5f : 2f, border);
         }
 
         private void RegisterKeyDiamondInput(VisualElement diamond, List<KeyframeRef> members)
@@ -473,8 +466,8 @@ namespace HonamiAnimationSystem.Editor.Timeline
 
         private void ShowClipEditContextMenu(float localY)
         {
-            var rows = GetRows();
-            int idx = Mathf.FloorToInt((localY - TimelineTheme.RulerHeight) / TimelineTheme.RowHeight);
+            var rows = _cachedRows;
+            int idx = RowIndexAtCanvasY(localY);
             var menu = new GenericMenu();
             bool readOnly = _state.IsClipReadOnly;
 
@@ -736,4 +729,3 @@ namespace HonamiAnimationSystem.Editor.Timeline
         }
     }
 }
-#endif

@@ -14,7 +14,7 @@ namespace HonamiAnimationSystem.Editor.Documentation.Pages
         {
             HonamiDocumentationBuilder.AddParagraph(root, HonamiDocLocalization.Get(
                 "The Mask Switcher Sub-Node is a powerful tool for dynamic skeletal control. It allows you to change the Avatar Mask of the current state at runtime based on parameter conditions without duplicating states or layers.",
-                "Підвузол перемикання масок — це потужний інструмент для динамічного контролю скелета. Він дозволяє змінювати Avatar Mask поточного стану в реальному часі на основі умов параметрів, не дублюючи стани або шари."
+                "Підвузол перемикання масок - це потужний інструмент для динамічного контролю скелета. Він дозволяє змінювати Avatar Mask поточного стану в реальному часі на основі умов параметрів, не дублюючи стани або шари."
             ));
 
             HonamiDocumentationBuilder.AddHeader(root, HonamiDocLocalization.Get("How it works", "Як це працює"), HonamiEditorIcons.GraphWhite);

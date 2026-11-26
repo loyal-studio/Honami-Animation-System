@@ -111,7 +111,7 @@ namespace HonamiAnimationSystem.Runtime.Riggings
             if (!_playable.IsValid() || point == null) return;
 
             float effectiveWeight = (enabled && gameObject.activeInHierarchy && target != null)
-                ? weight
+                ? EffectiveWeight
                 : 0f;
 
             if (target != null)
@@ -149,12 +149,12 @@ namespace HonamiAnimationSystem.Runtime.Riggings
 
         public override void ProcessRig(float deltaTime)
         {
-            if (point == null || target == null || weight <= 0.001f) return;
+            if (point == null || target == null || EffectiveWeight <= 0.001f) return;
 
             Vector3 targetPos = target.TransformPoint(positionOffset);
             Quaternion targetRot = target.rotation * Quaternion.Euler(rotationOffset);
 
-            float currentWeight = weight;
+            float currentWeight = EffectiveWeight;
 
             if (lockPosition)
             {

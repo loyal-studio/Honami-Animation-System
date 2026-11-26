@@ -23,6 +23,7 @@ namespace HonamiAnimationSystem.Runtime.Core
 
             if (anim.controller == null)
             {
+                InitializeGraphWithoutController(anim);
                 return;
             }
 
@@ -33,8 +34,9 @@ namespace HonamiAnimationSystem.Runtime.Core
             ClearRuntimeCaches(anim);
 
             int layerCount = Mathf.Max(1, anim.controller.ActiveLayers.Count);
-            int portCount = anim._activeStatesCount + 1;
+            int portCount = anim.TotalPortCount;
 
+            anim.EnsureExternalSlotsAllocated(layerCount);
             AllocateLayerState(anim, layerCount, portCount, isSameController);
             CreateRootGraph(anim, layerCount);
             InitializeProcessors(anim);
@@ -45,6 +47,30 @@ namespace HonamiAnimationSystem.Runtime.Core
             BakePortals(anim);
             BakeAnyStateLookup(anim, layerCount);
             BakeDefaultStateLookup(anim, layerCount);
+        }
+
+        private static void InitializeGraphWithoutController(HonamiAnimator anim)
+        {
+            anim._lastBuiltController = null;
+            ClearRuntimeCaches(anim);
+
+            int layerCount = 1;
+            anim._activeStatesCount = 0;
+            anim._runtimeStates = Array.Empty<HonamiState>();
+            anim._nodeRuntimes = Array.Empty<HonamiNodeRuntime>();
+            int portCount = anim.TotalPortCount;
+
+            anim.EnsureExternalSlotsAllocated(layerCount);
+            AllocateLayerState(anim, layerCount, portCount, false);
+            CreateRootGraph(anim, layerCount);
+            InitializeProcessors(anim);
+            AllocateBlendCaches(anim, layerCount, portCount);
+            BuildLayerPlayables(anim, layerCount, portCount);
+            anim._layerMixer.SetInputWeight(0, 1f);
+            anim.InsertRigChain();
+
+            anim._defaultStateIndex = new int[] { -1 };
+            anim._anyStateIndicesByLayer = new List<int>[1] { new List<int>() };
         }
 
         public static void BuildMetadataForState(HonamiAnimator anim, HonamiState state, int index)
@@ -150,6 +176,7 @@ namespace HonamiAnimationSystem.Runtime.Core
 
         private static void DestroyExistingGraph(HonamiAnimator anim)
         {
+            anim.ClearAllExternalPorts();
             if (anim._playableGraph.IsValid())
             {
                 anim._playableGraph.Destroy();
@@ -201,18 +228,15 @@ namespace HonamiAnimationSystem.Runtime.Core
             anim._portStates = new HonamiPortState[layerCount][];
             anim._activeTransitionCurve = new AnimationCurve[layerCount];
             anim._activeVictimCurve = new AnimationCurve[layerCount];
-            anim._firedEventsPerPort = new HashSet<HonamiEventMarker>[layerCount][];
             anim._pausedStateIndices = new HashSet<int>[layerCount];
 
             for (int layer = 0; layer < layerCount; layer++)
             {
                 anim._layerStates[layer] = CreateDefaultLayerState();
                 anim._portStates[layer] = new HonamiPortState[portCount];
-                anim._firedEventsPerPort[layer] = new HashSet<HonamiEventMarker>[portCount];
 
                 for (int port = 0; port < portCount; port++)
                 {
-                    anim._firedEventsPerPort[layer][port] = new HashSet<HonamiEventMarker>();
                     anim._portStates[layer][port] = CreateDefaultPortState();
                 }
 
@@ -248,7 +272,7 @@ namespace HonamiAnimationSystem.Runtime.Core
         {
             return new HonamiPortState
             {
-                LastFrameRawTime = -1.0,
+                LastFrameRawTime = double.NaN,
                 CurrentLoopCount = 0,
                 StateFinishedFired = false,
                 StateExitedFired = false,
@@ -258,13 +282,7 @@ namespace HonamiAnimationSystem.Runtime.Core
 
         private static void CreateRootGraph(HonamiAnimator anim, int layerCount)
         {
-            if (!anim._playableGraph.IsValid())
-            {
-                anim._playableGraph = PlayableGraph.Create(anim.gameObject.name + "_HonamiGraph");
-                anim._playableGraph.SetTimeUpdateMode(DirectorUpdateMode.Manual);
-                anim._playableOutput = AnimationPlayableOutput.Create(anim._playableGraph, "AnimationOutput", anim._animator);
-                anim._playableOutput.SetWeight(anim.GlobalWeightMode == HonamiGlobalWeightMode.Bind ? anim.GlobalWeight : 1f);
-            }
+            anim.EnsureGraphCreated();
 
             anim._layerMixer = AnimationLayerMixerPlayable.Create(anim._playableGraph, layerCount);
             anim._playableOutput.SetSourcePlayable(anim._layerMixer);
@@ -412,7 +430,9 @@ namespace HonamiAnimationSystem.Runtime.Core
                 return 0f;
             }
 
-            return layer < anim.controller.ActiveLayers.Count ? anim.controller.ActiveLayers[layer].weight : 1f;
+            return (anim.controller != null && layer < anim.controller.ActiveLayers.Count)
+                ? anim.controller.ActiveLayers[layer].weight
+                : 1f;
         }
 
         private static void BuildStatePlayablesForLayer(
@@ -511,7 +531,8 @@ namespace HonamiAnimationSystem.Runtime.Core
 
         private static Playable WrapLayerMirrorIfNeeded(HonamiAnimator anim, AnimationMixerPlayable layerMixer, int layer)
         {
-            if (layer >= anim.controller.ActiveLayers.Count ||
+            if (anim.controller == null ||
+                layer >= anim.controller.ActiveLayers.Count ||
                 !anim.controller.ActiveLayers[layer].mirror ||
                 !anim._avatarEnabled ||
                 !anim._avatarProcessor.HasBones)

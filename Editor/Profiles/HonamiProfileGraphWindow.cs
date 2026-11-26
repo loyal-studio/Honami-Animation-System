@@ -1,5 +1,6 @@
 using UnityEditor;
 using UnityEngine;
+using HonamiAnimationSystem.Runtime.Core;
 
 namespace HonamiAnimationSystem.Editor
 {
@@ -16,7 +17,7 @@ namespace HonamiAnimationSystem.Editor
             string last = EditorPrefs.GetString("Honami_LastOpenedProfileGraphPath", "");
             if (!string.IsNullOrEmpty(last))
             {
-                var pg = AssetDatabase.LoadAssetAtPath<Runtime.Core.HonamiControllerProfileGraph>(last);
+                var pg = AssetDatabase.LoadAssetAtPath<HonamiControllerProfileGraph>(last);
                 if (pg != null) w.SetProfileGraph(pg);
             }
         }

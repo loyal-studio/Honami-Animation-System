@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using Unity.Burst;
 using Unity.Collections;
 using Unity.Mathematics;
@@ -442,7 +442,7 @@ namespace HonamiAnimationSystem.Runtime.Riggings
 
         public override void PrepareJobData(float deltaTime)
         {
-            if (!_playable.IsValid() || legs == null || legs.Length == 0 || weight <= 0.001f)
+            if (!_playable.IsValid() || legs == null || legs.Length == 0 || EffectiveWeight <= 0.001f)
             {
                 if (_nativeParams.IsCreated) _nativeParams[0] = 0f;
                 return;
@@ -546,7 +546,7 @@ namespace HonamiAnimationSystem.Runtime.Riggings
 
             if (rootBone != null && rootBoneWeight > 0.001f)
             {
-                float targetDrop = Mathf.Min(anyLegContact ? lowestAnkleDrop : 0f, 0f) * weight * rootBoneWeight;
+                float targetDrop = Mathf.Min(anyLegContact ? lowestAnkleDrop : 0f, 0f) * EffectiveWeight * rootBoneWeight;
                 float smoothTime = rootBoneAdjustSpeed > 0.001f ? 1f / rootBoneAdjustSpeed : 0.001f;
                 _rootBoneOffset = Mathf.SmoothDamp(_rootBoneOffset, targetDrop, ref _rootBoneOffsetVelocity, smoothTime, float.MaxValue, deltaTime);
             }
@@ -555,7 +555,7 @@ namespace HonamiAnimationSystem.Runtime.Riggings
                 _rootBoneOffset = 0f;
             }
 
-            _nativeParams[0] = weight;
+            _nativeParams[0] = EffectiveWeight;
             _nativeParams[1] = deltaTime;
             _nativeParams[2] = ankleRotationSpeed;
             _nativeParams[3] = Application.isPlaying ? 1f : 0f;
@@ -645,7 +645,7 @@ namespace HonamiAnimationSystem.Runtime.Riggings
 
         public override void ProcessRig(float deltaTime)
         {
-            if (!this || legs == null || legs.Length == 0 || weight <= 0.001f) return;
+            if (!this || legs == null || legs.Length == 0 || EffectiveWeight <= 0.001f) return;
             if (deltaTime <= 0.0001f) return;
 
             for (int i = 0; i < legs.Length; i++)
@@ -674,7 +674,7 @@ namespace HonamiAnimationSystem.Runtime.Riggings
 
             if (rootBone != null && rootBoneWeight > 0.001f)
             {
-                float targetDrop = Mathf.Min(anyLegContact ? lowestAnkleDrop : 0f, 0f) * weight * rootBoneWeight;
+                float targetDrop = Mathf.Min(anyLegContact ? lowestAnkleDrop : 0f, 0f) * EffectiveWeight * rootBoneWeight;
                 float smoothTime = rootBoneAdjustSpeed > 0.001f ? 1f / rootBoneAdjustSpeed : 0.001f;
                 _rootBoneOffset = Mathf.SmoothDamp(_rootBoneOffset, targetDrop, ref _rootBoneOffsetVelocity, smoothTime, float.MaxValue, deltaTime);
                 rootBone.position += Vector3.up * _rootBoneOffset;
@@ -688,19 +688,19 @@ namespace HonamiAnimationSystem.Runtime.Riggings
                 Quaternion footRot = leg.foot.rotation;
                 Quaternion toesRot = leg.toes != null ? leg.toes.rotation : Quaternion.identity;
 
-                SolveTwoBoneIKLegacy(leg, deltaTime);
+                SolveTwoBoneIKOnTransforms(leg, deltaTime);
 
                 leg.foot.rotation = footRot;
                 if (leg.toes != null) leg.toes.rotation = toesRot;
 
-                RotateAnkleLegacy(leg, deltaTime);
-                RotateToesLegacy(leg, deltaTime);
+                RotateAnkleOnTransforms(leg, deltaTime);
+                RotateToesOnTransforms(leg, deltaTime);
             }
         }
 
-        private void SolveTwoBoneIKLegacy(HonamiFootIKLeg leg, float deltaTime)
+        private void SolveTwoBoneIKOnTransforms(HonamiFootIKLeg leg, float deltaTime)
         {
-            float effectiveWeight = leg._currentIKWeight * weight;
+            float effectiveWeight = leg._currentIKWeight * EffectiveWeight;
             Vector3 A = leg.thigh.position, B = leg.calf.position, C = leg.foot.position;
             float verticalShift = leg._hasContact ? (leg._hitPoint.y - leg.foot.position.y) : 0f;
             Vector3 solvedTarget = C + Vector3.up * verticalShift;
@@ -761,9 +761,9 @@ namespace HonamiAnimationSystem.Runtime.Riggings
             leg.calf.rotation = calfDelta * leg.calf.rotation;
         }
 
-        private void RotateAnkleLegacy(HonamiFootIKLeg leg, float deltaTime)
+        private void RotateAnkleOnTransforms(HonamiFootIKLeg leg, float deltaTime)
         {
-            float effectiveWeight = leg._currentIKWeight * weight;
+            float effectiveWeight = leg._currentIKWeight * EffectiveWeight;
             if (effectiveWeight <= 0.001f) return;
             Vector3 normal = leg._hasContact ? leg._hitNormal : (leg._hasToesContact ? leg._toesHitNormal : Vector3.up);
             normal.Normalize();
@@ -782,10 +782,10 @@ namespace HonamiAnimationSystem.Runtime.Riggings
             }
         }
 
-        private void RotateToesLegacy(HonamiFootIKLeg leg, float deltaTime)
+        private void RotateToesOnTransforms(HonamiFootIKLeg leg, float deltaTime)
         {
             if (leg.toes == null) return;
-            float effectiveWeight = leg._currentIKWeight * weight;
+            float effectiveWeight = leg._currentIKWeight * EffectiveWeight;
             if (effectiveWeight <= 0.001f) return;
             Vector3 heelNormal = leg._hasContact ? leg._hitNormal : Vector3.up;
             Vector3 toeNormal = leg._hasToesContact ? leg._toesHitNormal : heelNormal;

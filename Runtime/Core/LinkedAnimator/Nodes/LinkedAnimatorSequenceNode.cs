@@ -4,7 +4,6 @@ using UnityEngine;
 namespace HonamiAnimationSystem.Runtime.Core
 {
     [CreateAssetMenu(fileName = "Sequence", menuName = "Honami Animation/Linked Animator Nodes/Sequence")]
-    [UnityEngine.Scripting.APIUpdating.MovedFrom("BrainSequenceNode")]
     public sealed class LinkedAnimatorSequenceNode : HonamiLinkedAnimatorNodeBase
     {
         public List<HonamiLinkedAnimatorNodeBase> children = new();

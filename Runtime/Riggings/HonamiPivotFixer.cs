@@ -352,7 +352,7 @@ namespace HonamiAnimationSystem.Runtime.Riggings
 
             if (_nativeParams.IsCreated)
             {
-                float effectiveWeight = (enabled && gameObject.activeInHierarchy) ? weight : 0f;
+                float effectiveWeight = (enabled && gameObject.activeInHierarchy) ? EffectiveWeight : 0f;
                 _nativeParams[0] = effectiveWeight;
                 _nativeParams[1] = (float)fixMode;
                 _nativeParams[2] = fixPositionX ? 1f : 0f;
@@ -541,7 +541,7 @@ namespace HonamiAnimationSystem.Runtime.Riggings
                 return;
             }
 
-            float effectiveWeight = (enabled && gameObject.activeInHierarchy) ? weight : 0f;
+            float effectiveWeight = (enabled && gameObject.activeInHierarchy) ? EffectiveWeight : 0f;
             if (effectiveWeight <= 0f)
             {
                 _nativeParams[0] = 0f;
@@ -722,7 +722,7 @@ namespace HonamiAnimationSystem.Runtime.Riggings
 
         public override void ProcessRig(float deltaTime)
         {
-            if (target == null || pivot == null || weight <= 0f) return;
+            if (target == null || pivot == null || EffectiveWeight <= 0f) return;
 
             Transform parent = target.parent;
             Quaternion parentRotInv = parent != null ? Quaternion.Inverse(parent.rotation) : Quaternion.identity;
@@ -929,15 +929,15 @@ namespace HonamiAnimationSystem.Runtime.Riggings
                 else finalPos += (parent != null ? parent.rotation : Quaternion.identity) * positionOffset;
             }
 
-            if (weight >= 1f)
+            if (EffectiveWeight >= 1f)
             {
                 target.position = finalPos;
                 target.rotation = finalRot;
             }
             else
             {
-                target.position = Vector3.Lerp(wPos, finalPos, weight);
-                target.rotation = Quaternion.Slerp(wRot, finalRot, weight);
+                target.position = Vector3.Lerp(wPos, finalPos, EffectiveWeight);
+                target.rotation = Quaternion.Slerp(wRot, finalRot, EffectiveWeight);
             }
 
             _lastSetLocalPos = target.localPosition;

@@ -26,7 +26,7 @@ namespace HonamiAnimationSystem.Editor.Documentation.Pages
 
             HonamiDocumentationBuilder.AddParagraph(root, HonamiDocLocalization.Get(
                 "The Graph Editor is where you build the animation logic for your characters. It's a node-based interface that allows for visual state management.",
-                "Редактор графа — це місце, де ви створюєте логіку анімації для ваших персонажів. Це вузловий інтерфейс, що дозволяє візуально керувати станами."
+                "Редактор графа - це місце, де ви створюєте логіку анімації для ваших персонажів. Це вузловий інтерфейс, що дозволяє візуально керувати станами."
             ));
 
             HonamiDocumentationBuilder.AddHeader(root, HonamiDocLocalization.Get("Navigation & Shortcuts", "Навігація та гарячі клавіші"), HonamiEditorIcons.TimelineWhite);

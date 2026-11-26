@@ -19,6 +19,18 @@ namespace HonamiAnimationSystem.Editor.Riggings
         private SerializedProperty _avatar;
         private SerializedProperty _avatarTargets;
         private SerializedProperty _weight;
+        private SerializedProperty _bakeClip;
+        private SerializedProperty _bakeFrame;
+        private SerializedProperty _bakeTime;
+        private SerializedProperty _bakeMode;
+        private SerializedProperty _bakeAdditiveRef;
+        private SerializedProperty _bakeReferenceClip;
+        private SerializedProperty _bakeRefFrame;
+        private SerializedProperty _bakeRefTime;
+        private SerializedProperty _bakeSampleRoot;
+        private SerializedProperty _bakePositions;
+        private SerializedProperty _bakeRotations;
+        private SerializedProperty _bakeSelectedOnly;
 
         private HashSet<int> _selectedTargetIndices = new HashSet<int>();
         private int _lastClickedIndex = -1;
@@ -61,6 +73,18 @@ namespace HonamiAnimationSystem.Editor.Riggings
             _avatar = serializedObject.FindProperty("avatar");
             _avatarTargets = serializedObject.FindProperty("avatarTargets");
             _weight = serializedObject.FindProperty("weight");
+            _bakeClip = serializedObject.FindProperty("bakeClip");
+            _bakeFrame = serializedObject.FindProperty("bakeFrame");
+            _bakeTime = serializedObject.FindProperty("bakeTime");
+            _bakeMode = serializedObject.FindProperty("bakeMode");
+            _bakeAdditiveRef = serializedObject.FindProperty("bakeAdditiveRef");
+            _bakeReferenceClip = serializedObject.FindProperty("bakeReferenceClip");
+            _bakeRefFrame = serializedObject.FindProperty("bakeRefFrame");
+            _bakeRefTime = serializedObject.FindProperty("bakeRefTime");
+            _bakeSampleRoot = serializedObject.FindProperty("bakeSampleRoot");
+            _bakePositions = serializedObject.FindProperty("bakePositions");
+            _bakeRotations = serializedObject.FindProperty("bakeRotations");
+            _bakeSelectedOnly = serializedObject.FindProperty("bakeSelectedOnly");
 
             Undo.undoRedoPerformed += Repaint;
             Tools.hidden = false;
@@ -68,6 +92,7 @@ namespace HonamiAnimationSystem.Editor.Riggings
 
         private void OnDisable()
         {
+            HonamiPoseClipBaker.RestorePreview();
             Undo.undoRedoPerformed -= Repaint;
             Tools.hidden = false;
         }
@@ -76,7 +101,7 @@ namespace HonamiAnimationSystem.Editor.Riggings
         {
             serializedObject.Update();
 
-            DrawHeader("SETTINGS");
+            HonamiInspectorGUI.SectionHeader("SETTINGS");
             using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox))
             {
                 EditorGUILayout.PropertyField(_weight);
@@ -84,6 +109,9 @@ namespace HonamiAnimationSystem.Editor.Riggings
                 EditorGUILayout.PropertyField(_poseType);
                 EditorGUILayout.PropertyField(_poseSpace);
             }
+
+            EditorGUILayout.Space(5);
+            DrawBakeSection();
 
             EditorGUILayout.Space(5);
             if (_targetSource.enumValueIndex == (int)HonamiLookAtTargetSource.Avatar)
@@ -98,9 +126,256 @@ namespace HonamiAnimationSystem.Editor.Riggings
             serializedObject.ApplyModifiedProperties();
         }
 
+        private void DrawBakeSection()
+        {
+            HonamiInspectorGUI.SectionHeader("BAKE POSE FROM CLIP");
+            using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox))
+            {
+                EditorGUILayout.PropertyField(_bakeClip, new GUIContent("Target Clip (Pose)"));
+
+                var constraint = (HonamiPoseConstraint)target;
+                AnimationClip clip = _bakeClip.objectReferenceValue as AnimationClip;
+
+                if (clip == null)
+                {
+                    EditorGUILayout.HelpBox("Assign an Animation Clip to sample and bake a pose (e.g. Slide_Pose).", MessageType.Info);
+                    return;
+                }
+
+                float frameRate = clip.frameRate > 0f ? clip.frameRate : 30f;
+                int maxFrames = Mathf.Max(0, Mathf.RoundToInt(clip.length * frameRate));
+
+                using (new EditorGUILayout.HorizontalScope())
+                {
+                    EditorGUILayout.PrefixLabel($"Target Frame ({_bakeFrame.intValue}/{maxFrames})");
+
+                    int oldFrame = _bakeFrame.intValue;
+                    int newFrame = EditorGUILayout.IntSlider(oldFrame, 0, maxFrames);
+                    if (newFrame != oldFrame)
+                    {
+                        _bakeFrame.intValue = newFrame;
+                        _bakeTime.floatValue = newFrame / frameRate;
+                        if (HonamiPoseClipBaker.IsPreviewing(constraint, HonamiPosePreviewMode.TargetPose))
+                        {
+                            HonamiPoseClipBaker.UpdatePreview(constraint);
+                        }
+                    }
+
+                    if (GUILayout.Button("|<", EditorStyles.miniButtonLeft, GUILayout.Width(24)))
+                    {
+                        _bakeFrame.intValue = 0;
+                        _bakeTime.floatValue = 0f;
+                        if (HonamiPoseClipBaker.IsPreviewing(constraint, HonamiPosePreviewMode.TargetPose)) HonamiPoseClipBaker.UpdatePreview(constraint);
+                    }
+                    if (GUILayout.Button("<", EditorStyles.miniButtonMid, GUILayout.Width(20)))
+                    {
+                        _bakeFrame.intValue = Mathf.Max(0, _bakeFrame.intValue - 1);
+                        _bakeTime.floatValue = _bakeFrame.intValue / frameRate;
+                        if (HonamiPoseClipBaker.IsPreviewing(constraint, HonamiPosePreviewMode.TargetPose)) HonamiPoseClipBaker.UpdatePreview(constraint);
+                    }
+                    if (GUILayout.Button(">", EditorStyles.miniButtonMid, GUILayout.Width(20)))
+                    {
+                        _bakeFrame.intValue = Mathf.Min(maxFrames, _bakeFrame.intValue + 1);
+                        _bakeTime.floatValue = _bakeFrame.intValue / frameRate;
+                        if (HonamiPoseClipBaker.IsPreviewing(constraint, HonamiPosePreviewMode.TargetPose)) HonamiPoseClipBaker.UpdatePreview(constraint);
+                    }
+                    if (GUILayout.Button(">|", EditorStyles.miniButtonRight, GUILayout.Width(24)))
+                    {
+                        _bakeFrame.intValue = maxFrames;
+                        _bakeTime.floatValue = maxFrames / frameRate;
+                        if (HonamiPoseClipBaker.IsPreviewing(constraint, HonamiPosePreviewMode.TargetPose)) HonamiPoseClipBaker.UpdatePreview(constraint);
+                    }
+                }
+
+                using (new EditorGUILayout.HorizontalScope())
+                {
+                    EditorGUILayout.PrefixLabel("Target Time (s)");
+                    float oldTime = _bakeTime.floatValue;
+                    float newTime = EditorGUILayout.FloatField(oldTime);
+                    if (Mathf.Abs(newTime - oldTime) > 0.0001f)
+                    {
+                        newTime = Mathf.Clamp(newTime, 0f, clip.length);
+                        _bakeTime.floatValue = newTime;
+                        _bakeFrame.intValue = Mathf.Clamp(Mathf.RoundToInt(newTime * frameRate), 0, maxFrames);
+                        if (HonamiPoseClipBaker.IsPreviewing(constraint, HonamiPosePreviewMode.TargetPose)) HonamiPoseClipBaker.UpdatePreview(constraint);
+                    }
+                    EditorGUILayout.LabelField($"/ {clip.length:F2}s @ {frameRate:F0} fps", EditorStyles.miniLabel, GUILayout.Width(110));
+                }
+
+                EditorGUILayout.Space(2);
+                EditorGUILayout.PropertyField(_bakeMode, new GUIContent("Bake Mode"));
+
+                int currentBakeMode = _bakeMode.enumValueIndex;
+                bool isAdditiveMode = currentBakeMode == (int)HonamiPoseBakeMode.Additive ||
+                    (currentBakeMode == (int)HonamiPoseBakeMode.Auto && _poseType.enumValueIndex == (int)HonamiPoseType.Additive);
+
+                if (isAdditiveMode)
+                {
+                    EditorGUILayout.Space(2);
+                    EditorGUILayout.PropertyField(_bakeAdditiveRef, new GUIContent("Additive Reference"));
+
+                    var addRef = (HonamiPoseAdditiveReference)_bakeAdditiveRef.enumValueIndex;
+                    if (addRef == HonamiPoseAdditiveReference.ReferenceClip)
+                    {
+                        EditorGUILayout.PropertyField(_bakeReferenceClip, new GUIContent("Reference Clip (Base)"));
+                        AnimationClip refClip = _bakeReferenceClip.objectReferenceValue as AnimationClip;
+                        if (refClip != null)
+                        {
+                            float refFrameRate = refClip.frameRate > 0f ? refClip.frameRate : 30f;
+                            int maxRefFrames = Mathf.Max(0, Mathf.RoundToInt(refClip.length * refFrameRate));
+
+                            using (new EditorGUILayout.HorizontalScope())
+                            {
+                                EditorGUILayout.PrefixLabel($"Ref Frame ({_bakeRefFrame.intValue}/{maxRefFrames})");
+                                int oldRefFrame = _bakeRefFrame.intValue;
+                                int newRefFrame = EditorGUILayout.IntSlider(oldRefFrame, 0, maxRefFrames);
+                                if (newRefFrame != oldRefFrame)
+                                {
+                                    _bakeRefFrame.intValue = newRefFrame;
+                                    _bakeRefTime.floatValue = newRefFrame / refFrameRate;
+                                    if (HonamiPoseClipBaker.IsPreviewing(constraint, HonamiPosePreviewMode.ReferencePose))
+                                    {
+                                        HonamiPoseClipBaker.UpdatePreview(constraint);
+                                    }
+                                }
+
+                                if (GUILayout.Button("|<", EditorStyles.miniButtonLeft, GUILayout.Width(24)))
+                                {
+                                    _bakeRefFrame.intValue = 0;
+                                    _bakeRefTime.floatValue = 0f;
+                                    if (HonamiPoseClipBaker.IsPreviewing(constraint, HonamiPosePreviewMode.ReferencePose)) HonamiPoseClipBaker.UpdatePreview(constraint);
+                                }
+                                if (GUILayout.Button("<", EditorStyles.miniButtonMid, GUILayout.Width(20)))
+                                {
+                                    _bakeRefFrame.intValue = Mathf.Max(0, _bakeRefFrame.intValue - 1);
+                                    _bakeRefTime.floatValue = _bakeRefFrame.intValue / refFrameRate;
+                                    if (HonamiPoseClipBaker.IsPreviewing(constraint, HonamiPosePreviewMode.ReferencePose)) HonamiPoseClipBaker.UpdatePreview(constraint);
+                                }
+                                if (GUILayout.Button(">", EditorStyles.miniButtonMid, GUILayout.Width(20)))
+                                {
+                                    _bakeRefFrame.intValue = Mathf.Min(maxRefFrames, _bakeRefFrame.intValue + 1);
+                                    _bakeRefTime.floatValue = _bakeRefFrame.intValue / refFrameRate;
+                                    if (HonamiPoseClipBaker.IsPreviewing(constraint, HonamiPosePreviewMode.ReferencePose)) HonamiPoseClipBaker.UpdatePreview(constraint);
+                                }
+                                if (GUILayout.Button(">|", EditorStyles.miniButtonRight, GUILayout.Width(24)))
+                                {
+                                    _bakeRefFrame.intValue = maxRefFrames;
+                                    _bakeRefTime.floatValue = maxRefFrames / refFrameRate;
+                                    if (HonamiPoseClipBaker.IsPreviewing(constraint, HonamiPosePreviewMode.ReferencePose)) HonamiPoseClipBaker.UpdatePreview(constraint);
+                                }
+                            }
+
+                            using (new EditorGUILayout.HorizontalScope())
+                            {
+                                EditorGUILayout.PrefixLabel("Ref Time (s)");
+                                float oldRefTime = _bakeRefTime.floatValue;
+                                float newRefTime = EditorGUILayout.FloatField(oldRefTime);
+                                if (Mathf.Abs(newRefTime - oldRefTime) > 0.0001f)
+                                {
+                                    newRefTime = Mathf.Clamp(newRefTime, 0f, refClip.length);
+                                    _bakeRefTime.floatValue = newRefTime;
+                                    _bakeRefFrame.intValue = Mathf.Clamp(Mathf.RoundToInt(newRefTime * refFrameRate), 0, maxRefFrames);
+                                    if (HonamiPoseClipBaker.IsPreviewing(constraint, HonamiPosePreviewMode.ReferencePose)) HonamiPoseClipBaker.UpdatePreview(constraint);
+                                }
+                                EditorGUILayout.LabelField($"/ {refClip.length:F2}s @ {refFrameRate:F0} fps", EditorStyles.miniLabel, GUILayout.Width(110));
+                            }
+                        }
+                        else
+                        {
+                            EditorGUILayout.HelpBox("Assign a base/reference clip (e.g. Idle or default hold) to bake additive delta from.", MessageType.Info);
+                        }
+                    }
+                    else if (addRef == HonamiPoseAdditiveReference.CurrentClipFrame)
+                    {
+                        using (new EditorGUILayout.HorizontalScope())
+                        {
+                            EditorGUILayout.PrefixLabel($"Ref Frame ({_bakeRefFrame.intValue}/{maxFrames})");
+                            int oldRefFrame = _bakeRefFrame.intValue;
+                            int newRefFrame = EditorGUILayout.IntSlider(oldRefFrame, 0, maxFrames);
+                            if (newRefFrame != oldRefFrame)
+                            {
+                                _bakeRefFrame.intValue = newRefFrame;
+                                _bakeRefTime.floatValue = newRefFrame / frameRate;
+                                if (HonamiPoseClipBaker.IsPreviewing(constraint, HonamiPosePreviewMode.ReferencePose)) HonamiPoseClipBaker.UpdatePreview(constraint);
+                            }
+                        }
+                    }
+                    else if (addRef == HonamiPoseAdditiveReference.CurrentTransform)
+                    {
+                        EditorGUILayout.HelpBox("Uses the current Scene Transform hierarchy as the base reference pose.", MessageType.None);
+                    }
+                }
+
+                EditorGUILayout.PropertyField(_bakeSampleRoot, new GUIContent("Sample Root (Optional)"));
+
+                using (new EditorGUILayout.HorizontalScope())
+                {
+                    EditorGUILayout.PropertyField(_bakePositions, new GUIContent("Positions"));
+                    EditorGUILayout.PropertyField(_bakeRotations, new GUIContent("Rotations"));
+                }
+
+                if (_selectedTargetIndices.Count > 0)
+                {
+                    EditorGUILayout.PropertyField(_bakeSelectedOnly, new GUIContent($"Only Selected Bones ({_selectedTargetIndices.Count})"));
+                }
+
+                EditorGUILayout.Space(4);
+
+                bool isPreviewingTarget = HonamiPoseClipBaker.IsPreviewing(constraint, HonamiPosePreviewMode.TargetPose);
+                bool isPreviewingRef = HonamiPoseClipBaker.IsPreviewing(constraint, HonamiPosePreviewMode.ReferencePose);
+
+                using (new EditorGUILayout.HorizontalScope())
+                {
+                    GUI.backgroundColor = isPreviewingTarget ? HonamiInspectorGUI.Highlight : Color.white;
+                    string previewTargetText = isPreviewingTarget ? "Stop Preview" : "Preview Target";
+                    if (GUILayout.Button(previewTargetText, GUILayout.Height(26)))
+                    {
+                        if (isPreviewingTarget) HonamiPoseClipBaker.SetPreview(constraint, false);
+                        else HonamiPoseClipBaker.SetPreview(constraint, true, HonamiPosePreviewMode.TargetPose);
+                    }
+
+                    if (isAdditiveMode)
+                    {
+                        GUI.backgroundColor = isPreviewingRef ? HonamiInspectorGUI.Highlight : Color.white;
+                        string previewRefText = isPreviewingRef ? "Stop Preview" : "Preview Ref";
+                        if (GUILayout.Button(previewRefText, GUILayout.Height(26)))
+                        {
+                            if (isPreviewingRef) HonamiPoseClipBaker.SetPreview(constraint, false);
+                            else HonamiPoseClipBaker.SetPreview(constraint, true, HonamiPosePreviewMode.ReferencePose);
+                        }
+                    }
+                    GUI.backgroundColor = Color.white;
+
+                    GUI.backgroundColor = HonamiInspectorGUI.Accent;
+                    string bakeLabel = (_bakeSelectedOnly.boolValue && _selectedTargetIndices.Count > 0)
+                        ? $"Bake Selected ({_selectedTargetIndices.Count}) Pose"
+                        : "Bake Pose";
+                    if (GUILayout.Button(bakeLabel, GUILayout.Height(26)))
+                    {
+                        HonamiPoseClipBaker.SetPreview(constraint, false);
+                        serializedObject.ApplyModifiedProperties();
+                        HonamiPoseClipBaker.BakePose(constraint, _selectedTargetIndices);
+                        serializedObject.Update();
+                    }
+                    GUI.backgroundColor = Color.white;
+                }
+
+                using (new EditorGUILayout.HorizontalScope())
+                {
+                    if (GUILayout.Button("Populate Bones From Clip", GUILayout.Height(22)))
+                    {
+                        serializedObject.ApplyModifiedProperties();
+                        int added = HonamiPoseClipBaker.PopulateTargetsFromClip(constraint);
+                        serializedObject.Update();
+                        Debug.Log($"HonamiPoseConstraint: Populated {added} bones from clip '{clip.name}'.", constraint);
+                    }
+                }
+            }
+        }
+
         private void DrawManualTargets()
         {
-            DrawHeader("CONSTRAINED OBJECTS");
+            HonamiInspectorGUI.SectionHeader("CONSTRAINED OBJECTS");
 
             int newSize = EditorGUILayout.IntField("Count", _targets.arraySize);
             if (newSize != _targets.arraySize) _targets.arraySize = newSize;
@@ -137,7 +412,7 @@ namespace HonamiAnimationSystem.Editor.Riggings
 
         private void DrawAvatarTargets()
         {
-            DrawHeader("AVATAR OBJECTS");
+            HonamiInspectorGUI.SectionHeader("AVATAR OBJECTS");
             using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox))
             {
                 EditorGUILayout.PropertyField(_honamiAnimator);
@@ -333,22 +608,7 @@ namespace HonamiAnimationSystem.Editor.Riggings
             if (showBox) EditorGUILayout.EndVertical();
         }
 
-        private static GUIStyle _headerStyle;
 
-        private void DrawHeader(string label)
-        {
-            _headerStyle ??= new GUIStyle(EditorStyles.boldLabel)
-            {
-                fontSize = 11,
-                fontStyle = FontStyle.Bold,
-                alignment = TextAnchor.MiddleLeft
-            };
-            _headerStyle.normal.textColor = EditorGUIUtility.isProSkin ? new Color(0.8f, 0.8f, 0.8f) : Color.black;
-
-            Rect rect = GUILayoutUtility.GetRect(18, 18, _headerStyle);
-            GUI.Box(rect, GUIContent.none, EditorStyles.toolbar);
-            EditorGUI.LabelField(new Rect(rect.x + 4, rect.y, rect.width, rect.height), label, _headerStyle);
-        }
 
         private void OnSceneGUI()
         {

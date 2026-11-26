@@ -53,11 +53,11 @@ namespace HonamiAnimationSystem.Runtime.Core
             var span = new Span<FpsCapPose>(buffer);
             for (int i = 0; i < span.Length; i++)
             {
-                Transform t = span[i].Target;
+                ref FpsCapPose pose = ref span[i];
+                Transform t = pose.Target;
                 if (t == null) continue;
-                span[i].LocalPosition = t.localPosition;
-                span[i].LocalRotation = t.localRotation;
-                span[i].LocalScale    = t.localScale;
+                t.GetLocalPositionAndRotation(out pose.LocalPosition, out pose.LocalRotation);
+                pose.LocalScale = t.localScale;
             }
         }
 
@@ -71,18 +71,25 @@ namespace HonamiAnimationSystem.Runtime.Core
 
             for (int i = 0; i < count; i++)
             {
-                Transform t = spanB[i].Target;
+                ref readonly FpsCapPose from = ref spanA[i];
+                ref readonly FpsCapPose to = ref spanB[i];
+                Transform t = to.Target;
                 if (t == null) continue;
 
-                t.localPosition = Vector3.LerpUnclamped(spanA[i].LocalPosition, spanB[i].LocalPosition, alpha);
-                t.localRotation = Quaternion.SlerpUnclamped(spanA[i].LocalRotation, spanB[i].LocalRotation, alpha);
-                t.localScale    = Vector3.LerpUnclamped(spanA[i].LocalScale,    spanB[i].LocalScale,    alpha);
+                t.SetLocalPositionAndRotation(
+                    Vector3.LerpUnclamped(from.LocalPosition, to.LocalPosition, alpha),
+                    Quaternion.SlerpUnclamped(from.LocalRotation, to.LocalRotation, alpha));
+                t.localScale = Vector3.LerpUnclamped(from.LocalScale, to.LocalScale, alpha);
             }
         }
 
         protected void TickWithFpsCap(double rawDeltaTime)
         {
-            if (!fpsCap)
+            // Tick alone returns early while paused, but the capped path would still accumulate,
+            // snapshot poses and write interpolated transforms every frame. Freeze the pose as it is.
+            if (_isPaused) return;
+
+            if (!fpsCap || IsClipTrackAttached)
             {
                 Tick(rawDeltaTime);
                 return;

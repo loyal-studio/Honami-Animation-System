@@ -22,10 +22,6 @@ namespace HonamiAnimationSystem.Editor.Inspectors
         private bool _appearanceFoldout = true;
         private bool _bonesFoldout = true;
 
-        private static readonly Color _accentColor = new Color(0.18f, 0.76f, 0.9f);
-        private static GUIStyle _headerStyle;
-        private static GUIStyle _subStyle;
-
         private void OnEnable()
         {
             _shape = serializedObject.FindProperty("shape");
@@ -43,7 +39,7 @@ namespace HonamiAnimationSystem.Editor.Inspectors
         {
             serializedObject.Update();
 
-            DrawTitle();
+            HonamiInspectorGUI.Title("HONAMI BONE RENDERER", "Scene View Skeleton Display & Picking");
             EditorGUILayout.Space(4);
 
             DrawAppearanceSection();
@@ -54,27 +50,6 @@ namespace HonamiAnimationSystem.Editor.Inspectors
             serializedObject.ApplyModifiedProperties();
         }
 
-        private void DrawTitle()
-        {
-            _headerStyle ??= new GUIStyle(EditorStyles.boldLabel)
-            {
-                fontSize = 15,
-                alignment = TextAnchor.MiddleCenter,
-                normal = { textColor = _accentColor }
-            };
-            _subStyle ??= new GUIStyle(EditorStyles.centeredGreyMiniLabel)
-            {
-                fontSize = 10,
-                alignment = TextAnchor.MiddleCenter
-            };
-
-            EditorGUILayout.Space(8);
-            GUILayout.Label("HONAMI BONE RENDERER", _headerStyle);
-            GUILayout.Label("Scene View Skeleton Display & Picking", _subStyle);
-
-            Rect line = EditorGUILayout.GetControlRect(false, 2);
-            EditorGUI.DrawRect(line, new Color(_accentColor.r, _accentColor.g, _accentColor.b, 0.5f));
-        }
 
         private void DrawAppearanceSection()
         {
@@ -146,18 +121,7 @@ namespace HonamiAnimationSystem.Editor.Inspectors
 
         private void FillFromSkinnedMesh()
         {
-            var renderer = (HonamiBoneRenderer)target;
-            var result = new List<Transform>();
-            var seen = new HashSet<Transform>();
-
-            foreach (var skinnedMesh in renderer.GetComponentsInChildren<SkinnedMeshRenderer>(true))
-            {
-                foreach (var bone in skinnedMesh.bones)
-                {
-                    if (bone != null && seen.Add(bone)) result.Add(bone);
-                }
-            }
-
+            var result = ((HonamiBoneRenderer)target).EditorCollectSkinnedMeshBones();
             if (result.Count == 0)
             {
                 EditorUtility.DisplayDialog("Honami Bone Renderer",

@@ -64,11 +64,13 @@ namespace HonamiAnimationSystem.Runtime.Core
 
         internal readonly List<AnimationMixerPlayable> _layerMixers = new();
 
-        public HonamiLayerState[] _layerStates;
-        public HonamiPortState[][] _portStates;
+        internal HonamiLayerState[] _layerStates;
+        internal HonamiPortState[][] _portStates;
         internal AnimationCurve[] _activeTransitionCurve;
         internal AnimationCurve[] _activeVictimCurve;
-        internal HashSet<HonamiEventMarker>[][] _firedEventsPerPort;
+        internal Timeline.HonamiTimelineModuleSet[] _stateModuleSets;
+        internal int[] _activeModuleState;
+        internal HonamiState[] _moduleStorageStates;
 
         internal HashSet<int>[] _pausedStateIndices;
 
@@ -128,93 +130,40 @@ namespace HonamiAnimationSystem.Runtime.Core
         public HonamiRuntimeController CurrentController => controller;
         public HonamiParameterStore Parameters => _params;
 
-        private void EnsureGraph()
+        protected override void OnBeforeGraphBuild()
         {
-            if (!HasPlayableGraph && HasController)
-                InitializeGraph();
-        }
-
-        protected override void Awake()
-        {
-            base.Awake();
             TryGetComponent<HonamiLocalEventReceiver>(out _localEventReceiver);
             _params.Initialize(controller);
+        }
+
+        protected override void BuildGraph()
+        {
+            if (controller == null) return;
             InitializeGraph();
-            RegisterLinkedActions();
         }
 
-        protected override void OnEnable()
+        protected override void ResetPlaybackState() => ResetAnimatorState();
+
+        protected override void ResetPlaybackForShutdown() => ResetToDefault();
+
+        protected override void PlayStartupContent() => PlayDefaultStates();
+
+        protected override void OnBeforeStartupEvaluate()
         {
-            base.OnEnable();
-
-            EnsureGraph();
-
-            if (!HasPlayableGraph) return;
-
-            RegisterLinkedActions();
-
-            if (startup == HonamiAnimationStartup.Enable && !_keepPoseOnDisable)
-            {
-                ResetAnimatorState();
-                PlayDefaultStates();
-                if (captureFromDefaultStateEnd) CaptureInitialPoseFromDefaultState();
-                _playableGraph.Evaluate(0f);
-                RestoreInitialPoseIfIdle();
-                ApplyGlobalWeightBlend();
-            }
-
-            _keepPoseOnDisable = false;
-            _playableGraph.Play();
-        }
-
-        private void Start()
-        {
-            if (startup != HonamiAnimationStartup.Start) return;
-
-            EnsureGraph();
-
-            if (!HasPlayableGraph) return;
-
-            RegisterLinkedActions();
-            PlayDefaultStates();
+            ApplyConstraints();
             if (captureFromDefaultStateEnd) CaptureInitialPoseFromDefaultState();
-            _playableGraph.Evaluate(0f);
-            RestoreInitialPoseIfIdle();
-            ApplyGlobalWeightBlend();
-            _playableGraph.Play();
         }
 
         protected override void OnDisable()
         {
-            if (!_keepPoseOnDisable)
-            {
-                CleanAnimator();
-            }
-
-            if (_playableGraph.IsValid()) 
-                _playableGraph.Destroy();
-
+            HonamiEventEngine.StopAllStateModules(this);
             base.OnDisable();
-        }
-
-        private bool CleanAnimator() 
-        {
-            if (!HasPlayableGraph) return false;
-            ResetToDefault();
-            _playableGraph.Evaluate(0f);
-            RestoreInitialPoseIfIdle();
-            _playableGraph.Stop();
-            return true;
+            AbandonControllerTransition();
         }
 
         protected override void OnDestroy()
         {
-            if (_isTransitioningController)
-            {
-                _oldAvatarProcessor?.Dispose();
-                _oldConstraints?.Dispose();
-                if (_oldBlendStateValues.IsCreated) _oldBlendStateValues.Dispose();
-            }
+            DisposeOutgoingControllerResources();
             base.OnDestroy();
             _avatarProcessor?.Dispose();
             _constraints?.Dispose();
@@ -225,42 +174,15 @@ namespace HonamiAnimationSystem.Runtime.Core
         public override void Tick(double deltaTime)
         {
             if (_isPaused || !HasPlayableGraph) return;
-            _cachedDeltaTime = deltaTime * timeScale;
+            _cachedDeltaTime = deltaTime * EffectiveTimeScale;
             _params.UpdateRandomParameters();
 
             HonamiTransitionEngine.UpdateTransitions(this);
+            ReleaseSupersededHolds();
             UpdateStatesRuntimeProperties();
             ApplyConstraints();
 
-            if (_isTransitioningController)
-            {
-                _controllerTransitionTime += (float)deltaTime;
-                float progress = Mathf.Clamp01(_controllerTransitionTime / _controllerTransitionDuration);
-                float weight = _controllerTransitionCurve != null ? _controllerTransitionCurve.Evaluate(progress) : progress;
-                
-                if (_controllerMixer.IsValid())
-                {
-                    _controllerMixer.SetInputWeight(0, 1f - weight);
-                    _controllerMixer.SetInputWeight(1, weight);
-                }
-
-                if (progress >= 1f)
-                {
-                    _isTransitioningController = false;
-                    if (_oldControllerPlayable.IsValid()) _playableGraph.DestroySubgraph(_oldControllerPlayable);
-                    if (_controllerMixer.IsValid())
-                    {
-                        var newRoot = _controllerMixer.GetInput(1);
-                        if (_playableOutput.IsOutputValid()) _playableOutput.SetSourcePlayable(newRoot);
-                        _playableGraph.Disconnect(_controllerMixer, 1);
-                        _controllerMixer.Destroy();
-                    }
-                    
-                    _oldAvatarProcessor?.Dispose();
-                    _oldConstraints?.Dispose();
-                    if (_oldBlendStateValues.IsCreated) _oldBlendStateValues.Dispose();
-                }
-            }
+            UpdateControllerTransition((float)deltaTime);
 
             _params.ConsumePendingTriggers();
             _params.ClearTriggers();
@@ -268,34 +190,36 @@ namespace HonamiAnimationSystem.Runtime.Core
 
             UpdatePendingActions((float)deltaTime);
 
-            PrepareRigs();
-            _playableGraph.Evaluate((float)_cachedDeltaTime);
-            RestoreInitialPoseIfIdle();
-            ProcessLegacyRigs();
-            ApplyGlobalWeightBlend();
-
-            EvaluateEvents();
+            EvaluateGraph((float)_cachedDeltaTime);
         }
 
-        public void SetFloat(string name, float value) { EnsureGraph(); _params.SetFloat(name, value); }
-        public void SetFloat(int id, float value) { EnsureGraph(); _params.SetFloat(id, value); }
-        public float GetFloat(string name) { EnsureGraph(); return _params.GetFloat(name); }
-        public float GetFloat(int id) { EnsureGraph(); return _params.GetFloat(id); }
+        protected override bool SupportsBatchedEvaluation => true;
 
-        public void SetInteger(string name, int value) { EnsureGraph(); _params.SetInteger(name, value); }
-        public void SetInteger(int id, int value) { EnsureGraph(); _params.SetInteger(id, value); }
-        public int GetInteger(string name) { EnsureGraph(); return _params.GetInteger(name); }
-        public int GetInteger(int id) { EnsureGraph(); return _params.GetInteger(id); }
+        protected override bool SupportsClipTrackLayering => false;
 
-        public void SetBool(string name, bool value) { EnsureGraph(); _params.SetBool(name, value); }
-        public void SetBool(int id, bool value) { EnsureGraph(); _params.SetBool(id, value); }
-        public bool GetBool(string name) { EnsureGraph(); return _params.GetBool(name); }
-        public bool GetBool(int id) { EnsureGraph(); return _params.GetBool(id); }
+        protected override void OnGraphEvaluated() => EvaluateStateModules();
 
-        public void SetTrigger(string name) { EnsureGraph(); _params.SetTrigger(name); }
-        public void SetTrigger(int id) { EnsureGraph(); _params.SetTrigger(id); }
-        public void ResetTrigger(string name) { EnsureGraph(); _params.ResetTrigger(name); }
-        public void ResetTrigger(int id) { EnsureGraph(); _params.ResetTrigger(id); }
+        public void RefreshModuleBindings() => HonamiEventEngine.InvalidateStateModules(this);
+
+        public void SetFloat(string name, float value) { EnsureGraphBuilt(); _params.SetFloat(name, value); }
+        public void SetFloat(int id, float value) { EnsureGraphBuilt(); _params.SetFloat(id, value); }
+        public float GetFloat(string name) { EnsureGraphBuilt(); return _params.GetFloat(name); }
+        public float GetFloat(int id) { EnsureGraphBuilt(); return _params.GetFloat(id); }
+
+        public void SetInteger(string name, int value) { EnsureGraphBuilt(); _params.SetInteger(name, value); }
+        public void SetInteger(int id, int value) { EnsureGraphBuilt(); _params.SetInteger(id, value); }
+        public int GetInteger(string name) { EnsureGraphBuilt(); return _params.GetInteger(name); }
+        public int GetInteger(int id) { EnsureGraphBuilt(); return _params.GetInteger(id); }
+
+        public void SetBool(string name, bool value) { EnsureGraphBuilt(); _params.SetBool(name, value); }
+        public void SetBool(int id, bool value) { EnsureGraphBuilt(); _params.SetBool(id, value); }
+        public bool GetBool(string name) { EnsureGraphBuilt(); return _params.GetBool(name); }
+        public bool GetBool(int id) { EnsureGraphBuilt(); return _params.GetBool(id); }
+
+        public void SetTrigger(string name) { EnsureGraphBuilt(); _params.SetTrigger(name); }
+        public void SetTrigger(int id) { EnsureGraphBuilt(); _params.SetTrigger(id); }
+        public void ResetTrigger(string name) { EnsureGraphBuilt(); _params.ResetTrigger(name); }
+        public void ResetTrigger(int id) { EnsureGraphBuilt(); _params.ResetTrigger(id); }
 
         public bool HasTag(string tag, int layer = 0)
         {
@@ -316,34 +240,34 @@ namespace HonamiAnimationSystem.Runtime.Core
             _params.RestoreTriggers(_carriedTriggers);
         }
 
-        public void SetController(HonamiRuntimeController newController, float transitionDuration = 0f, AnimationCurve transitionCurve = null, HonamiControllerTransitionMode mode = HonamiControllerTransitionMode.ContinueEvaluating) 
+        /// <summary>
+        /// Swaps the running controller, optionally cross-fading from the outgoing graph over
+        /// <paramref name="transitionDuration"/> seconds.
+        /// </summary>
+        public void SetController(
+            HonamiRuntimeController newController,
+            float transitionDuration = 0f,
+            AnimationCurve transitionCurve = null,
+            HonamiControllerTransitionMode mode = HonamiControllerTransitionMode.ContinueEvaluating)
         {
             RequestCatchUpTick();
 
-            if (transitionDuration > 0f && _playableGraph.IsValid()) 
+            // A null controller builds no incoming root, so a cross-fade would blend the outgoing
+            // graph against itself. Fall through to the plain swap and let the initial pose take over.
+            bool crossFade = transitionDuration > 0f && _playableGraph.IsValid() && newController != null;
+
+            AbortControllerTransition(destroyOutgoingGraph: crossFade);
+            NotifyActiveStatesExited(HonamiStateExitReason.ControllerChanged);
+            CancelPendingActions();
+            HonamiLinkedAction.UnregisterAll(this);
+
+            Playable outgoingRoot = Playable.Null;
+
+            if (crossFade)
             {
-                if (_isTransitioningController)
-                {
-                    if (_oldControllerPlayable.IsValid()) _playableGraph.DestroySubgraph(_oldControllerPlayable);
-                    if (_controllerMixer.IsValid())
-                    {
-                        var prevRoot = _controllerMixer.GetInput(1);
-                        if (_playableOutput.IsOutputValid() && prevRoot.IsValid()) _playableOutput.SetSourcePlayable(prevRoot);
-                        _playableGraph.Disconnect(_controllerMixer, 1);
-                        _controllerMixer.Destroy();
-                    }
-                    _oldAvatarProcessor?.Dispose();
-                    _oldConstraints?.Dispose();
-                    if (_oldBlendStateValues.IsCreated) _oldBlendStateValues.Dispose();
-                    _isTransitioningController = false;
-                }
+                outgoingRoot = _playableOutput.GetSourcePlayable();
 
-                NotifyActiveStatesExited(HonamiStateExitReason.ControllerChanged);
-                CancelPendingActions();
-                HonamiLinkedAction.UnregisterAll(this);
-
-                Playable oldRoot = _playableOutput.GetSourcePlayable();
-
+                // The outgoing subgraph keeps evaluating during the blend, so it needs its own processors.
                 _oldAvatarProcessor = _avatarProcessor;
                 _oldConstraints = _constraints;
                 _oldBlendStateValues = _blendStateValues;
@@ -351,87 +275,131 @@ namespace HonamiAnimationSystem.Runtime.Core
                 _avatarProcessor = new HonamiAvatarProcessor();
                 _constraints = new HonamiConstraintProcessor();
                 _blendStateValues = default;
-
-                controller = newController;
-                ReinitializeParameters(controller);
-                
-                InitializeGraph(true, true);
-                
-                if (TryGetComponent<HonamiRiggingProcessor>(out var riggingProcessor))
-                {
-                    riggingProcessor.RefreshRigs();
-                }
-
-                RegisterLinkedActions();
-                PlayDefaultStates();
-                if (captureFromDefaultStateEnd) CaptureInitialPoseFromDefaultState();
-
-                Playable newRoot = _playableOutput.GetSourcePlayable();
-
-                _controllerMixer = AnimationMixerPlayable.Create(_playableGraph, 2);
-                _playableGraph.Connect(oldRoot, 0, _controllerMixer, 0);
-                _playableGraph.Connect(newRoot, 0, _controllerMixer, 1);
-                
-                _controllerMixer.SetInputWeight(0, 1f);
-                _controllerMixer.SetInputWeight(1, 0f);
-
-                if (mode == HonamiControllerTransitionMode.Freeze)
-                {
-                    oldRoot.SetSpeed(0f);
-                }
-
-                _playableOutput.SetSourcePlayable(_controllerMixer);
-
-                _controllerTransitionDuration = transitionDuration;
-                _controllerTransitionTime = 0f;
-                _controllerTransitionCurve = transitionCurve;
-                _oldControllerPlayable = oldRoot;
-                _isTransitioningController = true;
-
-                _playableGraph.Evaluate(0f);
-                RestoreInitialPoseIfIdle();
-                ApplyGlobalWeightBlend();
-                _playableGraph.Play();
             }
-            else
+            else if (_playableGraph.IsValid())
             {
-                if (_isTransitioningController)
-                {
-                    _isTransitioningController = false;
-                    _oldAvatarProcessor?.Dispose();
-                    _oldConstraints?.Dispose();
-                    if (_oldBlendStateValues.IsCreated) _oldBlendStateValues.Dispose();
-                }
+                _playableGraph.Destroy();
+            }
 
-                NotifyActiveStatesExited(HonamiStateExitReason.ControllerChanged);
-                CancelPendingActions();
-                HonamiLinkedAction.UnregisterAll(this);
+            controller = newController;
+            ReinitializeParameters(controller);
+            InitializeGraph(keepGraph: crossFade, forceRebuildStates: true);
 
-                if (_playableGraph.IsValid())
-                {
-                    _playableGraph.Destroy();
-                }
+            if (TryGetComponent<HonamiRiggingProcessor>(out var riggingProcessor))
+            {
+                riggingProcessor.RefreshRigs();
+            }
 
-                controller = newController;
-                ReinitializeParameters(controller);
-                InitializeGraph(false, true);
-                
-                if (TryGetComponent<HonamiRiggingProcessor>(out var riggingProcessor))
-                {
-                    riggingProcessor.RefreshRigs();
-                }
+            if (!HasPlayableGraph) return;
 
-                if (HasPlayableGraph)
+            RegisterLinkedActions();
+            if (!crossFade) _playableGraph.Play();
+
+            PlayDefaultStates();
+            if (captureFromDefaultStateEnd) CaptureInitialPoseFromDefaultState();
+
+            if (crossFade)
+            {
+                BeginControllerCrossFade(outgoingRoot, transitionDuration, transitionCurve, mode);
+            }
+
+            _playableGraph.Evaluate(0f);
+            RestoreInitialPoseIfIdle();
+            ApplyGlobalWeightBlend();
+
+            if (crossFade) _playableGraph.Play();
+        }
+
+        private void UpdateControllerTransition(float deltaTime)
+        {
+            if (!_isTransitioningController) return;
+
+            _controllerTransitionTime += deltaTime;
+            float progress = Mathf.Clamp01(_controllerTransitionTime / _controllerTransitionDuration);
+            float weight = _controllerTransitionCurve != null ? _controllerTransitionCurve.Evaluate(progress) : progress;
+
+            if (_controllerMixer.IsValid())
+            {
+                _controllerMixer.SetInputWeight(0, 1f - weight);
+                _controllerMixer.SetInputWeight(1, weight);
+            }
+
+            if (progress >= 1f) AbortControllerTransition(destroyOutgoingGraph: true);
+        }
+
+        private void BeginControllerCrossFade(
+            Playable outgoingRoot,
+            float transitionDuration,
+            AnimationCurve transitionCurve,
+            HonamiControllerTransitionMode mode)
+        {
+            Playable incomingRoot = _playableOutput.GetSourcePlayable();
+
+            _controllerMixer = AnimationMixerPlayable.Create(_playableGraph, 2);
+            _playableGraph.Connect(outgoingRoot, 0, _controllerMixer, 0);
+            _playableGraph.Connect(incomingRoot, 0, _controllerMixer, 1);
+            _controllerMixer.SetInputWeight(0, 1f);
+            _controllerMixer.SetInputWeight(1, 0f);
+
+            if (mode == HonamiControllerTransitionMode.Freeze) outgoingRoot.SetSpeed(0f);
+
+            _playableOutput.SetSourcePlayable(_controllerMixer);
+
+            _controllerTransitionDuration = transitionDuration;
+            _controllerTransitionTime = 0f;
+            _controllerTransitionCurve = transitionCurve;
+            _oldControllerPlayable = outgoingRoot;
+            _isTransitioningController = true;
+        }
+
+        // Collapses an in-flight controller blend so the newer swap starts from a single-rooted graph.
+        private void AbortControllerTransition(bool destroyOutgoingGraph)
+        {
+            if (!_isTransitioningController) return;
+            _isTransitioningController = false;
+
+            if (destroyOutgoingGraph)
+            {
+                if (_oldControllerPlayable.IsValid()) _playableGraph.DestroySubgraph(_oldControllerPlayable);
+
+                if (_controllerMixer.IsValid())
                 {
-                    RegisterLinkedActions();
-                    _playableGraph.Play();
-                    PlayDefaultStates();
-                    if (captureFromDefaultStateEnd) CaptureInitialPoseFromDefaultState();
-                    _playableGraph.Evaluate(0f);
-                    RestoreInitialPoseIfIdle();
-                    ApplyGlobalWeightBlend();
+                    Playable survivingRoot = _controllerMixer.GetInput(1);
+                    if (_playableOutput.IsOutputValid() && survivingRoot.IsValid())
+                        _playableOutput.SetSourcePlayable(survivingRoot);
+
+                    _playableGraph.Disconnect(_controllerMixer, 1);
+                    _controllerMixer.Destroy();
                 }
             }
+
+            DisposeOutgoingControllerResources();
+        }
+
+        // OnDisable destroys the graph, so an in-flight blend can never be finished. Without this the
+        // animator keeps the flag and ticks a dead mixer for the whole duration after the next enable.
+        private void AbandonControllerTransition()
+        {
+            if (!_isTransitioningController) return;
+
+            _isTransitioningController = false;
+            _controllerMixer = default;
+            _oldControllerPlayable = Playable.Null;
+            _controllerTransitionCurve = null;
+            _controllerTransitionTime = 0f;
+
+            DisposeOutgoingControllerResources();
+        }
+
+        private void DisposeOutgoingControllerResources()
+        {
+            _oldAvatarProcessor?.Dispose();
+            _oldConstraints?.Dispose();
+            if (_oldBlendStateValues.IsCreated) _oldBlendStateValues.Dispose();
+
+            _oldAvatarProcessor = null;
+            _oldConstraints = null;
+            _oldBlendStateValues = default;
         }
 
         public void SetLayerWeight(int layer, float weight)
@@ -476,13 +444,13 @@ namespace HonamiAnimationSystem.Runtime.Core
 
         public void PauseState(string stateName, bool paused, int layer = 0)
         {
-            if (_stateNameToIndex.TryGetValue(StringToHash(stateName), out int idx))
+            if (TryResolveState(StringToHash(stateName), out int idx))
                 SetStatePause(idx, layer, paused);
         }
 
         public void PauseStateByGuid(string guid, bool paused, int layer = 0)
         {
-            if (_stateGuidToIndex.TryGetValue(guid.GetHashCode(), out int idx))
+            if (TryResolveStateByGuid(guid, out int idx))
                 SetStatePause(idx, layer, paused);
         }
 
@@ -530,12 +498,15 @@ namespace HonamiAnimationSystem.Runtime.Core
                 mixer.SetInputWeight(i, 0f);
                 TryTriggerStateExited(layer, i, HonamiStateExitReason.Stopped);
                 if (i == TransientPortIndex) ClearTransientPort(layer);
+                else if (IsExternalPort(i)) ClearExternalPort(layer, i);
                 else ResetTime(i, layer);
             }
         }
 
         private void ResetLayerRuntimeState(int layer)
         {
+            _layerStates[layer].HoldsLastFrame = false;
+            _layerStates[layer].HoldSuperseded = false;
             _layerStates[layer].TransitionDuration = 0.0;
             _layerStates[layer].TransitionTime = 0.0;
             _layerStates[layer].TransitionWeight = 0f;
@@ -551,16 +522,11 @@ namespace HonamiAnimationSystem.Runtime.Core
 
         private void ResetPortRuntimeState(int layer)
         {
-            if (_firedEventsPerPort != null && layer < _firedEventsPerPort.Length)
-            {
-                for (int port = 0; port < _firedEventsPerPort[layer].Length; port++)
-                    _firedEventsPerPort[layer][port].Clear();
-            }
-
             if (_portStates == null || layer >= _portStates.Length || _portStates[layer] == null) return;
 
             for (int port = 0; port < _portStates[layer].Length; port++)
             {
+                _portStates[layer][port].LastFrameRawTime = double.NaN;
                 _portStates[layer][port].CurrentLoopCount = 0;
                 _portStates[layer][port].WeightSnapshot = 0f;
             }
@@ -568,13 +534,13 @@ namespace HonamiAnimationSystem.Runtime.Core
 
         public void StopState(string stateName, int layer = 0)
         {
-            if (_stateNameToIndex.TryGetValue(StringToHash(stateName), out int idx))
+            if (TryResolveState(StringToHash(stateName), out int idx))
                 StopStateInternal(idx, layer);
         }
 
         public void StopStateByGuid(string guid, int layer = 0)
         {
-            if (_stateGuidToIndex.TryGetValue(guid.GetHashCode(), out int idx))
+            if (TryResolveStateByGuid(guid, out int idx))
                 StopStateInternal(idx, layer);
         }
 
@@ -586,7 +552,12 @@ namespace HonamiAnimationSystem.Runtime.Core
                 mixer.SetInputWeight(stateIndex, 0f);
                 TryTriggerStateExited(layer, stateIndex, HonamiStateExitReason.Stopped);
                 ResetTime(stateIndex, layer);
-                if (stateIndex == _layerStates[layer].CurrentStateIndex) _layerStates[layer].CurrentStateIndex = -1;
+                if (stateIndex == _layerStates[layer].CurrentStateIndex)
+                {
+                    _layerStates[layer].CurrentStateIndex = -1;
+                    _layerStates[layer].HoldsLastFrame = false;
+                    _layerStates[layer].HoldSuperseded = false;
+                }
                 if (stateIndex == _layerStates[layer].PreviousStateIndex) _layerStates[layer].PreviousStateIndex = -1;
                 _pausedStateIndices[layer].Remove(stateIndex);
             }
@@ -601,9 +572,9 @@ namespace HonamiAnimationSystem.Runtime.Core
 
         public void PlayState(int stateHash, float transitionDuration = 0.25f, int layer = 0, bool forceRestart = false, AnimationCurve curve = null, float destinationStartTime = 0f)
         {
-            EnsureGraph();
-            if (!_stateNameToIndex.TryGetValue(stateHash, out int targetIndex)) return;
-            PlayStateInternal(targetIndex, transitionDuration, layer, forceRestart, curve, destinationStartTime);
+            EnsureGraphBuilt();
+            if (TryResolveState(stateHash, out int targetIndex))
+                PlayStateInternal(targetIndex, transitionDuration, layer, forceRestart, curve, destinationStartTime);
         }
 
         public void PlayState(string stateName, float transitionDuration = 0.25f, int layer = 0, bool forceRestart = false, AnimationCurve curve = null, float destinationStartTime = 0f)
@@ -611,9 +582,9 @@ namespace HonamiAnimationSystem.Runtime.Core
 
         public void PlayStateByGuid(string guid, float transitionDuration = 0.25f, int layer = 0, bool forceRestart = false, AnimationCurve curve = null, float destinationStartTime = 0f)
         {
-            EnsureGraph();
-            if (!_stateGuidToIndex.TryGetValue(guid.GetHashCode(), out int targetIndex)) return;
-            PlayStateInternal(targetIndex, transitionDuration, layer, forceRestart, curve, destinationStartTime);
+            EnsureGraphBuilt();
+            if (TryResolveStateByGuid(guid, out int targetIndex))
+                PlayStateInternal(targetIndex, transitionDuration, layer, forceRestart, curve, destinationStartTime);
         }
 
         public override void Play(string name, float transitionDuration) => PlayState(name, transitionDuration);
@@ -621,21 +592,13 @@ namespace HonamiAnimationSystem.Runtime.Core
         public override bool IsPlaying(string name) => IsStateActive(name);
 
         public bool IsStateActive(int stateHash, int layer = 0)
-        {
-            if (_layerStates == null || layer < 0 || layer >= _layerStates.Length) return false;
-            if (!_stateNameToIndex.TryGetValue(stateHash, out int targetIndex)) return false;
-            return _layerStates[layer].CurrentStateIndex == targetIndex;
-        }
+            => TryResolveState(stateHash, out int targetIndex) && GetActiveStateIndex(layer) == targetIndex;
 
         public bool IsStateActive(string stateName, int layer = 0)
             => IsStateActive(StringToHash(stateName), layer);
 
         public bool IsStateActiveByGuid(string guid, int layer = 0)
-        {
-            if (_layerStates == null || layer < 0 || layer >= _layerStates.Length) return false;
-            if (!_stateGuidToIndex.TryGetValue(guid.GetHashCode(), out int targetIndex)) return false;
-            return _layerStates[layer].CurrentStateIndex == targetIndex;
-        }
+            => TryResolveStateByGuid(guid, out int targetIndex) && GetActiveStateIndex(layer) == targetIndex;
 
         public bool TrySkipState(int stateHashToSkip, int targetStateHash, float transitionDuration = 0.25f, int layer = 0, bool forceRestart = false, AnimationCurve curve = null, float destinationStartTime = 0f)
         {
@@ -655,90 +618,75 @@ namespace HonamiAnimationSystem.Runtime.Core
         }
 
         public bool TryAutoSkipState(int stateHashToSkip, int layer = 0, bool ignoreExitTime = false, bool cancelEvents = false)
-        {
-            if (!IsStateActive(stateHashToSkip, layer)) return false;
-            if (!_stateNameToIndex.TryGetValue(stateHashToSkip, out int stateIndex)) return false;
-            if (stateIndex < 0 || stateIndex >= _activeStatesCount) return false;
-            var state = _runtimeStates[stateIndex];
-            if (state == null || state.transitions == null || state.transitions.Count == 0) return false;
-            var t = state.transitions[0];
-
-            if (!ignoreExitTime && t.hasExitTime)
-            {
-                var playable = _layerMixers[layer].GetInput(stateIndex);
-                if (playable.IsValid())
-                {
-                    float unscaledDuration = HonamiStateEvaluator.GetUnscaledStateDuration(
-                        controller, state, stateIndex, GetNodeRuntime(stateIndex), GetStateBlendParam(stateIndex));
-                    if (unscaledDuration > 0)
-                    {
-                        float progress = Mathf.Max(0f, state.isReversed ? (1f - (float)(playable.GetTime() / unscaledDuration)) : (float)(playable.GetTime() / unscaledDuration));
-                        if (progress < t.exitTime) return false;
-                    }
-                }
-            }
-
-            if (string.IsNullOrEmpty(t.targetStateGuid)) return false;
-
-            if (cancelEvents)
-            {
-                if (!_pausedStateIndices[layer].Contains(stateIndex))
-                {
-                    _pausedStateIndices[layer].Add(stateIndex);
-                    var oldPlayable = _layerMixers[layer].GetInput(stateIndex);
-                    if (oldPlayable.IsValid()) oldPlayable.SetSpeed(0f);
-                }
-            }
-
-            PlayStateByGuidWithPriority(t.targetStateGuid, t.duration, layer, false, t.ResolveBlendCurve(), t.destinationStartTime, t.priority, t.victimMode, t.sacrificeSpeedMultiplier, t.acceleratedWeightDrop, t.useCustomVictimCurve ? t.victimWeightCurve : null);
-
-            HonamiPlaybackEngine.ApplyTransitionFreeze(this, layer, t.freezeMode);
-            return true;
-        }
+            => TryResolveState(stateHashToSkip, out int index)
+               && IsStateActive(stateHashToSkip, layer)
+               && AutoSkipStateAt(index, layer, ignoreExitTime, cancelEvents);
 
         public bool TryAutoSkipState(string stateToSkip, int layer = 0, bool ignoreExitTime = false, bool cancelEvents = false)
             => TryAutoSkipState(StringToHash(stateToSkip), layer, ignoreExitTime, cancelEvents);
 
         public bool TryAutoSkipStateByGuid(string guidToSkip, int layer = 0, bool ignoreExitTime = false, bool cancelEvents = false)
+            => TryResolveStateByGuid(guidToSkip, out int index)
+               && IsStateActiveByGuid(guidToSkip, layer)
+               && AutoSkipStateAt(index, layer, ignoreExitTime, cancelEvents);
+
+        /// <summary>
+        /// Takes the state's first transition immediately, honoring its exit time unless <paramref name="ignoreExitTime"/> is set.
+        /// </summary>
+        public bool AutoSkipStateAt(int stateIndex, int layer, bool ignoreExitTime = false, bool cancelEvents = false)
         {
-            if (!IsStateActiveByGuid(guidToSkip, layer)) return false;
-            if (!_stateGuidToIndex.TryGetValue(guidToSkip.GetHashCode(), out int stateIndex)) return false;
             if (stateIndex < 0 || stateIndex >= _activeStatesCount) return false;
-            var state = _runtimeStates[stateIndex];
+
+            HonamiState state = _runtimeStates[stateIndex];
             if (state == null || state.transitions == null || state.transitions.Count == 0) return false;
-            var t = state.transitions[0];
 
-            if (!ignoreExitTime && t.hasExitTime)
-            {
-                var playable = _layerMixers[layer].GetInput(stateIndex);
-                if (playable.IsValid())
-                {
-                    float unscaledDuration = HonamiStateEvaluator.GetUnscaledStateDuration(
-                        controller, state, stateIndex, GetNodeRuntime(stateIndex), GetStateBlendParam(stateIndex));
-                    if (unscaledDuration > 0)
-                    {
-                        float progress = Mathf.Max(0f, state.isReversed ? (1f - (float)(playable.GetTime() / unscaledDuration)) : (float)(playable.GetTime() / unscaledDuration));
-                        if (progress < t.exitTime) return false;
-                    }
-                }
-            }
+            HonamiTransition transition = state.transitions[0];
+            if (string.IsNullOrEmpty(transition.targetStateGuid)) return false;
+            if (!ignoreExitTime && !HasReachedExitTime(state, stateIndex, layer, transition)) return false;
 
-            if (string.IsNullOrEmpty(t.targetStateGuid)) return false;
+            if (cancelEvents) FreezeStateForSkip(stateIndex, layer);
 
-            if (cancelEvents)
-            {
-                if (!_pausedStateIndices[layer].Contains(stateIndex))
-                {
-                    _pausedStateIndices[layer].Add(stateIndex);
-                    var oldPlayable = _layerMixers[layer].GetInput(stateIndex);
-                    if (oldPlayable.IsValid()) oldPlayable.SetSpeed(0f);
-                }
-            }
+            PlayStateByGuidWithPriority(
+                transition.targetStateGuid,
+                transition.duration,
+                layer,
+                false,
+                transition.ResolveBlendCurve(),
+                transition.destinationStartTime,
+                transition.priority,
+                transition.victimMode,
+                transition.sacrificeSpeedMultiplier,
+                transition.acceleratedWeightDrop,
+                transition.useCustomVictimCurve ? transition.victimWeightCurve : null);
 
-            PlayStateByGuidWithPriority(t.targetStateGuid, t.duration, layer, false, t.ResolveBlendCurve(), t.destinationStartTime, t.priority, t.victimMode, t.sacrificeSpeedMultiplier, t.acceleratedWeightDrop, t.useCustomVictimCurve ? t.victimWeightCurve : null);
-
-            HonamiPlaybackEngine.ApplyTransitionFreeze(this, layer, t.freezeMode);
+            HonamiPlaybackEngine.ApplyTransitionFreeze(this, layer, transition.freezeMode);
             return true;
+        }
+
+        private bool HasReachedExitTime(HonamiState state, int stateIndex, int layer, HonamiTransition transition)
+        {
+            if (!transition.hasExitTime) return true;
+            if (!TryGetLayerMixer(layer, out AnimationMixerPlayable mixer)) return true;
+
+            Playable playable = mixer.GetInput(stateIndex);
+            if (!playable.IsValid()) return true;
+
+            float unscaledDuration = HonamiStateEvaluator.GetUnscaledStateDuration(
+                controller, state, stateIndex, GetNodeRuntime(stateIndex), GetStateBlendParam(stateIndex));
+            if (unscaledDuration <= 0f) return true;
+
+            double normalized = playable.GetTime() / unscaledDuration;
+            float progress = Mathf.Max(0f, state.isReversed ? 1f - (float)normalized : (float)normalized);
+            return progress >= transition.exitTime;
+        }
+
+        private void FreezeStateForSkip(int stateIndex, int layer)
+        {
+            if (!IsLayerInRange(layer) || !_pausedStateIndices[layer].Add(stateIndex)) return;
+            if (!TryGetLayerMixer(layer, out AnimationMixerPlayable mixer)) return;
+
+            Playable playable = mixer.GetInput(stateIndex);
+            if (playable.IsValid()) playable.SetSpeed(0f);
         }
 
 
@@ -754,7 +702,7 @@ namespace HonamiAnimationSystem.Runtime.Core
             }
         }
 
-        private void RegisterLinkedActions()
+        protected override void RegisterLinkedActions()
         {
             if (controller == null || _runtimeStates == null) return;
 
@@ -786,6 +734,7 @@ namespace HonamiAnimationSystem.Runtime.Core
                 }
             }
 
+            ClearAllExternalPorts();
             if (_layerMixers == null) return;
 
             for (int layer = 0; layer < _layerMixers.Count; layer++)

@@ -21,12 +21,12 @@ namespace HonamiAnimationSystem.Editor.Documentation.Pages
                 },
                 new[]
                 {
-                    HonamiDocLocalization.Get("Tutorial parts 2–3: first SetFloat and SetTrigger calls", "Частини 2–3 туторіалу: перші виклики SetFloat і SetTrigger")
+                    HonamiDocLocalization.Get("Tutorial parts 2-3: first SetFloat and SetTrigger calls", "Частини 2-3 туторіалу: перші виклики SetFloat і SetTrigger")
                 });
 
             HonamiDocumentationBuilder.AddParagraph(root, HonamiDocLocalization.Get(
                 "Parameters are the primary way to drive your animation graph from external code. They act as the 'variables' of your state machine: transitions read them in conditions, blend trees sample them for weights, and states can even write them back.",
-                "Параметри — це основний спосіб керування графом анімації із зовнішнього коду. Вони виступають як «змінні» вашого скінченного автомата: переходи читають їх в умовах, blend tree беруть із них ваги, а стани можуть навіть записувати їх назад."
+                "Параметри - це основний спосіб керування графом анімації із зовнішнього коду. Вони виступають як «змінні» вашого скінченного автомата: переходи читають їх в умовах, blend tree беруть із них ваги, а стани можуть навіть записувати їх назад."
             ));
 
             HonamiDocumentationBuilder.AddHeader(root, HonamiDocLocalization.Get("Parameter Types", "Типи параметрів"), HonamiEditorIcons.Controller);
@@ -67,8 +67,8 @@ bool dead = honami.GetBool(""IsDead"");
 honami.ResetTrigger(""Jump"");");
 
             HonamiDocumentationBuilder.AddCallout(root, HonamiDocLocalization.Get(
-                "Writing a parameter that does not exist in the controller is silently ignored — no exception, no log in builds. If a transition 'does nothing', first check the parameter name spelling.",
-                "Запис параметра, якого немає в контролері, тихо ігнорується — без винятку та без логу в білдах. Якщо перехід «нічого не робить», спершу перевірте написання назви параметра."
+                "Writing a parameter that does not exist in the controller is silently ignored - no exception, no log in builds. If a transition 'does nothing', first check the parameter name spelling.",
+                "Запис параметра, якого немає в контролері, тихо ігнорується - без винятку та без логу в білдах. Якщо перехід «нічого не робить», спершу перевірте написання назви параметра."
             ), HonamiDocumentationBuilder.CalloutType.Warning);
 
             HonamiDocumentationBuilder.AddHeader(root, HonamiDocLocalization.Get("Trigger lifetime", "Життєвий цикл тригера"), HonamiEditorIcons.TimelineWhite);
@@ -79,13 +79,13 @@ honami.ResetTrigger(""Jump"");");
                 "Consumption happens at the end of the tick in which a transition condition used the trigger.",
                 "Споживання відбувається наприкінці тіку, в якому умова переходу використала тригер."));
             HonamiDocumentationBuilder.AddBulletPoint(root, HonamiDocLocalization.Get(
-                "ResetTrigger clears it manually — useful when the character enters a state where the queued action no longer makes sense.",
-                "ResetTrigger очищає його вручну — корисно, коли персонаж потрапляє у стан, де відкладена дія вже не має сенсу."));
+                "ResetTrigger clears it manually - useful when the character enters a state where the queued action no longer makes sense.",
+                "ResetTrigger очищає його вручну - корисно, коли персонаж потрапляє у стан, де відкладена дія вже не має сенсу."));
 
             HonamiDocumentationBuilder.AddHeader(root, HonamiDocLocalization.Get("Parameter assignments on states", "Присвоєння параметрів у станах"), HonamiEditorIcons.Controller);
             HonamiDocumentationBuilder.AddParagraph(root, HonamiDocLocalization.Get(
-                "States can write parameters themselves. Each state has a Parameter Assignments list: when the state is entered (or exited, if Execute On Exit is checked) it sets the configured Float/Int/Bool value or fires/clears a Trigger. This keeps simple bookkeeping — like flagging 'InCombat' while an attack state is active — inside the graph, with no code at all.",
-                "Стани можуть самі записувати параметри. Кожен стан має список Parameter Assignments: при вході в стан (або при виході, якщо увімкнено Execute On Exit) він встановлює задане значення Float/Int/Bool чи вмикає/скидає Trigger. Це дозволяє тримати просту логіку — на кшталт прапорця «InCombat», поки активний стан атаки — прямо в графі, без жодного коду."
+                "States can write parameters themselves. Each state has a Parameter Assignments list: when the state is entered (or exited, if Execute On Exit is checked) it sets the configured Float/Int/Bool value or fires/clears a Trigger. This keeps simple bookkeeping - like flagging 'InCombat' while an attack state is active - inside the graph, with no code at all.",
+                "Стани можуть самі записувати параметри. Кожен стан має список Parameter Assignments: при вході в стан (або при виході, якщо увімкнено Execute On Exit) він встановлює задане значення Float/Int/Bool чи вмикає/скидає Trigger. Це дозволяє тримати просту логіку - на кшталт прапорця «InCombat», поки активний стан атаки - прямо в графі, без жодного коду."
             ));
 
             HonamiDocumentationBuilder.AddTip(root, HonamiDocLocalization.Get(
@@ -94,8 +94,8 @@ honami.ResetTrigger(""Jump"");");
             ));
 
             HonamiDocumentationBuilder.AddWarning(root, HonamiDocLocalization.Get(
-                "Parameter names are matched by hash. Two parameters of the same storage type whose names collide will log an error in the editor and one of them becomes unreachable — rename one of them.",
-                "Назви параметрів зіставляються за хешем. Два параметри одного типу зберігання з колізією назв дадуть помилку в редакторі, і один із них стане недосяжним — перейменуйте один із них."
+                "Parameter names are matched by hash. Two parameters of the same storage type whose names collide will log an error in the editor and one of them becomes unreachable - rename one of them.",
+                "Назви параметрів зіставляються за хешем. Два параметри одного типу зберігання з колізією назв дадуть помилку в редакторі, і один із них стане недосяжним - перейменуйте один із них."
             ));
         }
     }

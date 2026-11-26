@@ -8,7 +8,6 @@ namespace HonamiAnimationSystem.Runtime.Core
         Running
     }
 
-    [UnityEngine.Scripting.APIUpdating.MovedFrom("HonamiBrainNodeBase")]
     public abstract class HonamiLinkedAnimatorNodeBase : ScriptableObject
     {
         public HonamiLinkedAnimatorNodeBase next;

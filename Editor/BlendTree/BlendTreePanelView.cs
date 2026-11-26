@@ -1,4 +1,3 @@
-#if UNITY_EDITOR
 using System;
 using UnityEditor.UIElements;
 using UnityEngine;
@@ -168,4 +167,3 @@ namespace HonamiAnimationSystem.Editor.BlendTree
         }
     }
 }
-#endif

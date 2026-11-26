@@ -22,7 +22,7 @@ namespace HonamiAnimationSystem.Editor.Timeline
         private TimelineToolbarView _toolbarView;
         private HonamiTabBar _tabBar;
         private TimelinePanelView _panel;
-        private bool _refreshQueued;
+        [NonSerialized] private bool _refreshQueued;
 
         private TimelineState Active
         {
@@ -72,12 +72,13 @@ namespace HonamiAnimationSystem.Editor.Timeline
         {
             titleContent = HonamiEditorIcons.IconContent("HonamiTimelineWhite", "Honami Timeline");
 
+            _refreshQueued = false;
             RestoreTabs();
 
             EditorApplication.update -= OnEditorUpdate;
             EditorApplication.update += OnEditorUpdate;
-            Undo.undoRedoPerformed -= Repaint;
-            Undo.undoRedoPerformed += Repaint;
+            Undo.undoRedoPerformed -= OnUndoRedoPerformed;
+            Undo.undoRedoPerformed += OnUndoRedoPerformed;
             HonamiAppearanceSettings.Changed -= OnAppearanceChanged;
             HonamiAppearanceSettings.Changed += OnAppearanceChanged;
             Selection.selectionChanged -= OnSelectionChanged;
@@ -91,17 +92,22 @@ namespace HonamiAnimationSystem.Editor.Timeline
             SaveTabs();
 
             EditorApplication.update -= OnEditorUpdate;
-            Undo.undoRedoPerformed -= Repaint;
+            EditorApplication.delayCall -= ProcessQueuedRefresh;
+            Undo.undoRedoPerformed -= OnUndoRedoPerformed;
             Selection.selectionChanged -= OnSelectionChanged;
             HonamiAppearanceSettings.Changed -= OnAppearanceChanged;
             _appearanceRebuild?.Cancel();
+            _refreshQueued = false;
 
             for (int i = 0; i < _tabs.Count; i++)
                 _tabs[i]?.ClearCache();
 
+            HonamiTimelineModuleEditorRegistry.StopAllPreviews();
             if (AnimationMode.InAnimationMode())
                 AnimationMode.StopAnimationMode();
         }
+
+        private void OnUndoRedoPerformed() => RequestRefreshViews();
 
         private static TimelineState NewTabState()
         {
@@ -176,6 +182,8 @@ namespace HonamiAnimationSystem.Editor.Timeline
         {
             if (index < 0 || index >= _tabs.Count) return;
             _tabs[index].ClearCache();
+            if (_tabs[index].PreviewEnabled)
+                HonamiTimelineModuleEditorRegistry.StopAllPreviews();
             _tabs.RemoveAt(index);
 
             if (index < _activeIndex) _activeIndex--;
@@ -266,11 +274,87 @@ namespace HonamiAnimationSystem.Editor.Timeline
                 Repaint();
                 RequestRefreshViews();
             }
-            else
+            else if (Selection.activeGameObject != null)
             {
-                Active?.ClearCache();
+                var director = Selection.activeGameObject.GetComponentInParent<HonamiDirector>(true);
+                if (director != null && director.Timeline != null)
+                {
+                    for (int i = 0; i < _tabs.Count; i++)
+                    {
+                        if (_tabs[i].Mode == TimelineMode.HonamiTimeline && _tabs[i].ActiveTimeline == director.Timeline)
+                        {
+                            if (i != _activeIndex) SelectTab(i);
+                            _tabs[i].ForgetDirector();
+                            Repaint();
+                            RequestRefreshViews();
+                            return;
+                        }
+                    }
+
+                    var s = Active;
+                    if (s == null)
+                    {
+                        FocusOrOpenTimeline(director.Timeline);
+                        return;
+                    }
+                    s.Mode = TimelineMode.HonamiTimeline;
+                    if (s.ActiveTimeline != director.Timeline)
+                    {
+                        s.ActiveTimeline = director.Timeline;
+                        s.PlayheadTime = 0f;
+                        s.IsPlaying = false;
+                        s.ClearCache();
+                    }
+                    else
+                    {
+                        s.ForgetDirector();
+                    }
+                    Repaint();
+                    RequestRefreshViews();
+                    return;
+                }
+
+                var activeState = Active;
+                if (activeState != null && activeState.Mode == TimelineMode.HonamiState)
+                {
+                    RebindToSelectedAnimator(activeState);
+                    activeState.ClearCache();
+                }
                 RequestRefreshViews();
             }
+            else
+            {
+                var s = Active;
+                if (s != null && s.Mode == TimelineMode.HonamiState)
+                {
+                    RebindToSelectedAnimator(s);
+                    s.ClearCache();
+                }
+                RequestRefreshViews();
+            }
+        }
+
+        // A tab opened from one animator stays pinned to that animator's override controller, so selecting a
+        // sibling instance of the same base graph previewed the wrong controller until the tab was reopened.
+        private static void RebindToSelectedAnimator(TimelineState s)
+        {
+            if (s.Mode != TimelineMode.HonamiState || s.Controller == null) return;
+
+            var go = Selection.activeGameObject;
+            if (go == null) return;
+
+            var anim = go.GetComponentInParent<HonamiAnimator>(true);
+            if (anim == null) return;
+
+            var selected = anim.CurrentController;
+            if (selected == null || selected == s.Controller) return;
+
+            var baseController = s.Controller.BaseController;
+            if (baseController == null || selected.BaseController != baseController) return;
+
+            string guid = s.SelectedStateGuid;
+            s.Controller = selected;
+            s.SelectedState = selected.ActiveStates?.FirstOrDefault(st => st != null && st.guid == guid);
         }
 
         private void OnInspectorUpdate() => Repaint();
@@ -297,6 +381,8 @@ namespace HonamiAnimationSystem.Editor.Timeline
                 if (EditorApplication.timeSinceStartup - _lastIdleSampleTime < 1.0 / 60.0) return;
                 _lastIdleSampleTime = EditorApplication.timeSinceStartup;
             }
+
+            _panel?.RefreshTimeAxisIfChanged();
 
             var active = Active;
             bool activeWasPlaying = active != null && active.IsPlaying && !active.IsDraggingPlayhead;
@@ -327,14 +413,18 @@ namespace HonamiAnimationSystem.Editor.Timeline
             float dt = (float)(EditorApplication.timeSinceStartup - s.LastUpdateTime);
             s.LastUpdateTime = EditorApplication.timeSinceStartup;
 
+            float speed = Mathf.Abs(s.PlaybackSpeed);
+            bool backwards = s.IsPlayingBackwards;
+            float step = dt * speed * (backwards ? -1f : 1f);
+
             float loopStart = 0f;
             float loopEnd = -1f;
-            if (s.Mode == TimelineMode.HonamiTimeline && s.ActiveTimeline?.markers != null)
+            if (s.Mode == TimelineMode.HonamiTimeline && s.ActiveTimeline != null)
             {
-                foreach (var marker in s.ActiveTimeline.markers)
+                foreach (var marker in s.ActiveTimeline.Markers)
                 {
-                    if (marker is HonamiTimelineLoopMarker lm &&
-                        s.PlayheadTime >= lm.time - dt && s.PlayheadTime <= lm.endTime)
+                    if (marker is HonamiTimelineLoopMarker lm && lm.endTime > lm.time &&
+                        s.PlayheadTime >= lm.time - Mathf.Abs(step) && s.PlayheadTime <= lm.endTime)
                     {
                         loopStart = lm.time;
                         loopEnd = lm.endTime;
@@ -346,47 +436,23 @@ namespace HonamiAnimationSystem.Editor.Timeline
             float duration = s.GetDuration();
             bool loop = s.SelectedState?.loop ?? false;
             if (s.ForceLoop) loop = true;
-            bool reversed = s.SelectedState?.isReversed ?? false;
 
-            if (loopEnd > 0)
+            s.PlayheadTime += step;
+            if (loopEnd > 0f)
             {
-                if (reversed) { s.PlayheadTime -= dt; if (s.PlayheadTime < loopStart) s.PlayheadTime += loopEnd - loopStart; }
-                else { s.PlayheadTime += dt; if (s.PlayheadTime > loopEnd) s.PlayheadTime -= loopEnd - loopStart; }
+                float length = loopEnd - loopStart;
+                if (s.PlayheadTime > loopEnd) s.PlayheadTime = loopStart + Mathf.Repeat(s.PlayheadTime - loopStart, length);
+                else if (s.PlayheadTime < loopStart) s.PlayheadTime = loopEnd - Mathf.Repeat(loopStart - s.PlayheadTime, length);
             }
-            else
+            else if (s.PlayheadTime > duration)
             {
-                if (reversed)
-                {
-                    s.PlayheadTime -= dt;
-                    if (s.PlayheadTime < 0f)
-                    {
-                        if (loop && duration > 0) s.PlayheadTime += duration;
-                        else { s.PlayheadTime = 0f; s.IsPlaying = false; }
-                    }
-                }
-                else
-                {
-                    s.PlayheadTime += dt;
-                    if (s.PlayheadTime > duration)
-                    {
-                        if (loop && duration > 0) s.PlayheadTime -= duration;
-                        else { s.PlayheadTime = duration; s.IsPlaying = false; }
-                    }
-                }
+                if (loop && duration > 0f) s.PlayheadTime = Mathf.Repeat(s.PlayheadTime, duration);
+                else { s.PlayheadTime = duration; s.IsPlaying = false; s.PlaybackSpeed = 1f; }
             }
-
-            if (s.IsPlaying && s == Active)
+            else if (s.PlayheadTime < 0f)
             {
-                bool hasProps = s.ShowProperties &&
-                             (s.Mode == TimelineMode.HonamiTimeline && s.ActiveTimeline != null
-                             || s.Mode == TimelineMode.HonamiState && s.SelectedState != null);
-                float viewW = position.width - s.TrackHeaderWidth - (hasProps ? s.PropsWidth : 0f);
-                float phPos = s.PlayheadTime * s.TimeScale;
-
-                if (phPos > s.ScrollPos.x + viewW - 50f)
-                    s.ScrollPos.x = Mathf.Lerp(s.ScrollPos.x, phPos - viewW + 50f, dt * 10f);
-                else if (phPos < s.ScrollPos.x)
-                    s.ScrollPos.x = Mathf.Max(0f, phPos - 50f);
+                if (loop && duration > 0f) s.PlayheadTime = Mathf.Repeat(s.PlayheadTime, duration);
+                else { s.PlayheadTime = 0f; s.IsPlaying = false; s.PlaybackSpeed = 1f; }
             }
         }
 
@@ -406,6 +472,7 @@ namespace HonamiAnimationSystem.Editor.Timeline
 
         private void ConstructLayout()
         {
+            _refreshQueued = false;
             rootVisualElement.Clear();
             rootVisualElement.style.backgroundColor = TimelineTheme.WindowBg;
             rootVisualElement.style.flexDirection = FlexDirection.Column;
@@ -413,7 +480,7 @@ namespace HonamiAnimationSystem.Editor.Timeline
             _tabBar = new HonamiTabBar(
                 () => _tabs.Count, () => _activeIndex, SelectTab, CloseTab, AddTab,
                 i => TabTitle(_tabs[i]), i => TabIcon(_tabs[i]),
-                i => _tabs[i].PreviewEnabled, "Preview enabled — contributes to scene sampling")
+                i => _tabs[i].PreviewEnabled, "Preview enabled: this tab drives the scene")
             {
                 ActiveTabColor = TimelineTheme.PanelBg
             };
@@ -443,21 +510,26 @@ namespace HonamiAnimationSystem.Editor.Timeline
 
         private void RefreshViews()
         {
+            if (this == null) return;
             DeduplicateTabs();
             _toolbarView?.Refresh();
             _tabBar?.Refresh();
             _panel?.Refresh();
+            Repaint();
         }
 
         private void RequestRefreshViews()
         {
-            if (_refreshQueued || rootVisualElement == null) return;
+            if (_refreshQueued) return;
             _refreshQueued = true;
-            rootVisualElement.schedule.Execute(() =>
-            {
-                _refreshQueued = false;
-                RefreshViews();
-            }).ExecuteLater(1);
+            EditorApplication.delayCall += ProcessQueuedRefresh;
+        }
+
+        private void ProcessQueuedRefresh()
+        {
+            _refreshQueued = false;
+            if (this == null) return;
+            RefreshViews();
         }
 
         [Serializable]

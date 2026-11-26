@@ -8,6 +8,10 @@ namespace HonamiAnimationSystem.Editor.Timeline
 {
     public enum TimelineMode { HonamiState, HonamiTimeline, HonamiClipEdit }
 
+    public enum TimelineTimeFormat { Timecode, Frames, Seconds }
+
+    public enum TimelineEditTool { Select, Blade }
+
     public readonly struct KeyframeRef : System.IEquatable<KeyframeRef>
     {
         public readonly int Binding;
@@ -33,15 +37,56 @@ namespace HonamiAnimationSystem.Editor.Timeline
 
     public sealed class TimelineState
     {
+        public const float MinTimeScale = 4f;
+        public const float MaxTimeScale = 4000f;
+        public const float MaxPlaybackSpeed = 8f;
+
         public TimelineMode Mode = TimelineMode.HonamiState;
         public GameObject PreviewRoot;
 
         public HonamiRuntimeController Controller;
-        public HonamiState SelectedState;
+
+        private HonamiState _selectedState;
+        private string _selectedStateGuid;
+
+        // Effective/virtual states are destroyed and rebuilt by the controller (OnValidate, override resync),
+        // so the guid is the only stable identity; re-resolve whenever the cached reference dies.
+        public HonamiState SelectedState
+        {
+            get
+            {
+                if (_selectedState != null) return _selectedState;
+                if (string.IsNullOrEmpty(_selectedStateGuid) || Controller == null) return null;
+
+                var states = Controller.ActiveStates;
+                if (states == null) return null;
+
+                for (int i = 0; i < states.Count; i++)
+                {
+                    if (states[i] != null && states[i].guid == _selectedStateGuid)
+                    {
+                        _selectedState = states[i];
+                        return _selectedState;
+                    }
+                }
+                return null;
+            }
+            set
+            {
+                _selectedState = value;
+                _selectedStateGuid = value != null ? value.guid : null;
+            }
+        }
+
+        public string SelectedStateGuid => _selectedStateGuid;
+
         public int SelectedLayerIndex = -1;
         public int RandomPreviewIdx;
         public string[] RandomPreviewOptions;
         public float BlendPreviewValue;
+
+        // Per-axis preview values contributed by whichever node editor owns the selected state.
+        public float[] NodePreviewAxes = System.Array.Empty<float>();
 
         public HonamiTimeline ActiveTimeline;
         public AnimationClip ActiveClip;
@@ -56,8 +101,24 @@ namespace HonamiAnimationSystem.Editor.Timeline
         public bool IsRecording;
         public double LastUpdateTime;
 
-        public bool SnapEnabled = true;
+        public float PlaybackSpeed = 1f;
+        public float LastSampledTime = float.NaN;
+        public TimelineEditTool Tool = TimelineEditTool.Select;
         public bool ShowFrames = true;
+        public bool UseSeconds;
+
+        // Frames is the animator's mode; with it off time reads as timecode, or plain seconds when chosen on the ruler.
+        public TimelineTimeFormat TimeFormat
+        {
+            get => ShowFrames ? TimelineTimeFormat.Frames : UseSeconds ? TimelineTimeFormat.Seconds : TimelineTimeFormat.Timecode;
+            set
+            {
+                ShowFrames = value == TimelineTimeFormat.Frames;
+                if (!ShowFrames) UseSeconds = value == TimelineTimeFormat.Seconds;
+            }
+        }
+
+        public bool SnapEnabled = true;
         public bool ShowKeyframes;
         public float TimeScale = 100f;
         public float TrackHeaderWidth = 200f;
@@ -65,29 +126,30 @@ namespace HonamiAnimationSystem.Editor.Timeline
 
         public bool ShowProperties = true;
         public bool ShowAnimTrack = true;
-        public bool ShowLocalEventsTrack = true;
-        public bool ShowGlobalEventsTrack = true;
-
-        public List<HonamiEventMarker> SelectedEvents = new();
-        public Dictionary<HonamiEventMarker, Rect> EventRects = new();
-        public static readonly List<HonamiEventMarker> CopiedEvents = new();
+        public bool ShowLinks = true;
 
         public List<HonamiSequencedAnimationClip> SelectedSeqClips = new();
         public Dictionary<HonamiSequencedAnimationClip, Rect> SeqClipRects = new();
 
-        public List<HonamiTimelineClip> SelectedTimelineClips = new();
-        public Dictionary<HonamiTimelineClip, Rect> TimelineClipRects = new();
-        public static readonly List<HonamiTimelineClip> CopiedTimelineClips = new();
+        public List<HonamiTimelineItem> SelectedTimelineItems = new();
+        public Dictionary<HonamiTimelineItem, Rect> TimelineItemRects = new();
+        public static readonly List<HonamiTimelineItem> CopiedTimelineItems = new();
 
-        public List<HonamiTimelineEvent> SelectedTimelineEvents = new();
-        public Dictionary<HonamiTimelineEvent, Rect> TimelineEventRects = new();
-        public static readonly List<HonamiTimelineEvent> CopiedTimelineEvents = new();
+        // A gap is the empty stretch between items on one track, selected by clicking the empty space.
+        // Its times are absolute on the timeline; the module keeps the track it belongs to.
+        public HonamiTimelineModule SelectedGapModule;
+        public float SelectedGapStart;
+        public float SelectedGapEnd;
+        public bool HasSelectedGap => SelectedGapModule != null && SelectedGapEnd - SelectedGapStart > 0.0001f;
+
+        private HonamiDirector _director;
+        private double _nextDirectorSearchTime;
 
         public List<HonamiTimelineMarker> SelectedMarkers = new();
 
-        public HonamiTimelineTrack SelectedTimelineTrack;
+        public HonamiTimelineModule SelectedModule;
         public bool IsDraggingTrack;
-        public HonamiTimelineTrack DraggedTrack;
+        public HonamiTimelineModule DraggedTrack;
         public float DragTrackStartY;
         public float DragTrackStartMouseY;
         public int DragTrackInsertIndex = -1;
@@ -143,6 +205,9 @@ namespace HonamiAnimationSystem.Editor.Timeline
             public bool[] HasRotation;
             public float[] BlendWeights;
             public (float threshold, int index)[] BlendSorted;
+            public AnimationClip[] MotionClips;
+            public float[] MotionSpeeds;
+            public bool[] MotionMirrors;
         }
         public BlendCacheData BlendCache;
 
@@ -150,22 +215,235 @@ namespace HonamiAnimationSystem.Editor.Timeline
 
         public void ClearSelection()
         {
-            SelectedEvents.Clear();
             SelectedSeqClips.Clear();
-            SelectedTimelineClips.Clear();
-            SelectedTimelineEvents.Clear();
+            SelectedTimelineItems.Clear();
             SelectedMarkers.Clear();
             SelectedKeyframes.Clear();
-            SelectedTimelineTrack = null;
+            SelectedModule = null;
+            ClearSelectedGap();
         }
 
         public void ClearSelectionExceptKeyframes()
         {
-            SelectedEvents.Clear();
             SelectedSeqClips.Clear();
-            SelectedTimelineClips.Clear();
-            SelectedTimelineEvents.Clear();
+            SelectedTimelineItems.Clear();
             SelectedMarkers.Clear();
+            ClearSelectedGap();
+        }
+
+        public void ClearSelectedGap()
+        {
+            SelectedGapModule = null;
+            SelectedGapStart = 0f;
+            SelectedGapEnd = 0f;
+        }
+
+        public IHonamiTimelineModuleContainer ActiveContainer => Mode switch
+        {
+            TimelineMode.HonamiTimeline => ActiveTimeline,
+            TimelineMode.HonamiState => SelectedState,
+            _ => null
+        };
+
+        public List<HonamiTimelineModule> ActiveModules => ActiveContainer?.Modules;
+
+        public void PruneStaleModuleSelection()
+        {
+            var modules = ActiveModules;
+            if (modules == null)
+            {
+                SelectedTimelineItems.Clear();
+                SelectedModule = null;
+                ClearSelectedGap();
+                return;
+            }
+
+            if (SelectedModule != null && !modules.Contains(SelectedModule))
+                SelectedModule = null;
+
+            if (SelectedGapModule != null && !modules.Contains(SelectedGapModule))
+                ClearSelectedGap();
+
+            for (int i = SelectedTimelineItems.Count - 1; i >= 0; i--)
+            {
+                if (FindModuleOf(SelectedTimelineItems[i]) == null)
+                    SelectedTimelineItems.RemoveAt(i);
+            }
+        }
+
+        public HonamiTimelineModule FindModuleOf(HonamiTimelineItem item)
+        {
+            var modules = ActiveModules;
+            if (modules == null || item == null) return null;
+            for (int i = 0; i < modules.Count; i++)
+            {
+                if (modules[i] != null && modules[i].Contains(item))
+                    return modules[i];
+            }
+            return null;
+        }
+
+        private HonamiNodeBase ModuleNode => Mode == TimelineMode.HonamiState ? node : null;
+
+        public HonamiTimelineModuleParent ResolveParent(HonamiTimelineModule module)
+        {
+            var modules = ActiveModules;
+            if (modules == null || module == null) return HonamiTimelineModuleParent.None;
+            if (HonamiTimelineModuleParent.HasCycle(modules, ModuleNode, module)) return HonamiTimelineModuleParent.Missing;
+            return HonamiTimelineModuleParent.Resolve(modules, ModuleNode, module);
+        }
+
+        public HonamiTimelineModule ParentModuleOf(HonamiTimelineModule module)
+        {
+            var parent = ResolveParent(module);
+            return parent.Kind == HonamiTimelineModuleParentKind.Item ? ActiveModules[parent.ModuleIndex] : null;
+        }
+
+        public float GetModuleTimeOffset(HonamiTimelineModule module)
+        {
+            var parent = ResolveParent(module);
+            return parent.Kind switch
+            {
+                HonamiTimelineModuleParentKind.Item => GetModuleTimeOffset(ActiveModules[parent.ModuleIndex]) + parent.Item.time,
+                HonamiTimelineModuleParentKind.Motion => node.GetMotionStart(parent.MotionIndex),
+                _ => 0f
+            };
+        }
+
+        public float GetItemTimeOffset(HonamiTimelineItem item) => GetModuleTimeOffset(FindModuleOf(item));
+
+        public bool IsModulePreviewed(HonamiTimelineModule module)
+        {
+            if (module == null || module.muted) return false;
+
+            var parent = ResolveParent(module);
+            switch (parent.Kind)
+            {
+                case HonamiTimelineModuleParentKind.Missing:
+                    return false;
+                case HonamiTimelineModuleParentKind.Item:
+                    return IsModulePreviewed(ActiveModules[parent.ModuleIndex]);
+                case HonamiTimelineModuleParentKind.Motion:
+                    var editor = HonamiNodeEditorRegistry.GetEditor(node);
+                    return editor == null || editor.IsMotionPreviewed(this, parent.MotionIndex);
+                default:
+                    return true;
+            }
+        }
+
+        public bool IsModuleActiveAt(HonamiTimelineModule module, float time)
+        {
+            if (!IsModulePreviewed(module)) return false;
+
+            var parent = ResolveParent(module);
+            if (parent.Kind == HonamiTimelineModuleParentKind.Item)
+            {
+                var parentModule = ActiveModules[parent.ModuleIndex];
+                float start = GetModuleTimeOffset(parentModule) + parent.Item.time;
+                return time >= start && time <= start + parent.Item.Duration && IsModuleActiveAt(parentModule, time);
+            }
+            if (parent.Kind == HonamiTimelineModuleParentKind.Motion)
+            {
+                float start = node.GetMotionStart(parent.MotionIndex);
+                return time >= start && time <= start + node.GetMotionDuration(parent.MotionIndex);
+            }
+            return true;
+        }
+
+        public GameObject ResolvePreviewRoot()
+        {
+            var selected = Selection.activeGameObject;
+            var animator = selected != null ? selected.GetComponentInParent<HonamiAnimator>(true) : null;
+            return animator != null ? animator.gameObject : null;
+        }
+
+        public HonamiDirector ResolveDirector()
+        {
+            if (ActiveTimeline == null) return null;
+
+            var selected = Selection.activeGameObject;
+            if (selected != null)
+            {
+                var selectedDirector = selected.GetComponentInParent<HonamiDirector>(true);
+                if (selectedDirector != null && selectedDirector.Timeline == ActiveTimeline)
+                    return _director = selectedDirector;
+            }
+
+            if (_director != null && _director.Timeline == ActiveTimeline) return _director;
+            if (EditorApplication.timeSinceStartup < _nextDirectorSearchTime) return null;
+
+            _nextDirectorSearchTime = EditorApplication.timeSinceStartup + 1.0;
+            return _director = HonamiTimelineEditContext.FindDirector(ActiveTimeline);
+        }
+
+        public void ForgetDirector()
+        {
+            _director = null;
+            _nextDirectorSearchTime = 0;
+        }
+
+        public float FrameRate
+        {
+            get
+            {
+                switch (Mode)
+                {
+                    case TimelineMode.HonamiTimeline:
+                        return ActiveTimeline != null ? ActiveTimeline.FrameRate : HonamiTimeline.DefaultFrameRate;
+                    case TimelineMode.HonamiClipEdit:
+                        return ActiveClip != null ? Mathf.Max(0f, ActiveClip.frameRate) : 0f;
+                    default:
+                        var clip = PrimaryStateClip();
+                        return clip != null ? Mathf.Max(0f, clip.frameRate) : 0f;
+                }
+            }
+        }
+
+        public AnimationClip PrimaryStateClip()
+        {
+            if (AnimNode?.clip != null) return AnimNode.clip;
+            if (IsRandomState && RandomNode.randomClips != null && RandomPreviewIdx >= 0 && RandomPreviewIdx < RandomNode.randomClips.Count)
+                return RandomNode.randomClips[RandomPreviewIdx].clip;
+            if (IsBlendState && BlendNode.blendMotions != null)
+            {
+                foreach (var motion in BlendNode.blendMotions)
+                {
+                    if (motion.clip != null) return motion.clip;
+                }
+            }
+            return null;
+        }
+
+        // A state has no frame rate of its own: frames exist only when its clip provides one.
+        public bool HasFrameRate => FrameRate > 0f;
+
+        public float FrameDuration => HasFrameRate ? 1f / FrameRate : 1f / 60f;
+
+        // Timecode is a cutscene notion, so states and clips show frames or seconds only.
+        public TimelineTimeFormat EffectiveTimeFormat
+        {
+            get
+            {
+                if (!HasFrameRate) return TimelineTimeFormat.Seconds;
+                if (Mode != TimelineMode.HonamiTimeline) return ShowFrames ? TimelineTimeFormat.Frames : TimelineTimeFormat.Seconds;
+                return TimeFormat;
+            }
+        }
+
+        public float SnapToFrame(float time)
+        {
+            float rate = FrameRate;
+            return rate > 0f ? Mathf.Round(time * rate) / rate : time;
+        }
+
+        public bool IsModuleLocked(HonamiTimelineModule module)
+        {
+            for (int step = 0; module != null && step < 64; step++)
+            {
+                if (module.locked) return true;
+                module = ParentModuleOf(module);
+            }
+            return false;
         }
 
         public void ClearCache()
@@ -176,6 +454,8 @@ namespace HonamiAnimationSystem.Editor.Timeline
             BlendCache = default;
             CachedTransforms = null;
             CachedConstraintsTarget = null;
+            _director = null;
+            _nextDirectorSearchTime = 0;
 
             for (int i = 0; i < Proxies.Count; i++)
             {
@@ -189,6 +469,7 @@ namespace HonamiAnimationSystem.Editor.Timeline
         {
             SnapEnabled = HonamiTimelineSettings.Snap;
             ShowFrames = HonamiTimelineSettings.ShowFrames;
+            UseSeconds = HonamiTimelineSettings.Seconds;
             ShowKeyframes = HonamiTimelineSettings.ShowKeyframes;
             TimeScale = HonamiTimelineSettings.TimeScale;
             TrackHeaderWidth = HonamiTimelineSettings.TrackHeaderWidth;
@@ -196,14 +477,14 @@ namespace HonamiAnimationSystem.Editor.Timeline
             ForceLoop = HonamiTimelineSettings.ForceLoop;
             ShowProperties = HonamiTimelineSettings.ShowProperties;
             ShowAnimTrack = HonamiTimelineSettings.ShowAnimTrack;
-            ShowLocalEventsTrack = HonamiTimelineSettings.ShowLocalEventsTrack;
-            ShowGlobalEventsTrack = HonamiTimelineSettings.ShowGlobalEventsTrack;
+            ShowLinks = HonamiTimelineSettings.ShowLinks;
         }
 
         public void SaveSettings()
         {
             HonamiTimelineSettings.Snap = SnapEnabled;
             HonamiTimelineSettings.ShowFrames = ShowFrames;
+            HonamiTimelineSettings.Seconds = UseSeconds;
             HonamiTimelineSettings.ShowKeyframes = ShowKeyframes;
             HonamiTimelineSettings.TimeScale = TimeScale;
             HonamiTimelineSettings.TrackHeaderWidth = TrackHeaderWidth;
@@ -211,8 +492,7 @@ namespace HonamiAnimationSystem.Editor.Timeline
             HonamiTimelineSettings.ForceLoop = ForceLoop;
             HonamiTimelineSettings.ShowProperties = ShowProperties;
             HonamiTimelineSettings.ShowAnimTrack = ShowAnimTrack;
-            HonamiTimelineSettings.ShowLocalEventsTrack = ShowLocalEventsTrack;
-            HonamiTimelineSettings.ShowGlobalEventsTrack = ShowGlobalEventsTrack;
+            HonamiTimelineSettings.ShowLinks = ShowLinks;
         }
 
         public HonamiAnimationNode AnimNode => SelectedState?.node as HonamiAnimationNode;
@@ -244,6 +524,28 @@ namespace HonamiAnimationSystem.Editor.Timeline
         public float GetTimelineWidth(float windowWidth) =>
             Mathf.Max(GetDuration() * TimeScale + 100f, windowWidth - TrackHeaderWidth);
 
+        public bool IsPlayingBackwards => (SelectedState != null && SelectedState.isReversed) != PlaybackSpeed < 0f;
+
+        internal static void Shuttle(TimelineState state, int direction)
+        {
+            if (direction == 0)
+            {
+                state.IsPlaying = false;
+                state.PlaybackSpeed = 1f;
+                return;
+            }
+
+            float speed = state.PlaybackSpeed;
+            bool sameDirection = state.IsPlaying && (speed < 0f ? -1 : 1) == direction;
+            speed = sameDirection ? Mathf.Clamp(Mathf.Abs(speed) * 2f, 1f, MaxPlaybackSpeed) : 1f;
+            state.PlaybackSpeed = speed * direction;
+
+            if (state.IsPlaying) return;
+            state.IsPlaying = true;
+            state.PreviewEnabled = true;
+            state.LastUpdateTime = EditorApplication.timeSinceStartup;
+        }
+
         public void PreModifyState()
         {
             if (Mode != TimelineMode.HonamiState || Controller == null || SelectedState == null) return;
@@ -252,14 +554,7 @@ namespace HonamiAnimationSystem.Editor.Timeline
                 var eff = Editor.Core.HonamiOverrideAuthoring.EnsureEffectiveState(ov, SelectedState);
                 if (eff != SelectedState)
                 {
-                    var newSelectedEvents = new List<HonamiEventMarker>();
-                    foreach (var ev in SelectedEvents)
-                    {
-                        int index = SelectedState.events?.IndexOf(ev) ?? -1;
-                        if (index >= 0 && index < (eff.events?.Count ?? 0))
-                            newSelectedEvents.Add(eff.events[index]);
-                    }
-                    SelectedEvents = newSelectedEvents;
+                    RemapModuleSelection(SelectedState, eff);
 
                     if (SelectedState.node is HonamiSequencerNode oldSeq && eff.node is HonamiSequencerNode newSeq)
                     {
@@ -275,6 +570,36 @@ namespace HonamiAnimationSystem.Editor.Timeline
                     SelectedState = eff;
                 }
             }
+        }
+
+        // An override's effective state is a deep copy, so selected modules and items are re-found by index in the copy.
+        private void RemapModuleSelection(HonamiState from, HonamiState to)
+        {
+            var oldModules = from.Modules;
+            var newModules = to.Modules;
+
+            HonamiTimelineModule MapModule(HonamiTimelineModule module)
+            {
+                int index = module != null ? oldModules.IndexOf(module) : -1;
+                return index >= 0 && index < newModules.Count ? newModules[index] : null;
+            }
+
+            SelectedModule = MapModule(SelectedModule);
+
+            var remapped = new List<HonamiTimelineItem>();
+            foreach (var item in SelectedTimelineItems)
+            {
+                for (int m = 0; m < oldModules.Count; m++)
+                {
+                    int itemIndex = oldModules[m] != null ? oldModules[m].IndexOf(item) : -1;
+                    if (itemIndex < 0) continue;
+                    var target = MapModule(oldModules[m]);
+                    if (target != null && itemIndex < target.ItemCount)
+                        remapped.Add(target.GetItem(itemIndex));
+                    break;
+                }
+            }
+            SelectedTimelineItems = remapped;
         }
 
         public void PostModifyState()
@@ -293,6 +618,7 @@ namespace HonamiAnimationSystem.Editor.Timeline
         internal static void TogglePlayback(TimelineState state)
         {
             state.IsPlaying = !state.IsPlaying;
+            state.PlaybackSpeed = 1f;
             if (!state.IsPlaying) return;
 
             state.PreviewEnabled = true;
@@ -301,7 +627,7 @@ namespace HonamiAnimationSystem.Editor.Timeline
             float duration = state.GetDuration();
             bool isLoop = state.ForceLoop || (state.SelectedState?.loop ?? false);
 
-            if (state.SelectedState != null && state.SelectedState.isReversed)
+            if (state.IsPlayingBackwards)
             {
                 if (state.PlayheadTime <= 0f && !isLoop)
                     state.PlayheadTime = duration;

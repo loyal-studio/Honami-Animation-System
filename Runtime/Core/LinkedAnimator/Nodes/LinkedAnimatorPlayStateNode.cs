@@ -1,9 +1,8 @@
-using UnityEngine;
+﻿using UnityEngine;
 
 namespace HonamiAnimationSystem.Runtime.Core
 {
     [CreateAssetMenu(fileName = "PlayState", menuName = "Honami Animation/Linked Animator Nodes/Play State")]
-    [UnityEngine.Scripting.APIUpdating.MovedFrom("BrainPlayStateNode")]
     public sealed class LinkedAnimatorPlayStateNode : HonamiLinkedAnimatorNodeBase
     {
         public string stateName;
@@ -15,7 +14,7 @@ namespace HonamiAnimationSystem.Runtime.Core
         {
             if (string.IsNullOrEmpty(stateName) || ctx.Brain == null) return LinkedAnimatorNodeResult.Done;
 
-            ctx.Brain.PlayState(stateName, targetMode, targetTag, transitionDuration);
+            ctx.Brain.PlayState(stateName, transitionDuration, new HonamiLinkedTarget(targetMode, targetTag));
             return LinkedAnimatorNodeResult.Done;
         }
     }

@@ -5,8 +5,8 @@ namespace HonamiAnimationSystem.Runtime.Core
 {
     public partial class HonamiAnimator
     {
-        private void EvaluateEvents()
-            => HonamiEventEngine.EvaluateEvents(this);
+        private void EvaluateStateModules()
+            => HonamiEventEngine.EvaluateStateModules(this);
 
         internal bool EvaluateConditionTentative(HonamiCondition condition, List<int> triggersTentative)
             => HonamiEventEngine.EvaluateConditionTentative(this, condition, triggersTentative);

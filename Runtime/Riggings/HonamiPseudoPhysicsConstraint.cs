@@ -49,7 +49,7 @@ namespace HonamiAnimationSystem.Runtime.Riggings
         public Transform bone;
         [Range(0f, 1f)] public float weightMultiplier = 1f;
 
-        [Tooltip("Simulation mode: THIS bone hangs on that renderer's mesh surface instead of swinging on its bone length — a mesh collider purely for the physics. It slides across the surface with momentum and settles on the low side under gravity: assign the keyring's renderer on the charm bone and a single entry is a complete keychain. A MeshRenderer surface follows its own transform; a SkinnedMeshRenderer is anchored to the bone it is skinned to. Triangles are baked into this component in the editor, so Read/Write can stay off; keep the mesh a simple proxy. Replaces Joint and Angle Limit — model the shape itself to limit the travel.")]
+        [Tooltip("Simulation mode: THIS bone hangs on that renderer's mesh surface instead of swinging on its bone length - a mesh collider purely for the physics. It slides across the surface with momentum and settles on the low side under gravity: assign the keyring's renderer on the charm bone and a single entry is a complete keychain. A MeshRenderer surface follows its own transform; a SkinnedMeshRenderer is anchored to the bone it is skinned to. Triangles are baked into this component in the editor, so Read/Write can stay off; keep the mesh a simple proxy. Replaces Joint and Angle Limit - model the shape itself to limit the travel.")]
         public Renderer shapeRenderer;
         [SerializeField, HideInInspector] internal Mesh bakedShapeSource;
         [SerializeField, HideInInspector] internal Vector3[] bakedShapeVertices;
@@ -60,17 +60,17 @@ namespace HonamiAnimationSystem.Runtime.Riggings
 
         [Tooltip("Simulation mode: how this bone is allowed to rotate. Free = swings in any direction. Hinge = rotates only about Hinge Axis, like a ring on a peg. Fixed = does not rotate at all, but still carries the bones below it.")]
         public HonamiPhysicsJoint joint = HonamiPhysicsJoint.Free;
-        [Tooltip("Bone-local axis this bone rotates about when joint is Hinge — the peg the ring turns on. Any direction works: perpendicular to the bone it swings like a door, along the bone it spins in place like a ring on its peg, driven by the parent's twist and by gravity on Up Axis.")]
+        [Tooltip("Bone-local axis this bone rotates about when joint is Hinge - the peg the ring turns on. Any direction works: perpendicular to the bone it swings like a door, along the bone it spins in place like a ring on its peg, driven by the parent's twist and by gravity on Up Axis.")]
         public Vector3 hingeAxis = Vector3.forward;
         [Tooltip("Maximum angle (degrees) this bone may turn away from Limit Center. 0 = unlimited.")]
         public float angleLimit = 0f;
         [Tooltip("Bone-local direction the angle limit is measured from, rotating with the parent. Zero = the bone's own animated direction. Set it when the bone is modelled pointing away from where it should rest.")]
         public Vector3 limitCenter = Vector3.zero;
-        [Tooltip("Free joint: bone-local axis kept facing the animated up direction — the roll control, deciding which way the bone faces while physics decides where it points. Hinge along the bone: marks the ring's heavy side, the direction gravity pulls down; zero = a balanced ring that only spins from the parent's motion. Zero on Free = derived automatically.")]
+        [Tooltip("Free joint: bone-local axis kept facing the animated up direction - the roll control, deciding which way the bone faces while physics decides where it points. Hinge along the bone: marks the ring's heavy side, the direction gravity pulls down; zero = a balanced ring that only spins from the parent's motion. Zero on Free = derived automatically.")]
         public Vector3 upAxis = Vector3.zero;
-        [Tooltip("Simulation mode: a constant this bone keeps turning back to while it hangs. Physics decides where the bone points; this decides which way it faces around that direction — a charm that keeps showing its flat side to the player instead of drifting edge-on. None disables it.")]
+        [Tooltip("Simulation mode: a constant this bone keeps turning back to while it hangs. Physics decides where the bone points; this decides which way it faces around that direction - a charm that keeps showing its flat side to the player instead of drifting edge-on. None disables it.")]
         public HonamiPhysicsFacingTarget facingTarget = HonamiPhysicsFacingTarget.None;
-        [Tooltip("Bone-local axis aimed at the target — the charm's face normal, not the direction it hangs. An axis running along the bone cannot be turned by a roll and is ignored.")]
+        [Tooltip("Bone-local axis aimed at the target - the charm's face normal, not the direction it hangs. An axis running along the bone cannot be turned by a roll and is ignored.")]
         public Vector3 facingAxis = Vector3.forward;
         [Tooltip("World-space direction the Facing Axis is turned toward.")]
         public Vector3 facingDirection = Vector3.forward;
@@ -90,7 +90,7 @@ namespace HonamiAnimationSystem.Runtime.Riggings
         [Tooltip("Last bone of a chain only: length of the virtual tip in the bone's local units. 0 = the bone's own length.")]
         public float tipLength = 0f;
         [Range(0f, 2f)]
-        [Tooltip("How hard this bone's mass is thrown around by the chain's own movement and turning. 0 = it rides along rigidly and never swings from handling, 1 = whatever the chain's Inertia allows, 2 = twice the whip. Gravity still applies at any value, so a 0 bone keeps hanging — it just ignores the motion.")]
+        [Tooltip("How hard this bone's mass is thrown around by the chain's own movement and turning. 0 = it rides along rigidly and never swings from handling, 1 = whatever the chain's Inertia allows, 2 = twice the whip. Gravity still applies at any value, so a 0 bone keeps hanging - it just ignores the motion.")]
         public float motionResponse = 1f;
         [Tooltip("Multiplies the chain's Gravity for this bone's mass. Lower it for a light link, raise it for a heavy charm.")]
         public float gravityScale = 1f;
@@ -175,11 +175,11 @@ namespace HonamiAnimationSystem.Runtime.Riggings
     public sealed class HonamiPseudoPhysicsConstraint : HonamiRig
     {
         [Header("Mode")]
-        [Tooltip("PseudoPhysics: offsets reacting to the animated bone's own motion, always springing back to the animated pose. Simulation: a real hanging chain — the listed bones become particles with mass, gravity and a rigid bone length, so they swing, wrap around and settle on their own. Use Simulation for keychains, pendants and straps.")]
+        [Tooltip("PseudoPhysics: offsets reacting to the animated bone's own motion, always springing back to the animated pose. Simulation: a real hanging chain - the listed bones become particles with mass, gravity and a rigid bone length, so they swing, wrap around and settle on their own. Use Simulation for keychains, pendants and straps.")]
         public HonamiPhysicsMode mode = HonamiPhysicsMode.PseudoPhysics;
 
         [Header("Time")]
-        [Tooltip("Animation: the rig integrates on the same clock the animation plays on, so slow motion slows the swing with it and a frozen game holds the pose. Unscaled: real seconds — the rig keeps reacting while the game is slowed or paused, which is what anything moved by an unscaled camera needs. Match this to whatever moves the bones: motion arriving in real seconds while the physics integrates in scaled ones is what makes the reaction shrink as Time.timeScale drops.")]
+        [Tooltip("Animation: the rig integrates on the same clock the animation plays on, so slow motion slows the swing with it and a frozen game holds the pose. Unscaled: real seconds - the rig keeps reacting while the game is slowed or paused, which is what anything moved by an unscaled camera needs. Match this to whatever moves the bones: motion arriving in real seconds while the physics integrates in scaled ones is what makes the reaction shrink as Time.timeScale drops.")]
         public HonamiPhysicsTimeSource timeSource = HonamiPhysicsTimeSource.Animation;
 
         [Header("Target Bones")]
@@ -193,14 +193,14 @@ namespace HonamiAnimationSystem.Runtime.Riggings
         [Tooltip("Air drag on the chain's free swing. 0 lets it swing forever, 1 settles it almost at once. Independent of Stiffness: raising one never forces you to retune the other.")]
         public float simulationDamping = 0.3f;
         [Range(0f, 1f)]
-        [Tooltip("How hard the chain is pulled back toward its animated pose. 0 leaves it hanging fully free, and the chain then starts already settled along Gravity instead of at the bind pose — which is what a keychain modelled sticking up needs. 1 makes it follow the animation almost rigidly. The pull is critically damped, so raising it never makes the chain ring or overshoot.")]
+        [Tooltip("How hard the chain is pulled back toward its animated pose. 0 leaves it hanging fully free, and the chain then starts already settled along Gravity instead of at the bind pose - which is what a keychain modelled sticking up needs. 1 makes it follow the animation almost rigidly. The pull is critically damped, so raising it never makes the chain ring or overshoot.")]
         public float simulationStiffness = 0f;
         [Range(0f, 1f)]
         [Tooltip("Fraction of the root bone's movement and turning the chain inherits instantly. 0 = full lag and whip, 1 = the chain rides along rigidly. Raise it on fast weapons and first-person items so handling does not whip the chain.")]
         public float simulationInertia = 0f;
 
         [Header("Simulation Space")]
-        [Tooltip("BoneLocal: offsets rotate with the bone — jiggle that sticks to the animation (chest, hair). World: offsets and gravity stay world-aligned — dangling items that sag down and swing (keychains, pouches, pendants).")]
+        [Tooltip("BoneLocal: offsets rotate with the bone - jiggle that sticks to the animation (chest, hair). World: offsets and gravity stay world-aligned - dangling items that sag down and swing (keychains, pouches, pendants).")]
         public HonamiPhysicsSimulationSpace simulationSpace = HonamiPhysicsSimulationSpace.BoneLocal;
 
         [Header("Axis Setup")]
@@ -227,7 +227,7 @@ namespace HonamiAnimationSystem.Runtime.Riggings
         [Header("Rotation Gravity (Pendulum)")]
         [Tooltip("Torque (deg/s²) pulling Hang Axis toward Gravity Direction, scaled by the sine of the misalignment. 0 disables. It fights rotationStiffness: equilibrium tilt ≈ torque / stiffness, so lower the stiffness or raise the torque until the bone actually hangs.")]
         public float rotationGravity = 0f;
-        [Tooltip("Bone-local axis that should point along Gravity Direction — the axis running from the attachment point toward the dangling tip.")]
+        [Tooltip("Bone-local axis that should point along Gravity Direction - the axis running from the attachment point toward the dangling tip.")]
         public Vector3 rotationHangAxis = Vector3.down;
         [Tooltip("World-space direction the Hang Axis is pulled toward.")]
         public Vector3 rotationGravityDirection = Vector3.down;
@@ -262,8 +262,8 @@ namespace HonamiAnimationSystem.Runtime.Riggings
         // a rigid safety valve in angular terms: bone length is the amplifier turning a millimetre of
         // animation noise into a huge spin on a short bone, so the ceiling has to scale with it
         private const float MaxAngularSpeed = 30f;
-        // a hinge axis this close to the bone direction has almost no cone left to swing — and the sliver
-        // that remains is so thin the projection flips on frame noise — so it becomes a roll instead
+        // a hinge axis this close to the bone direction has almost no cone left to swing - and the sliver
+        // that remains is so thin the projection flips on frame noise - so it becomes a roll instead
         private const float RollHingeDotThreshold = 0.98f;
         // how fast a free bone's roll reference eases back to the animated up after swinging past a pole
         private const float UpFollowRate = 6f;
@@ -449,7 +449,7 @@ namespace HonamiAnimationSystem.Runtime.Riggings
         public override void PrepareJobData(float deltaTime)
         {
             if (!_playable.IsValid() || !Application.isPlaying || mode == HonamiPhysicsMode.Simulation
-                || bones == null || bones.Length == 0 || weight <= 0.001f)
+                || bones == null || bones.Length == 0 || EffectiveWeight <= 0.001f)
             {
                 if (_nativeParams.IsCreated) _nativeParams[0] = 0f;
                 _isInitialized = false;
@@ -495,7 +495,7 @@ namespace HonamiAnimationSystem.Runtime.Riggings
                 if (frozen) HoldBonePhysics(b, animPos, animRot);
                 else StepBonePhysics(b, animPos, animRot, dt);
 
-                float w = b.weightMultiplier * weight;
+                float w = b.weightMultiplier * EffectiveWeight;
                 if (w > 0.001f)
                 {
                     b.appliedPosOffset = Vector3.Scale(b.currentPosOffset, positionAxisMask) * w;
@@ -517,7 +517,7 @@ namespace HonamiAnimationSystem.Runtime.Riggings
                 idx++;
             }
 
-            _nativeParams[0] = weight;
+            _nativeParams[0] = EffectiveWeight;
             _nativeParams[1] = _boundBoneCount;
             _nativeParams[2] = simulationSpace == HonamiPhysicsSimulationSpace.World ? 1f : 0f;
         }
@@ -766,7 +766,7 @@ namespace HonamiAnimationSystem.Runtime.Riggings
                 anchor = ResolveShapeAnchor(entries[0]);
                 if (anchor == null || anchor == entries[0].bone || anchor.IsChildOf(entries[0].bone))
                 {
-                    Debug.LogWarning($"HonamiPseudoPhysicsConstraint: Shape Renderer on '{entries[0].bone.name}' could not resolve a usable surface anchor — the surface must belong to another transform, not the sliding bone itself. Treating it as a plain chain.", this);
+                    Debug.LogWarning($"HonamiPseudoPhysicsConstraint: Shape Renderer on '{entries[0].bone.name}' could not resolve a usable surface anchor - the surface must belong to another transform, not the sliding bone itself. Treating it as a plain chain.", this);
                     anchor = null;
                 }
             }
@@ -1093,7 +1093,7 @@ namespace HonamiAnimationSystem.Runtime.Riggings
 
         // a part rigidly skinned to one bone keeps a constant surface in that bone's space, so a single
         // snapshot of the current pose, re-expressed relative to the bone, is valid in every pose.
-        // the vertices are skinned manually with the same matrices Unity skins with — BakeMesh scale
+        // the vertices are skinned manually with the same matrices Unity skins with - BakeMesh scale
         // semantics differ across setups and misplace rigs with import scale
         private static void SnapshotSkinnedToBoneLocal(SkinnedMeshRenderer smr, Transform bone,
             out Vector3[] vertices, out int[] triangles)
@@ -1158,7 +1158,7 @@ namespace HonamiAnimationSystem.Runtime.Riggings
         }
 
         // the shape lives on the SLIDING bone's entry (child), while the constraint state lives on the
-        // particle it hangs from (p) — the anchor particle that CreateChain put above it
+        // particle it hangs from (p) - the anchor particle that CreateChain put above it
         private void CaptureShape(SimParticle p, SimParticle child)
         {
             var d = child.data;
@@ -1171,7 +1171,7 @@ namespace HonamiAnimationSystem.Runtime.Riggings
             }
 
             // a renderer or mesh swap changes the chain signature and relists the particles, so a
-            // structure built once stays valid for this particle's whole lifetime — no rebuild on re-enable
+            // structure built once stays valid for this particle's whole lifetime - no rebuild on re-enable
             if (p.meshShape != null)
             {
                 p.hasShape = true;
@@ -1204,7 +1204,7 @@ namespace HonamiAnimationSystem.Runtime.Riggings
                 }
                 else
                 {
-                    WarnShapeOnce(p, $"mesh '{source.name}' on '{child.transform.name}' has no baked data — reassign the renderer in the inspector so it bakes");
+                    WarnShapeOnce(p, $"mesh '{source.name}' on '{child.transform.name}' has no baked data - reassign the renderer in the inspector so it bakes");
                     return;
                 }
             }
@@ -1234,7 +1234,7 @@ namespace HonamiAnimationSystem.Runtime.Riggings
                 }
                 else
                 {
-                    WarnShapeOnce(p, $"mesh '{mesh.name}' on '{child.transform.name}' has no baked data — reassign the renderer in the inspector so it bakes");
+                    WarnShapeOnce(p, $"mesh '{mesh.name}' on '{child.transform.name}' has no baked data - reassign the renderer in the inspector so it bakes");
                     return;
                 }
             }
@@ -1325,8 +1325,8 @@ namespace HonamiAnimationSystem.Runtime.Riggings
                     hinge.Normalize();
                     p.worldHingeAxis = (p.restWorldRot * hinge).normalized;
                     p.hingeAlong = Vector3.Dot(hinge, p.localAimDir);
-                    // an axis along the bone leaves the child rigid but frees the spin about itself —
-                    // a ring on its peg — so it becomes an angular hinge instead of being rejected
+                    // an axis along the bone leaves the child rigid but frees the spin about itself -
+                    // a ring on its peg - so it becomes an angular hinge instead of being rejected
                     p.isRollHinge = Mathf.Abs(p.hingeAlong) > RollHingeDotThreshold;
                     if (p.isRollHinge)
                     {
@@ -1408,7 +1408,7 @@ namespace HonamiAnimationSystem.Runtime.Riggings
         private static float ResolveMotionResponse(HonamiPhysicsBoneData d)
             => d != null ? Mathf.Max(0f, d.motionResponse) : 1f;
 
-        // the anchor is kinematic — the bone the ring is bound to, never a simulated link — so its
+        // the anchor is kinematic - the bone the ring is bound to, never a simulated link - so its
         // animated frame is exact and the surface never needs to chase a swinging owner
         private static Vector3 ConstrainToShape(SimParticle parent, Vector3 next, float stiffBlend)
         {
@@ -1424,7 +1424,7 @@ namespace HonamiAnimationSystem.Runtime.Riggings
         {
             if (parent.joint == HonamiPhysicsJoint.Hinge)
             {
-                // a hinge preserves the bone's angle to the axis — the bone sweeps a cone, not a flat disc.
+                // a hinge preserves the bone's angle to the axis - the bone sweeps a cone, not a flat disc.
                 // flattening into the plane is only correct for a perpendicular axis, and rejecting every
                 // slanted axis is what forced artists into one specific hinge direction per rig
                 Vector3 n = parent.worldHingeAxis;
@@ -1664,7 +1664,7 @@ namespace HonamiAnimationSystem.Runtime.Riggings
                 if (!p.hasAim || aimDir.sqrMagnitude < 1e-10f) continue;
                 aimDir.Normalize();
 
-                float w = weight * (p.data != null ? p.data.weightMultiplier : 1f);
+                float w = EffectiveWeight * (p.data != null ? p.data.weightMultiplier : 1f);
                 Quaternion simRot = BuildAimRotation(p, aimDir, upBlend);
                 if (p.isRollHinge && p.rollAngle != 0f)
                     simRot *= Quaternion.AngleAxis(p.rollAngle * Mathf.Rad2Deg, p.localHingeAxis);
@@ -1689,7 +1689,7 @@ namespace HonamiAnimationSystem.Runtime.Riggings
             Transform sceneParent = child.transform.parent;
             Vector3 local = sceneParent != null ? sceneParent.InverseTransformPoint(world) : world;
 
-            float w = weight * (child.data != null ? child.data.weightMultiplier : 1f);
+            float w = EffectiveWeight * (child.data != null ? child.data.weightMultiplier : 1f);
             Vector3 final = w >= 0.999f ? local : Vector3.Lerp(child.restLocalPos, local, w);
 
             child.transform.localPosition = final;
@@ -1718,7 +1718,7 @@ namespace HonamiAnimationSystem.Runtime.Riggings
                 }
                 else
                 {
-                    // no solvable angle this frame — hold, or the bone would unwind and snap back
+                    // no solvable angle this frame - hold, or the bone would unwind and snap back
                     desired = p.facingAngle;
                 }
             }
@@ -1836,7 +1836,7 @@ namespace HonamiAnimationSystem.Runtime.Riggings
                 _chainsDirty = false;
             }
 
-            if ((!isPlaying && !simulateInEditMode) || bones == null || bones.Length == 0 || weight <= 0.001f)
+            if ((!isPlaying && !simulateInEditMode) || bones == null || bones.Length == 0 || EffectiveWeight <= 0.001f)
             {
                 RestoreChains();
 #if UNITY_EDITOR
@@ -1898,7 +1898,7 @@ namespace HonamiAnimationSystem.Runtime.Riggings
                 if (frozen) HoldBonePhysics(b, animPos, animRot);
                 else StepBonePhysics(b, animPos, animRot, dt);
 
-                float w = weight * b.weightMultiplier;
+                float w = EffectiveWeight * b.weightMultiplier;
                 Vector3 finalPosOffset = Vector3.Scale(b.currentPosOffset, positionAxisMask) * w;
                 Vector3 finalRotOffset = Vector3.Scale(b.currentRotOffset, rotationAxisMask) * w;
 
@@ -2053,7 +2053,7 @@ namespace HonamiAnimationSystem.Runtime.Riggings
 
                 if (b.shapeRenderer is SkinnedMeshRenderer)
                 {
-                    // the constraint uses the anchor-space snapshot, so that is what must be drawn —
+                    // the constraint uses the anchor-space snapshot, so that is what must be drawn -
                     // the live skinned mesh would diverge from it the moment the pose changes
                     if (b.bakedShapeAnchorBone == null || !b.bakedShapeInBoneSpace) continue;
                     var v = b.bakedShapeVertices;

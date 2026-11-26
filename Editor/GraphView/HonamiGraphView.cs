@@ -18,14 +18,6 @@ namespace HonamiAnimationSystem.Editor
         public System.Action<List<HonamiTransition>> OnEdgesSelected;
         public System.Action OnDeselected;
 
-        private void ClearEvents()
-        {
-            OnNodeSelected = null;
-            OnSubNodeSelected = null;
-            OnEdgeSelected = null;
-            OnEdgesSelected = null;
-            OnDeselected = null;
-        }
 
         private HonamiRuntimeController _runtimeController;
         private HonamiController _controller;
@@ -162,9 +154,7 @@ namespace HonamiAnimationSystem.Editor
             this.AddManipulator(new SelectionDragger());
             this.AddManipulator(new RectangleSelector());
 
-            var styleSheet = Resources.Load<StyleSheet>("HonamiGraphStyle");
-            if (styleSheet != null)
-                styleSheets.Add(styleSheet);
+            HonamiGraphStyleSheets.Apply(this);
 
             _miniMap = new MiniMap { anchored = false };
             _miniMap.AddToClassList("honami-minimap");
@@ -246,7 +236,7 @@ namespace HonamiAnimationSystem.Editor
         #region Runtime Visualization
         private Dictionary<HonamiState, int> _stateIndexMap = new Dictionary<HonamiState, int>();
 
-        public void UpdateRuntimeVisualization(Runtime.Core.HonamiAnimator animator)
+        public void UpdateRuntimeVisualization(HonamiAnimator animator)
         {
             if (animator == null || _runtimeController == null) return;
 

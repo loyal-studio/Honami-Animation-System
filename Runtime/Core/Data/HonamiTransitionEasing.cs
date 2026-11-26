@@ -8,7 +8,7 @@ namespace HonamiAnimationSystem.Runtime.Core
     /// </summary>
     public static class HonamiTransitionEasing
     {
-        private static readonly AnimationCurve[] _curves = new AnimationCurve[31];
+        private static readonly AnimationCurve[] _curves = new AnimationCurve[32];
 
         // Presets are baked into curves so they travel through the existing
         // AnimationCurve plumbing (runtime, preview, script API) unchanged.
@@ -139,6 +139,9 @@ namespace HonamiAnimationSystem.Runtime.Core
                     return t < 0.5f
                         ? (1f - OutBounce(1f - 2f * t)) * 0.5f
                         : (1f + OutBounce(2f * t - 1f)) * 0.5f;
+
+                case HonamiTransitionEase.SmoothStep:
+                    return t * t * (3f - 2f * t);
 
                 default:
                     return t;

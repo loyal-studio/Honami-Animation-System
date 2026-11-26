@@ -3,7 +3,6 @@ using UnityEngine;
 namespace HonamiAnimationSystem.Runtime.Core
 {
     [CreateAssetMenu(fileName = "Log", menuName = "Honami Animation/Linked Animator Nodes/Log")]
-    [UnityEngine.Scripting.APIUpdating.MovedFrom("BrainLogNode")]
     public sealed class LinkedAnimatorLogNode : HonamiLinkedAnimatorNodeBase
     {
         public string message = "Brain Event";

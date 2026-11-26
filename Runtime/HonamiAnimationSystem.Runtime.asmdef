@@ -2,7 +2,6 @@
     "name": "HonamiAnimationSystem.Runtime",
     "rootNamespace": "HonamiAnimationSystem.Runtime",
     "references": [
-        "Unity.Timeline",
         "Unity.Mathematics",
         "Unity.Burst",
         "Unity.Collections"

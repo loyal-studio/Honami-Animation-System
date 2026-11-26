@@ -31,6 +31,18 @@ namespace HonamiAnimationSystem.Runtime.Core
             public string boneB;
         }
 
+        // Editor-only import metadata: the runtime never reads it, the model importer section regenerates bones from it.
+        [Serializable]
+        public sealed class ModelSource
+        {
+            public string modelGuid;
+            public bool refreshOnImport = true;
+            public bool skinnedBonesOnly;
+            public bool includeInactive = true;
+            public bool autoBindMirrors = true;
+        }
+
+        public ModelSource modelSource = new();
         public List<BoneEntry> bones = new();
         public List<MirrorEntry> mirrorBones = new();
 

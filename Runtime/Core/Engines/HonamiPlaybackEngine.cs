@@ -98,6 +98,8 @@ namespace HonamiAnimationSystem.Runtime.Core
                     acceleratedWeightDrop,
                     victimCurve);
             }
+
+            anim.ReleaseHoldsSupersededBy(layer);
         }
 
         private static void HandleSelfTransition(
@@ -167,6 +169,30 @@ namespace HonamiAnimationSystem.Runtime.Core
             }
         }
 
+        public static void ExecuteCrossFade(
+            HonamiAnimator anim,
+            int targetIndex,
+            int prevIdx,
+            int layer,
+            float transitionDuration,
+            AnimationCurve curve,
+            float destinationStartTime = 0f)
+        {
+            HandleCrossStateTransition(
+                anim,
+                targetIndex,
+                prevIdx,
+                layer,
+                transitionDuration,
+                curve,
+                destinationStartTime,
+                0,
+                HonamiVictimMode.None,
+                1f,
+                false,
+                null);
+        }
+
         private static void HandleCrossStateTransition(
             HonamiAnimator anim,
             int targetIndex,
@@ -225,7 +251,10 @@ namespace HonamiAnimationSystem.Runtime.Core
                     anim._constraints.UpdateBaselines();
                 }
 
-                PlayClip(anim, targetIndex, layer, destinationStartTime, true);
+                if (!anim.IsExternalPort(targetIndex))
+                {
+                    PlayClip(anim, targetIndex, layer, destinationStartTime, true);
+                }
                 anim._layerMixers[layer].SetInputWeight(targetIndex, 0f);
             }
             else
@@ -243,6 +272,10 @@ namespace HonamiAnimationSystem.Runtime.Core
                         {
                             ClearTransientPort(anim, layer);
                         }
+                        else if (anim.IsExternalPort(i))
+                        {
+                            anim.ClearExternalPort(layer, i);
+                        }
                         else
                         {
                             anim.ResetTime(i, layer);
@@ -258,20 +291,32 @@ namespace HonamiAnimationSystem.Runtime.Core
                 anim._layerStates[layer].SourceFrozen = false;
                 anim._activeTransitionCurve[layer] = null;
 
-                PlayClip(anim, targetIndex, layer, destinationStartTime, true);
-                mixer.SetInputWeight(targetIndex, anim._runtimeStates[targetIndex].weight);
-
-                bool isCurrExit2 = anim._runtimeStates[targetIndex].node is { IsExit: true };
-                float configWeight = GetConfiguredLayerWeight(anim, layer);
-
-                if (anim._layerMixer.IsValid())
+                if (!anim.IsExternalPort(targetIndex))
                 {
-                    anim._layerMixer.SetInputWeight(layer, isCurrExit2 ? 0f : configWeight);
+                    PlayClip(anim, targetIndex, layer, destinationStartTime, true);
+                    mixer.SetInputWeight(targetIndex, anim._runtimeStates[targetIndex].weight);
+
+                    bool isCurrExit2 = anim._runtimeStates[targetIndex].node is { IsExit: true };
+                    float configWeight = GetConfiguredLayerWeight(anim, layer);
+
+                    if (anim._layerMixer.IsValid())
+                    {
+                        anim._layerMixer.SetInputWeight(layer, isCurrExit2 ? 0f : configWeight);
+                    }
+
+                    if (isCurrExit2)
+                    {
+                        anim.CompleteExitState(targetIndex, layer);
+                        anim._layerStates[layer].CurrentStateIndex = -1;
+                    }
                 }
-
-                if (isCurrExit2)
+                else
                 {
-                    anim.CompleteExitState(targetIndex, layer);
+                    mixer.SetInputWeight(targetIndex, anim.GetPortTargetWeight(layer, targetIndex));
+                    if (anim._layerMixer.IsValid())
+                    {
+                        anim._layerMixer.SetInputWeight(layer, GetConfiguredLayerWeight(anim, layer));
+                    }
                 }
             }
         }
@@ -325,7 +370,7 @@ namespace HonamiAnimationSystem.Runtime.Core
 
         private static float GetConfiguredLayerWeight(HonamiAnimator anim, int layer)
         {
-            if (layer < anim.controller.ActiveLayers.Count)
+            if (anim.controller != null && layer < anim.controller.ActiveLayers.Count)
             {
                 return anim.controller.ActiveLayers[layer].weight;
             }
@@ -391,9 +436,9 @@ namespace HonamiAnimationSystem.Runtime.Core
 
             layerMixer.SetInputWeight(transPort, layerMixer.GetInputWeight(sourceIndex));
 
-            if (anim._firedEventsPerPort != null && layer < anim._firedEventsPerPort.Length)
+            if (anim._portStates != null && layer < anim._portStates.Length)
             {
-                anim._firedEventsPerPort[layer][transPort].Clear();
+                anim._portStates[layer][transPort].LastFrameRawTime = double.NaN;
                 anim._portStates[layer][transPort].CurrentLoopCount = 0;
                 anim._portStates[layer][transPort].StateFinishedFired = true;
                 anim._portStates[layer][transPort].StateExitedFired = true;
@@ -432,6 +477,37 @@ namespace HonamiAnimationSystem.Runtime.Core
                         continue;
                     }
 
+                    if (anim.IsExternalPort(i))
+                    {
+                        var extPlayable = mixer.GetInput(i);
+                        if (extPlayable.IsValid())
+                        {
+                            bool isTransitioning = anim._layerStates[layer].PreviousStateIndex != -1
+                                || anim._layerStates[layer].TransitionDuration > 0.0;
+                            bool frozen = isTransitioning
+                                && ((anim._layerStates[layer].DestinationFrozen && i == anim._layerStates[layer].CurrentStateIndex)
+                                    || (anim._layerStates[layer].SourceFrozen && i == anim._layerStates[layer].PreviousStateIndex));
+                            float speed = frozen ? 0f : anim.GetPortSpeed(layer, i);
+                            extPlayable.SetSpeed(speed);
+                        }
+
+                        bool isTrans = anim._layerStates[layer].PreviousStateIndex != -1 || anim._layerStates[layer].TransitionDuration > 0f;
+                        if (!isTrans && i == anim._layerStates[layer].CurrentStateIndex)
+                        {
+                            int inputCount = mixer.GetInputCount();
+                            for (int p = 0; p < inputCount; p++)
+                            {
+                                mixer.SetInputWeight(p, p == i ? anim.GetPortTargetWeight(layer, i) : 0f);
+                            }
+
+                            if (anim._layerMixer.IsValid())
+                            {
+                                anim._layerMixer.SetInputWeight(layer, GetConfiguredLayerWeight(anim, layer));
+                            }
+                        }
+                        continue;
+                    }
+
                     int stateIdx = i == anim.TransientPortIndex
                         ? anim._layerStates[layer].TransientStateIndex
                         : i;
@@ -455,12 +531,12 @@ namespace HonamiAnimationSystem.Runtime.Core
                         playable.SetSpeed(speed);
                     }
 
-                    UpdateStateOnPort(anim, layer, i, stateIdx);
+                    UpdateStateOnPort(anim, layer, i, stateIdx, playable);
                 }
             }
         }
 
-        private static void UpdateStateOnPort(HonamiAnimator anim, int layer, int portIdx, int stateIdx)
+        private static void UpdateStateOnPort(HonamiAnimator anim, int layer, int portIdx, int stateIdx, Playable playable)
         {
             if (portIdx < 0 || stateIdx < 0 || stateIdx >= anim._activeStatesCount)
             {
@@ -469,7 +545,6 @@ namespace HonamiAnimationSystem.Runtime.Core
 
             var layerMixer = anim._layerMixers[layer];
             var state = anim._runtimeStates[stateIdx];
-            var playable = layerMixer.GetInput(portIdx);
 
             if (!playable.IsValid())
             {
@@ -534,8 +609,7 @@ namespace HonamiAnimationSystem.Runtime.Core
                     if (actualPlayable.GetPlayableType() == typeof(AnimationMixerPlayable))
                     {
                         var btMixer = (AnimationMixerPlayable)actualPlayable;
-                        HonamiBlendTreeEvaluator.UpdateWeightsFromMotions(btNode.blendMotions, btMixer, paramValue);
-                        HonamiBlendTreeEvaluator.UpdateChildSpeedsFromMotions(state, btNode.blendMotions, btMixer, paramValue, btNode.blendType);
+                        HonamiBlendTreeEvaluator.UpdateWeightsAndSpeeds(state, btNode.blendMotions, btMixer, paramValue, btNode.blendType);
                     }
                 }
                 else
@@ -716,19 +790,11 @@ namespace HonamiAnimationSystem.Runtime.Core
 
         private static void ResetPortEventFlags(HonamiAnimator anim, int layer, int stateIndex, HonamiState state)
         {
-            if (state.events != null && anim._firedEventsPerPort != null && layer < anim._firedEventsPerPort.Length)
-            {
-                if (stateIndex >= 0 && stateIndex < anim._firedEventsPerPort[layer].Length)
-                {
-                    anim._firedEventsPerPort[layer][stateIndex].Clear();
-                    anim._portStates[layer][stateIndex].LastFrameRawTime = -1.0;
-                    anim._portStates[layer][stateIndex].CurrentLoopCount = 0;
-                }
-            }
-
             if (anim._portStates != null && layer < anim._portStates.Length
                 && stateIndex >= 0 && stateIndex < anim._portStates[layer].Length)
             {
+                anim._portStates[layer][stateIndex].LastFrameRawTime = double.NaN;
+                anim._portStates[layer][stateIndex].CurrentLoopCount = 0;
                 anim._portStates[layer][stateIndex].StateFinishedFired = false;
                 anim._portStates[layer][stateIndex].StateExitedFired = false;
             }
@@ -952,6 +1018,12 @@ namespace HonamiAnimationSystem.Runtime.Core
 
         public static void ResetTime(HonamiAnimator anim, int portIndex, int layer)
         {
+            if (anim.IsExternalPort(portIndex))
+            {
+                anim.ClearExternalPort(layer, portIndex);
+                return;
+            }
+
             int stateIdx = (portIndex == anim.TransientPortIndex) ? anim._layerStates[layer].TransientStateIndex : portIndex;
 
             if (stateIdx < 0 || stateIdx >= anim._activeStatesCount)

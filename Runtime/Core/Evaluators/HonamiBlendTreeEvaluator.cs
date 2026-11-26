@@ -38,7 +38,8 @@ namespace HonamiAnimationSystem.Runtime.Core
             {
                 mixer.SetInputWeight(minIdx, 1f - weight);
                 mixer.SetInputWeight(maxIdx, weight);
-                float dur = GetMotionDuration(motions[minIdx]) + (GetMotionDuration(motions[maxIdx]) - GetMotionDuration(motions[minIdx])) * weight;
+                float minDur = GetMotionDuration(motions[minIdx]);
+                float dur = minDur + (GetMotionDuration(motions[maxIdx]) - minDur) * weight;
                 UpdateChildSpeeds(motions, state, mixer, dur, btNode.blendType);
             }
         }
@@ -60,6 +61,43 @@ namespace HonamiAnimationSystem.Runtime.Core
 
             if (minIdx == -1) mixer.SetInputWeight(paramValue <= motions[0].threshold ? 0 : count - 1, 1f);
             else { mixer.SetInputWeight(minIdx, 1f - weight); mixer.SetInputWeight(maxIdx, weight); }
+        }
+
+        /// <summary>
+        /// Per-frame path: resolves the blend bracket once and drives both the input weights and the
+        /// child speeds from it, instead of searching the thresholds twice.
+        /// </summary>
+        public static void UpdateWeightsAndSpeeds(HonamiState state, List<HonamiBlendTreeMotion> motions, AnimationMixerPlayable mixer, float paramValue, HonamiBlendTreeType blendType)
+        {
+            if (motions == null || motions.Count == 0) return;
+            int count = motions.Count;
+
+            if (count == 1)
+            {
+                mixer.SetInputWeight(0, 1f);
+                UpdateChildSpeeds(motions, state, mixer, GetMotionDuration(motions[0]), blendType);
+                return;
+            }
+
+            FindBlendIndices(motions, paramValue, out int minIdx, out int maxIdx, out float weight);
+
+            float duration;
+            if (minIdx == -1)
+            {
+                int edgeIdx = paramValue <= motions[0].threshold ? 0 : count - 1;
+                for (int i = 0; i < count; i++) mixer.SetInputWeight(i, i == edgeIdx ? 1f : 0f);
+                duration = GetMotionDuration(motions[edgeIdx]);
+            }
+            else
+            {
+                for (int i = 0; i < count; i++)
+                    mixer.SetInputWeight(i, i == minIdx ? 1f - weight : i == maxIdx ? weight : 0f);
+
+                float minDur = GetMotionDuration(motions[minIdx]);
+                duration = minDur + (GetMotionDuration(motions[maxIdx]) - minDur) * weight;
+            }
+
+            UpdateChildSpeeds(motions, state, mixer, duration, blendType);
         }
 
         public static void UpdateChildSpeedsFromParam(HonamiRuntimeController controller, HonamiState state, AnimationMixerPlayable mixer, float paramValue)
@@ -84,24 +122,24 @@ namespace HonamiAnimationSystem.Runtime.Core
                 if (!child.IsValid()) continue;
 
                 HonamiBlendTreeMotion motion = motions[i];
-                float motionSpeed;
-                if (blendType == HonamiBlendTreeType.Standard1D && avgDur > 0.0001f && motion.clip != null)
-                    motionSpeed = motion.clip.length / avgDur;
-                else
-                    motionSpeed = motion.speed;
+                AnimationClip clip = motion.clip;
+                float clipLength = clip != null ? clip.length : 0f;
 
-                if (state.loop && motion.clip != null && motion.clip.length > 0f)
+                float motionSpeed = blendType == HonamiBlendTreeType.Standard1D && avgDur > 0.0001f && clip != null
+                    ? clipLength / avgDur
+                    : motion.speed;
+
+                if (state.loop && clipLength > 0f)
                 {
                     Playable actualCp = child;
                     if (actualCp.GetPlayableType() == typeof(AnimationScriptPlayable) && actualCp.GetInputCount() > 0)
                         actualCp = actualCp.GetInput(0);
 
                     double t = actualCp.GetTime();
-                    float len = motion.clip.length;
-                    if (t >= len || t < 0.0)
+                    if (t >= clipLength || t < 0.0)
                     {
-                        t %= len;
-                        if (t < 0.0) t += len;
+                        t %= clipLength;
+                        if (t < 0.0) t += clipLength;
                         actualCp.SetTime(t);
                     }
                 }

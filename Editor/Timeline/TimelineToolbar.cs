@@ -1,4 +1,3 @@
-#if UNITY_EDITOR
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -21,8 +20,17 @@ namespace HonamiAnimationSystem.Editor.Timeline
         private DropdownField _stateDropdown;
         private DropdownField _randomDropdown;
         private Slider _blendSlider;
+        private VisualElement _nodeControls;
         private Toggle _propsToggle;
+        private Toggle _selectTool;
+        private Toggle _bladeTool;
+        private Toggle _framesToggle;
+        private Toggle _linksToggle;
+        private DropdownField _frameRateField;
+        private VisualElement _directorRoot;
         private TimelineMode _lastMode;
+
+        private static readonly float[] FrameRatePresets = { 24f, 25f, 30f, 48f, 50f, 60f, 120f };
 
         public TimelineToolbarView(TimelineState state, Action rebuild)
         {
@@ -53,18 +61,27 @@ namespace HonamiAnimationSystem.Editor.Timeline
             }
 
             _propsToggle?.SetValueWithoutNotify(_state.ShowProperties);
+            _selectTool?.SetValueWithoutNotify(_state.Tool == TimelineEditTool.Select);
+            _bladeTool?.SetValueWithoutNotify(_state.Tool == TimelineEditTool.Blade);
+            _framesToggle?.SetValueWithoutNotify(_state.TimeFormat == TimelineTimeFormat.Frames);
+            _linksToggle?.SetValueWithoutNotify(_state.ShowLinks);
+            RefreshFrameRate();
+            RefreshDirector();
             if (_stateControllerField != null) _stateControllerField.SetValueWithoutNotify(_state.Controller);
             if (_timelineField != null) _timelineField.SetValueWithoutNotify(_state.ActiveTimeline);
             RefreshStateDropdown();
             RefreshRandomDropdown();
             RefreshBlendSlider();
+            RefreshNodeControls();
         }
 
         private void Build()
         {
             _lastMode = _state.Mode;
+            _directorShown = false;
+            _shownDirector = null;
             Clear();
-            Add(AccentStrip());
+            Add(HonamiToolbarControls.AccentStrip());
             Add(ModeButton());
 
             var scroll = new ScrollView(ScrollViewMode.Horizontal);
@@ -78,41 +95,15 @@ namespace HonamiAnimationSystem.Editor.Timeline
             Add(scroll);
 
             scroll.Add(PickerRoot());
-            scroll.Add(FlexibleSpace());
+            scroll.Add(HonamiToolbarControls.FlexibleSpace());
+            scroll.Add(ToolsRoot());
+            scroll.Add(HonamiToolbarControls.Separator());
             scroll.Add(ViewOptionsRoot());
-            scroll.Add(Separator());
+            scroll.Add(HonamiToolbarControls.Separator());
             scroll.Add(PanelOptionsRoot());
         }
 
-        private VisualElement AccentStrip()
-        {
-            return new VisualElement
-            {
-                style =
-                {
-                    width = 3,
-                    height = Length.Percent(100),
-                    backgroundColor = TimelineTheme.Accent,
-                    marginRight = 8
-                }
-            };
-        }
 
-        private static VisualElement Separator()
-        {
-            return new VisualElement
-            {
-                style =
-                {
-                    width = 1,
-                    height = 18,
-                    backgroundColor = TimelineTheme.SubtleLine,
-                    marginLeft = 6,
-                    marginRight = 6,
-                    flexShrink = 0
-                }
-            };
-        }
 
         private Button ModeButton()
         {
@@ -204,9 +195,16 @@ namespace HonamiAnimationSystem.Editor.Timeline
                 });
                 root.Add(_blendSlider);
 
+                _nodeControls = new VisualElement
+                {
+                    style = { flexDirection = FlexDirection.Row, alignItems = Align.Center, flexGrow = 1 }
+                };
+                root.Add(_nodeControls);
+
                 RefreshStateDropdown();
                 RefreshRandomDropdown();
                 RefreshBlendSlider();
+                RefreshNodeControls();
             }
             else if (_state.Mode == TimelineMode.HonamiTimeline)
             {
@@ -221,9 +219,29 @@ namespace HonamiAnimationSystem.Editor.Timeline
                     _state.PlayheadTime = 0f;
                     _state.IsPlaying = false;
                     _state.ClearSelection();
+                    _state.ForgetDirector();
                     _rebuild();
                 });
                 root.Add(_timelineField);
+
+                _frameRateField = new DropdownField { tooltip = "Frame rate of the timeline's edit grid, snapping and timecode", style = { width = 82 } };
+                _frameRateField.RegisterValueChangedCallback(evt =>
+                {
+                    var timeline = _state.ActiveTimeline;
+                    if (timeline == null) return;
+                    int index = _frameRateField.choices.IndexOf(evt.newValue);
+                    if (index < 0 || index >= FrameRatePresets.Length) return;
+                    Undo.RecordObject(timeline, "Set Frame Rate");
+                    timeline.FrameRate = FrameRatePresets[index];
+                    EditorUtility.SetDirty(timeline);
+                    _rebuild();
+                });
+                root.Add(_frameRateField);
+
+                _directorRoot = Row();
+                root.Add(_directorRoot);
+                RefreshFrameRate();
+                RefreshDirector();
             }
             else if (_state.Mode == TimelineMode.HonamiClipEdit)
             {
@@ -283,13 +301,108 @@ namespace HonamiAnimationSystem.Editor.Timeline
             return root;
         }
 
+        private VisualElement ToolsRoot()
+        {
+            var root = Row();
+            _selectTool = HonamiToolbarControls.ToolbarToggle("Select", _state.Tool == TimelineEditTool.Select, value =>
+            {
+                _state.Tool = TimelineEditTool.Select;
+                _rebuild();
+            });
+            _selectTool.tooltip = "Select, move and trim items (V)";
+            root.Add(_selectTool);
+
+            _bladeTool = HonamiToolbarControls.ToolbarToggle("Blade", _state.Tool == TimelineEditTool.Blade, value =>
+            {
+                _state.Tool = value ? TimelineEditTool.Blade : TimelineEditTool.Select;
+                _rebuild();
+            });
+            _bladeTool.tooltip = "Click an item to cut it in two (B). Esc returns to Select.";
+            root.Add(_bladeTool);
+
+            var links = HonamiToolbarControls.ToolbarButton("Links", () =>
+            {
+                var panel = parent?.Q<TimelinePanelView>();
+                panel?.OpenLinksMenu();
+            });
+            links.tooltip = "Link selected items so they move together on the timeline, or lay them out one after another (Ctrl+L).";
+            root.Add(links);
+            return root;
+        }
+
         private VisualElement ViewOptionsRoot()
         {
             var root = Row();
-            root.Add(HonamiToolbarControls.ToolbarToggle("Snap", _state.SnapEnabled, value => { _state.SnapEnabled = value; _state.SaveSettings(); _rebuild(); }));
-            root.Add(HonamiToolbarControls.ToolbarToggle("Frames", _state.ShowFrames, value => { _state.ShowFrames = value; _state.SaveSettings(); _rebuild(); }));
+            var snap = HonamiToolbarControls.ToolbarToggle("Snap", _state.SnapEnabled, value => { _state.SnapEnabled = value; _state.SaveSettings(); _rebuild(); });
+            snap.tooltip = "Snap to item edges, markers, the playhead and frames. Hold Shift while dragging to invert.";
+            root.Add(snap);
+            _framesToggle = HonamiToolbarControls.ToolbarToggle("Frames", _state.TimeFormat == TimelineTimeFormat.Frames, value =>
+            {
+                _state.ShowFrames = value;
+                _state.SaveSettings();
+                _rebuild();
+            });
+            _framesToggle.tooltip = "On: seconds and frame numbers. Off: timecode (minutes:seconds:frames); right-click the ruler for plain seconds.";
+            root.Add(_framesToggle);
             root.Add(HonamiToolbarControls.ToolbarToggle("Keys", _state.ShowKeyframes, value => { _state.ShowKeyframes = value; _state.SaveSettings(); _rebuild(); }));
+
+            _linksToggle = HonamiToolbarControls.ToolbarToggle("Show Links", _state.ShowLinks, value => { _state.ShowLinks = value; _state.SaveSettings(); _rebuild(); });
+            _linksToggle.tooltip = "Highlight linked items with a coloured strip and badge.";
+            root.Add(_linksToggle);
+
             return root;
+        }
+
+        private void RefreshFrameRate()
+        {
+            if (_frameRateField == null) return;
+            var timeline = _state.ActiveTimeline;
+            _frameRateField.SetEnabled(timeline != null);
+
+            var choices = new List<string>();
+            foreach (float preset in FrameRatePresets) choices.Add($"{preset:0.##} fps");
+            _frameRateField.choices = choices;
+            float rate = timeline != null ? timeline.FrameRate : HonamiTimeline.DefaultFrameRate;
+            _frameRateField.SetValueWithoutNotify($"{rate:0.##} fps");
+        }
+
+        private HonamiDirector _shownDirector;
+        private bool _directorShown;
+
+        private void RefreshDirector()
+        {
+            if (_directorRoot == null) return;
+            var director = _state.ResolveDirector();
+            if (_directorShown && director == _shownDirector && _directorRoot.childCount > 0) return;
+            _directorShown = true;
+            _shownDirector = director;
+
+            _directorRoot.Clear();
+            if (_state.ActiveTimeline == null) return;
+
+            if (director == null)
+            {
+                var create = HonamiToolbarControls.ToolbarButton("+ Director", () =>
+                {
+                    var created = HonamiTimelineEditContext.CreateDirector(_state.ActiveTimeline);
+                    Selection.activeGameObject = created != null ? created.gameObject : null;
+                    _state.ForgetDirector();
+                    _directorShown = false;
+                    _rebuild();
+                });
+                create.tooltip = "No Honami Director in the open scenes plays this timeline. Add one to bind scene objects and play it at runtime.";
+                create.style.color = TimelineTheme.EndBoundary;
+                _directorRoot.Add(create);
+                return;
+            }
+
+            var ping = HonamiToolbarControls.ToolbarButton(director.name, () =>
+            {
+                EditorGUIUtility.PingObject(director);
+                Selection.activeGameObject = director.gameObject;
+            });
+            ping.tooltip = "Director that plays this timeline and stores its scene bindings. Click to select it.";
+            _directorRoot.Add(ping);
         }
 
         private VisualElement PanelOptionsRoot()
@@ -303,6 +416,14 @@ namespace HonamiAnimationSystem.Editor.Timeline
             });
             _propsToggle.tooltip = "Show / hide the properties panel";
             root.Add(_propsToggle);
+
+            var help = HonamiToolbarControls.ToolbarButton("?", () =>
+            {
+                var panel = parent?.Q<TimelinePanelView>();
+                panel?.ToggleHelpFromToolbar();
+            });
+            help.tooltip = "Keyboard shortcuts (? or F1)";
+            root.Add(help);
             return root;
         }
 
@@ -356,6 +477,17 @@ namespace HonamiAnimationSystem.Editor.Timeline
             _randomDropdown.SetValueWithoutNotify(_state.RandomPreviewOptions[_state.RandomPreviewIdx]);
         }
 
+        private void RefreshNodeControls()
+        {
+            if (_nodeControls == null) return;
+            _nodeControls.Clear();
+
+            var node = _state.SelectedState?.node;
+            if (node == null) return;
+
+            HonamiNodeEditorRegistry.GetEditor(node)?.BuildTimelineControls(_state, _nodeControls, _rebuild);
+        }
+
         private void RefreshBlendSlider()
         {
             if (_blendSlider == null) return;
@@ -394,11 +526,8 @@ namespace HonamiAnimationSystem.Editor.Timeline
 
         internal static bool IsPreviewableState(HonamiState state)
         {
-            return state != null
-                && (state.node is HonamiAnimationNode
-                    || state.node is HonamiBlendTreeNode
-                    || state.node is HonamiRandomAnimationNode
-                    || state.node is HonamiSequencerNode);
+            if (state?.node == null) return false;
+            return HonamiNodeEditorRegistry.GetEditor(state.node)?.SupportsTimelinePreview == true;
         }
 
         private static VisualElement Row()
@@ -406,11 +535,6 @@ namespace HonamiAnimationSystem.Editor.Timeline
             return new VisualElement { style = { flexDirection = FlexDirection.Row, alignItems = Align.Center, minWidth = 0, flexShrink = 1 } };
         }
 
-        private static VisualElement FlexibleSpace()
-        {
-            return new VisualElement { style = { flexGrow = 1 } };
-        }
     }
 
 }
-#endif

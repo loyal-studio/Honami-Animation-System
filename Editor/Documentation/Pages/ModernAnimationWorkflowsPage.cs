@@ -5,7 +5,7 @@ namespace HonamiAnimationSystem.Editor.Documentation.Pages
     public sealed class ModernAnimationWorkflowsPage : IHonamiDocumentationPage
     {
         public string Title => HonamiDocLocalization.Get("Modern Workflows", "Сучасні воркфлоу");
-        public string Category => HonamiDocLocalization.Get("09. Theory & Background", "09. Теорія та довідка");
+        public string Category => HonamiDocLocalization.Get("10. Theory & Background", "10. Теорія та довідка");
         public string SearchKeywords => "workflow best practices modularity reusable components layer inheritance override воркфлоу практики спадкування";
         public int Order => 830;
         public int EstimatedReadTime => 5;

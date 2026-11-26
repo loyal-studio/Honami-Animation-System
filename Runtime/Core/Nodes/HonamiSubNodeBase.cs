@@ -1,5 +1,5 @@
-using System.Collections.Generic;
-using System.Text.RegularExpressions;
+﻿using System.Collections.Generic;
+using System.Text;
 using UnityEngine;
 
 namespace HonamiAnimationSystem.Runtime.Core
@@ -36,13 +36,25 @@ namespace HonamiAnimationSystem.Runtime.Core
         }
 #endif
 
-        public virtual string DisplayName
+        /// <summary>
+        /// Editor-facing label. Defaults to the type name without the Honami/SubNode affixes, split on camel case.
+        /// </summary>
+        public virtual string DisplayName => SplitCamelCase(GetType().Name.Replace("Honami", "").Replace("SubNode", ""));
+
+        private static string SplitCamelCase(string name)
         {
-            get
+            if (string.IsNullOrEmpty(name)) return name;
+
+            var builder = new StringBuilder(name.Length + 4);
+            builder.Append(name[0]);
+
+            for (int i = 1; i < name.Length; i++)
             {
-                string name = GetType().Name.Replace("Honami", "").Replace("SubNode", "");
-                return Regex.Replace(name, "([a-z])([A-Z])", "$1 $2");
+                if (char.IsUpper(name[i]) && char.IsLower(name[i - 1])) builder.Append(' ');
+                builder.Append(name[i]);
             }
+
+            return builder.ToString();
         }
 
         public virtual bool RequiresMirroring => false;

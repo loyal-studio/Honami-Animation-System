@@ -306,7 +306,7 @@ namespace HonamiAnimationSystem.Editor.Windows
                 }
             }
 
-            Debug.LogWarning("No HonamiAvatar or Humanoid Animator found. Please add bones manually.");
+            Debug.LogWarning("[Honami] No HonamiAvatar or Humanoid Animator found. Add the bones manually.");
         }
 
         private Transform FindRagdollParent(Transform bone)
@@ -724,7 +724,7 @@ namespace HonamiAnimationSystem.Editor.Windows
                 }
             }
 
-            Debug.Log("Honami Ragdoll built successfully!");
+            Debug.Log("[Honami] Ragdoll built.");
         }
 
         private void ConfigureJointAxes(CharacterJoint joint, Transform bone, Transform parentBone, BoneType boneType)
@@ -787,7 +787,7 @@ namespace HonamiAnimationSystem.Editor.Windows
                 transformCache.Clear();
             }
 
-            Debug.Log($"Cleared {clearedCount} ragdoll components.");
+            Debug.Log($"[Honami] Cleared {clearedCount} ragdoll components.");
         }
 
         private int ClearComponentsOnTransform(Transform target)

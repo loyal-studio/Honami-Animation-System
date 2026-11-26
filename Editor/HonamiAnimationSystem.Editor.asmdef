@@ -2,9 +2,7 @@
     "name": "HonamiAnimationSystem.Editor",
     "rootNamespace": "HonamiAnimationSystem.Editor",
     "references": [
-        "HonamiAnimationSystem.Runtime",
-        "Unity.Timeline",
-        "Unity.Timeline.Editor"
+        "HonamiAnimationSystem.Runtime"
     ],
     "includePlatforms": [
         "Editor"

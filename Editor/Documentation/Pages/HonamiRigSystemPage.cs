@@ -1,11 +1,11 @@
-using UnityEngine.UIElements;
+﻿using UnityEngine.UIElements;
 
 namespace HonamiAnimationSystem.Editor.Documentation.Pages
 {
     public sealed class HonamiRigSystemPage : IHonamiDocumentationPage
     {
         public string Title => HonamiDocLocalization.Get("Rig System", "Система рігу (Rig)");
-        public string Category => HonamiDocLocalization.Get("07. Tools & Pro", "07. Інструменти та Pro");
+        public string Category => HonamiDocLocalization.Get("08. Tools & Pro", "08. Інструменти та Pro");
         public string SearchKeywords => "rigging ik constraints lookat physics foot ik point constraint pivot fixer pseudo physics non humanoid creatures ріг констрейни не гуманоїд";
         public int Order => 600;
         public int EstimatedReadTime => 9;
@@ -37,7 +37,7 @@ namespace HonamiAnimationSystem.Editor.Documentation.Pages
 
             HonamiDocumentationBuilder.AddHeader(root, HonamiDocLocalization.Get("Rig Components", "Компоненти рігу"), HonamiEditorIcons.BlendTreeWhite);
             HonamiDocumentationBuilder.AddFeatureGrid(root,
-                (HonamiDocLocalization.Get("Honami Rigging Processor", "Honami Rigging Processor"), HonamiDocLocalization.Get("Collects HonamiRig components in children and evaluates them after animation in LateUpdate.", "Збирає HonamiRig компоненти в дочірніх об'єктах і обчислює їх після анімації в LateUpdate."), HonamiEditorIcons.Controller),
+                (HonamiDocLocalization.Get("Honami Rigging Processor", "Honami Rigging Processor"), HonamiDocLocalization.Get("Collects HonamiRig components in children and drives them, either inside the animation graph or as a post-evaluation pass.", "Збирає HonamiRig компоненти в дочірніх об'єктах і керує ними - або всередині анімаційного графа, або окремим проходом після обчислення."), HonamiEditorIcons.Controller),
                 (HonamiDocLocalization.Get("Foot IK Rig", "Foot IK Rig"), HonamiDocLocalization.Get("Two-bone leg solver with ground casting, toe alignment, pelvis/root lowering and anti-sliding foot sticking.", "Two-bone leg solver із ground casting, toe alignment, опусканням pelvis/root та anti-sliding фіксацією стоп."), HonamiEditorIcons.TimelineWhite),
                 (HonamiDocLocalization.Get("LookAt Constraint", "LookAt Constraint"), HonamiDocLocalization.Get("Rotates one or many bones toward a target with aim/up axes, additive mode, smoothing and angle limits.", "Повертає одну або багато кісток до цілі з aim/up axes, additive mode, smoothing та angle limits."), HonamiEditorIcons.GraphWhite),
                 (HonamiDocLocalization.Get("Point Constraint", "Point Constraint"), HonamiDocLocalization.Get("Makes a transform follow another transform's position and/or rotation with offsets and interpolation.", "Змушує transform слідувати позиції та/або ротації іншого transform із offsets та interpolation."), HonamiEditorIcons.Controller),
@@ -47,13 +47,29 @@ namespace HonamiAnimationSystem.Editor.Documentation.Pages
 
             HonamiDocumentationBuilder.AddHeader(root, HonamiDocLocalization.Get("1. Honami Rigging Processor", "1. Honami Rigging Processor"), HonamiEditorIcons.Controller);
             HonamiDocumentationBuilder.AddParagraph(root, HonamiDocLocalization.Get(
-                "Place this component on the animated root. It finds all enabled HonamiRig components in children, resets them when refreshed, and runs them after animation evaluation. This keeps procedural rigging as a final correction pass.",
-                "Додайте цей компонент на animated root. Він знаходить усі enabled HonamiRig компоненти в дочірніх об'єктах, скидає їх при refresh і запускає після обчислення анімації. Так procedural rigging працює як фінальний correction pass."
+                "Place this component on the animated root. It collects every HonamiRig below it - including ones on inactive objects, so they work the moment they are switched on - resets them, and drives them after the animation is evaluated. This keeps procedural rigging as a final correction pass. A nested Rigging Processor or a nested Honami animator claims the rigs below itself, so a weapon with its own animator never has its rigs stolen by the character root.",
+                "Додайте цей компонент на animated root. Він збирає всі HonamiRig під собою - включно з тими, що на неактивних об'єктах, тож вони працюють одразу після вмикання - скидає їх і керує ними після обчислення анімації. Так procedural rigging працює як фінальний correction pass. Вкладений Rigging Processor або вкладений аніматор Honami забирає ріги під собою, тож зброя з власним аніматором ніколи не віддасть свої ріги кореню персонажа."
             ));
             HonamiDocumentationBuilder.AddCodeBlock(root,
-@"// When creating or enabling rigs dynamically:
+@"// Rigs register themselves in OnEnable and re-resolve their owner when reparented,
+// so this is only needed after a bulk hierarchy edit.
 var processor = GetComponent<HonamiRiggingProcessor>();
-processor.RefreshRigs();");
+processor.RefreshRigs();
+
+// What the processor currently owns.
+foreach (var rig in processor.Rigs) Debug.Log(rig.name);
+Debug.Log(processor.GraphBoundRigs.Count + "" in-graph, ""
+        + processor.PostEvaluationRigs.Count + "" after evaluation"");");
+
+            HonamiDocumentationBuilder.AddHeader(root, HonamiDocLocalization.Get("Two ways a rig runs", "Два способи виконання рігу"), HonamiEditorIcons.GraphWhite);
+            HonamiDocumentationBuilder.AddParagraph(root, HonamiDocLocalization.Get(
+                "Which one a rig gets is decided by its CreatePlayable override. Return a valid Playable and the processor splices it into the animation graph, so the rig runs as part of evaluation and can be Burst-jobbed - PrepareJobData is called just before each evaluation to hand it fresh data. Return Playable.Null (the default) and the rig instead has ProcessRig called right after the graph is evaluated, on the main thread, reading and writing transforms directly. Most constraints take the second route; Foot IK and Pseudo-Physics take the first.",
+                "Який саме - вирішує перевизначення CreatePlayable. Поверніть валідний Playable - і процесор вбудує його в анімаційний граф, тож ріг виконуватиметься як частина обчислення і зможе працювати через Burst-джоби: PrepareJobData викликається перед кожним обчисленням, щоб передати свіжі дані. Поверніть Playable.Null (типова поведінка) - і ріг натомість отримає виклик ProcessRig одразу після обчислення графа, у головному потоці, з прямим читанням і записом transform. Більшість констрейнтів іде другим шляхом; Foot IK і Pseudo-Physics - першим."
+            ));
+            HonamiDocumentationBuilder.AddCallout(root, HonamiDocLocalization.Get(
+                "Without a Honami animator on the object the processor falls back to driving every rig from its own LateUpdate, which is what makes rigs work in the editor outside Play mode. Once an animator binds the chain (IsBoundToGraph turns true) that fallback stops, so stateful rigs are never ticked twice in a frame.",
+                "Без аніматора Honami на об'єкті процесор керує всіма рігами зі свого LateUpdate - саме тому ріги працюють у редакторі поза Play mode. Щойно аніматор прив'язує ланцюг (IsBoundToGraph стає true), цей фолбек вимикається, тож стейтфул-ріги ніколи не тікаються двічі за кадр."
+            ), HonamiDocumentationBuilder.CalloutType.Info);
 
             HonamiDocumentationBuilder.AddHeader(root, HonamiDocLocalization.Get("2. Foot IK Rig", "2. Foot IK Rig"), HonamiEditorIcons.TimelineWhite);
             HonamiDocumentationBuilder.AddParagraph(root, HonamiDocLocalization.Get(
@@ -86,7 +102,7 @@ processor.RefreshRigs();");
             HonamiDocumentationBuilder.AddHeader(root, HonamiDocLocalization.Get("4. Point Constraint", "4. Point Constraint"), HonamiEditorIcons.Controller);
             HonamiDocumentationBuilder.AddParagraph(root, HonamiDocLocalization.Get(
                 "Point Constraint is the simple hard-working rig: bind one transform to another transform's position and/or rotation. Use it for props, weapon hands, muzzle anchors, armor plates, held objects or synchronized split-body pieces.",
-                "Point Constraint — простий робочий rig: прив'язує один transform до позиції та/або ротації іншого transform. Використовуйте для props, weapon hands, muzzle anchors, armor plates, held objects або синхронізованих split-body pieces."
+                "Point Constraint - простий робочий rig: прив'язує один transform до позиції та/або ротації іншого transform. Використовуйте для props, weapon hands, muzzle anchors, armor plates, held objects або синхронізованих split-body pieces."
             ));
             HonamiDocumentationBuilder.AddCodeBlock(root,
 @"// Common setup idea:
@@ -109,19 +125,19 @@ processor.RefreshRigs();");
 
             HonamiDocumentationBuilder.AddHeader(root, HonamiDocLocalization.Get("6. Pseudo-Physics Constraint", "6. Pseudo-Physics Constraint"), HonamiEditorIcons.TimelineWhite);
             HonamiDocumentationBuilder.AddParagraph(root, HonamiDocLocalization.Get(
-                "The constraint runs in one of two modes. PseudoPhysics adds reactive spring motion to bones after the authored animation is sampled: no Rigidbody chain, just controlled secondary motion that always springs back to the animated pose. Simulation turns the listed bones into a real hanging chain — particles with gravity, inertia and a rigid bone length that swing and settle on their own.",
-                "Констрейн працює в одному з двох режимів. PseudoPhysics додає reactive spring motion до кісток після sampling authored animation: без Rigidbody chain, лише контрольований secondary motion, який завжди повертається до animated pose. Simulation перетворює перелічені кістки на справжній підвішений ланцюг — партікли з gravity, inertia та жорсткою довжиною кістки, які самі розгойдуються й заспокоюються."
+                "The constraint runs in one of two modes. PseudoPhysics adds reactive spring motion to bones after the authored animation is sampled: no Rigidbody chain, just controlled secondary motion that always springs back to the animated pose. Simulation turns the listed bones into a real hanging chain - particles with gravity, inertia and a rigid bone length that swing and settle on their own.",
+                "Констрейн працює в одному з двох режимів. PseudoPhysics додає reactive spring motion до кісток після sampling authored animation: без Rigidbody chain, лише контрольований secondary motion, який завжди повертається до animated pose. Simulation перетворює перелічені кістки на справжній підвішений ланцюг - партікли з gravity, inertia та жорсткою довжиною кістки, які самі розгойдуються й заспокоюються."
             ));
             HonamiDocumentationBuilder.AddPropertyBox(root,
-                (HonamiDocLocalization.Get("PseudoPhysics targets", "Цілі для PseudoPhysics"), HonamiDocLocalization.Get("Hair, cloth strips, tails, antennae, soft armor, weapon sway — anything that should stick to the animated pose.", "Hair, cloth strips, tails, antennae, soft armor, weapon sway — усе, що має триматися animated pose.")),
-                (HonamiDocLocalization.Get("Simulation targets", "Цілі для Simulation"), HonamiDocLocalization.Get("Keychains, pendants, straps, hanging props — anything that hangs down and swings freely.", "Брелки, підвіски, ремінці, hanging props — усе, що звисає вниз і вільно гойдається.")),
+                (HonamiDocLocalization.Get("PseudoPhysics targets", "Цілі для PseudoPhysics"), HonamiDocLocalization.Get("Hair, cloth strips, tails, antennae, soft armor, weapon sway - anything that should stick to the animated pose.", "Hair, cloth strips, tails, antennae, soft armor, weapon sway - усе, що має триматися animated pose.")),
+                (HonamiDocLocalization.Get("Simulation targets", "Цілі для Simulation"), HonamiDocLocalization.Get("Keychains, pendants, straps, hanging props - anything that hangs down and swings freely.", "Брелки, підвіски, ремінці, hanging props - усе, що звисає вниз і вільно гойдається.")),
                 (HonamiDocLocalization.Get("Position physics", "Position physics"), HonamiDocLocalization.Get("PseudoPhysics only: drag, inertia, stiffness, damping, max offset and local gravity.", "Лише PseudoPhysics: drag, inertia, stiffness, damping, max offset та local gravity.")),
                 (HonamiDocLocalization.Get("Rotation physics", "Rotation physics"), HonamiDocLocalization.Get("PseudoPhysics only: angular drag/inertia with rotation stiffness, damping and max rotation.", "Лише PseudoPhysics: angular drag/inertia з rotation stiffness, damping та max rotation.")),
                 (HonamiDocLocalization.Get("Chain physics", "Chain physics"), HonamiDocLocalization.Get("Simulation only: world gravity, damping, stiffness toward the animated pose, inertia and an angle limit.", "Лише Simulation: world gravity, damping, stiffness до animated pose, inertia та angle limit.")),
-                (HonamiDocLocalization.Get("Stiffness 0", "Stiffness 0"), HonamiDocLocalization.Get("With no spring to the bind pose the chain starts already settled along Gravity — the only way an object modelled sticking up can hang down instead of balancing on an inverted pendulum.", "Без spring до bind pose ланцюг стартує вже осілим уздовж Gravity — єдиний спосіб для об'єкта, змодельованого догори, звисати вниз, а не балансувати на перевернутому маятнику.")),
+                (HonamiDocLocalization.Get("Stiffness 0", "Stiffness 0"), HonamiDocLocalization.Get("With no spring to the bind pose the chain starts already settled along Gravity - the only way an object modelled sticking up can hang down instead of balancing on an inverted pendulum.", "Без spring до bind pose ланцюг стартує вже осілим уздовж Gravity - єдиний спосіб для об'єкта, змодельованого догори, звисати вниз, а не балансувати на перевернутому маятнику.")),
                 (HonamiDocLocalization.Get("Freeze Axis", "Freeze Axis"), HonamiDocLocalization.Get("Simulation only: locks the chain into a plane through the root bone. Use it for a ring on a peg that swings but never wanders sideways.", "Лише Simulation: замикає ланцюг у площині через root bone. Використовуйте для кільця на штирі, яке гойдається, але не блукає вбік.")),
                 (HonamiDocLocalization.Get("Per-bone axes", "Per-bone axes"), HonamiDocLocalization.Get("Simulation only: Up Axis rolls the bone while physics aims it; Tip Direction and Tip Length give the last bone of a chain something to swing.", "Лише Simulation: Up Axis крутить кістку по roll, поки фізика її націлює; Tip Direction і Tip Length дають останній кістці ланцюга те, чим гойдати.")),
-                (HonamiDocLocalization.Get("Facing", "Facing"), HonamiDocLocalization.Get("Simulation only, per bone: a constant — a world direction, a transform or the main camera — that the bone keeps turning back to. Physics still decides where it hangs; Facing only rolls it about that direction, so a flat charm keeps showing its face to the player instead of drifting edge-on. Strength, Speed and Max Angle decide how hard, how fast and how far.", "Лише Simulation, для кожної кістки: константа — world direction, transform або main camera — до якої кістка постійно повертається. Фізика все одно вирішує, куди вона звисає; Facing лише крутить її по roll навколо цього напрямку, тож плоский брелок тримається лицем до гравця, а не дрейфує ребром. Strength, Speed і Max Angle задають, наскільки сильно, наскільки швидко й наскільки далеко.")),
+                (HonamiDocLocalization.Get("Facing", "Facing"), HonamiDocLocalization.Get("Simulation only, per bone: a constant - a world direction, a transform or the main camera - that the bone keeps turning back to. Physics still decides where it hangs; Facing only rolls it about that direction, so a flat charm keeps showing its face to the player instead of drifting edge-on. Strength, Speed and Max Angle decide how hard, how fast and how far.", "Лише Simulation, для кожної кістки: константа - world direction, transform або main camera - до якої кістка постійно повертається. Фізика все одно вирішує, куди вона звисає; Facing лише крутить її по roll навколо цього напрямку, тож плоский брелок тримається лицем до гравця, а не дрейфує ребром. Strength, Speed і Max Angle задають, наскільки сильно, наскільки швидко й наскільки далеко.")),
                 (HonamiDocLocalization.Get("Axis masks", "Axis masks"), HonamiDocLocalization.Get("PseudoPhysics only: restrict motion to the local axes that should move.", "Лише PseudoPhysics: обмежуйте рух локальними осями, які мають рухатися."))
             );
 

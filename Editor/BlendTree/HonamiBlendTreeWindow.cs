@@ -1,5 +1,4 @@
-#if UNITY_EDITOR
-using System;
+﻿using System;
 using System.Collections.Generic;
 using UnityEditor;
 using UnityEngine;
@@ -55,7 +54,6 @@ namespace HonamiAnimationSystem.Editor
         {
             titleContent = HonamiEditorIcons.IconContent("HonamiBlendtreeWhite", "Honami Blend Tree");
 
-            DeleteLegacyPrefs();
             RestoreTabs();
 
             Undo.undoRedoPerformed -= OnUndoRedo;
@@ -200,9 +198,7 @@ namespace HonamiAnimationSystem.Editor
             rootVisualElement.style.backgroundColor = BlendTreeTheme.WindowBg;
             rootVisualElement.style.flexDirection = FlexDirection.Column;
 
-            var styleSheet = Resources.Load<StyleSheet>("HonamiGraphStyle");
-            if (styleSheet != null)
-                rootVisualElement.styleSheets.Add(styleSheet);
+            HonamiGraphStyleSheets.Apply(rootVisualElement);
 
             var active = Active;
             active?.Resolve();
@@ -259,17 +255,6 @@ namespace HonamiAnimationSystem.Editor
                 _refreshQueued = false;
                 RefreshViews();
             }).ExecuteLater(1);
-        }
-
-        private static void DeleteLegacyPrefs()
-        {
-            EditorPrefs.DeleteKey("HonamiBlendTree_PosX");
-            EditorPrefs.DeleteKey("HonamiBlendTree_PosY");
-            EditorPrefs.DeleteKey("HonamiBlendTree_Scale");
-            EditorPrefs.DeleteKey("HonamiBlendTree_Preview");
-            EditorPrefs.DeleteKey("HonamiBlendTree_PaneWidth");
-            EditorPrefs.DeleteKey("HonamiBlendTree_Controller");
-            EditorPrefs.DeleteKey("HonamiBlendTree_State");
         }
 
         [Serializable]
@@ -388,4 +373,3 @@ namespace HonamiAnimationSystem.Editor
         }
     }
 }
-#endif

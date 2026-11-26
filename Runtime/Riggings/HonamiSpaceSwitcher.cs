@@ -133,7 +133,7 @@ namespace HonamiAnimationSystem.Runtime.Riggings
         {
             if (!_playable.IsValid()) return;
             
-            float effectiveWeight = (enabled && gameObject.activeInHierarchy) ? weight : 0f;
+            float effectiveWeight = (enabled && gameObject.activeInHierarchy) ? EffectiveWeight : 0f;
             _parameters[0] = effectiveWeight;
 
             if (useFixedOffset)

@@ -1,4 +1,4 @@
-using UnityEngine.UIElements;
+﻿using UnityEngine.UIElements;
 
 namespace HonamiAnimationSystem.Editor.Documentation.Pages
 {
@@ -20,7 +20,7 @@ namespace HonamiAnimationSystem.Editor.Documentation.Pages
             HonamiDocumentationBuilder.AddHeader(root, HonamiDocLocalization.Get("The Workflow", "Воркфлоу"), HonamiEditorIcons.Controller);
             HonamiDocumentationBuilder.AddBulletPoint(root, HonamiDocLocalization.Get("1. Create an ActionID asset: Create → Honami Animation → Action ID (e.g., 'Heavy_Explosion').", "1. Створіть ассет ActionID: Create → Honami Animation → Action ID (наприклад, «Heavy_Explosion»)."));
             HonamiDocumentationBuilder.AddBulletPoint(root, HonamiDocLocalization.Get("2. On the reaction state in the graph, set its Linked Action ID field to that asset. Registration happens automatically when the animator initializes.", "2. У стані-реакції в графі заповніть поле Linked Action ID цим ассетом. Реєстрація відбувається автоматично при ініціалізації аніматора."));
-            HonamiDocumentationBuilder.AddBulletPoint(root, HonamiDocLocalization.Get("3. Call HonamiLinkedAction.PlayGlobal(actionID) from your gameplay code — every registered animator plays its reaction state (force-restart, on the state's own layer).", "3. Викличте HonamiLinkedAction.PlayGlobal(actionID) з ігрового коду — кожен зареєстрований аніматор відтворить свій стан-реакцію (з force-restart, на власному шарі стану)."));
+            HonamiDocumentationBuilder.AddBulletPoint(root, HonamiDocLocalization.Get("3. Call HonamiLinkedAction.PlayGlobal(actionID) from your gameplay code - every registered animator plays its reaction state (force-restart, on the state's own layer).", "3. Викличте HonamiLinkedAction.PlayGlobal(actionID) з ігрового коду - кожен зареєстрований аніматор відтворить свій стан-реакцію (з force-restart, на власному шарі стану)."));
 
             HonamiDocumentationBuilder.AddHeader(root, HonamiDocLocalization.Get("Targeting variants", "Варіанти таргетингу"), HonamiEditorIcons.TimelineWhite);
             HonamiDocumentationBuilder.AddTable(root,
@@ -33,7 +33,7 @@ namespace HonamiAnimationSystem.Editor.Documentation.Pages
                 ("PlayInHierarchy(id, root, ...)", HonamiDocLocalization.Get("Only animators under the given Transform.", "Лише аніматори під вказаним Transform."), ""),
                 ("PlayNearby(id, origin, radius, ...)", HonamiDocLocalization.Get("Only animators within the radius; overload with a LayerMask filter exists.", "Лише аніматори в радіусі; є перевантаження з фільтром LayerMask."), ""),
                 ("PlayClosest(id, origin, radius, limit)", HonamiDocLocalization.Get("The N closest animators inside the radius.", "N найближчих аніматорів у радіусі."), ""),
-                ("PlayPropagated(id, origin, radius, speed)", HonamiDocLocalization.Get("Everyone in the radius, but delayed by distance / speed — the reaction spreads like a shockwave.", "Усі в радіусі, але із затримкою distance / speed — реакція розходиться, як ударна хвиля."), "")
+                ("PlayPropagated(id, origin, radius, speed)", HonamiDocLocalization.Get("Everyone in the radius, but delayed by distance / speed - the reaction spreads like a shockwave.", "Усі в радіусі, але із затримкою distance / speed - реакція розходиться, як ударна хвиля."), "")
             );
 
             HonamiDocumentationBuilder.AddCodeBlock(root,
@@ -55,6 +55,26 @@ HonamiLinkedAction.PlayClosest(flinchAction, transform.position,
 
 // Direct hit on a single animator, delayed by half a second.
 victim.ReactToAction(flinchAction, transitionDuration: 0.1f, delay: 0.5f);");
+
+            HonamiDocumentationBuilder.AddHeader(root, HonamiDocLocalization.Get("Targeting Honami does not ship", "Таргетинг, якого немає в комплекті"), HonamiEditorIcons.GraphWhite);
+            HonamiDocumentationBuilder.AddParagraph(root, HonamiDocLocalization.Get(
+                "Every method above is a thin wrapper over one primitive, and that primitive is public. Broadcast takes any predicate, so a rule the built-ins do not cover - line of sight, faction, health, whatever your gameplay knows - is a lambda rather than a feature request. It returns how many animators actually reacted.",
+                "Кожен метод вище - тонка обгортка над одним примітивом, і цей примітив публічний. Broadcast приймає будь-який предикат, тож правило, якого немає серед вбудованих - лінія зору, фракція, здоровʼя, будь-що відоме вашому геймплею - це лямбда, а не запит на фічу. Він повертає кількість аніматорів, які справді зреагували."
+            ));
+            HonamiDocumentationBuilder.AddCodeBlock(root,
+@"// Only enemies that can actually see the player flinch, at most four of them.
+int reacted = HonamiLinkedAction.Broadcast(flinchAction,
+    animator => HasLineOfSight(animator.transform),
+    transitionDuration: 0.1f,
+    limit: 4);
+
+// Or take the registered set and decide yourself.
+var listeners = new HonamiAnimatorBase[HonamiLinkedAction.GetRegisteredCount(flinchAction)];
+int count = HonamiLinkedAction.GetRegisteredNonAlloc(flinchAction, listeners);");
+            HonamiDocumentationBuilder.AddCallout(root, HonamiDocLocalization.Get(
+                "Register and Unregister are public too. A custom animator built on HonamiAnimatorBase calls Register from its RegisterLinkedActions override and is then reachable by every method on this page - see Writing a Custom Animator.",
+                "Register і Unregister також публічні. Власний аніматор на HonamiAnimatorBase викликає Register у своєму перевизначенні RegisterLinkedActions - і стає досяжним для кожного методу цієї сторінки; див. «Власний аніматор»."
+            ), HonamiDocumentationBuilder.CalloutType.Info);
 
             HonamiDocumentationBuilder.AddTip(root, HonamiDocLocalization.Get(
                 "ReactToAction with a delay queues the reaction on the animator itself, so it still fires even if the caller is destroyed. PlayPropagated is built on exactly this mechanism.",

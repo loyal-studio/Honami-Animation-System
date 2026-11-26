@@ -5,7 +5,7 @@ namespace HonamiAnimationSystem.Editor.Documentation.Pages
     public sealed class AnimatorsGuidePage : IHonamiDocumentationPage
     {
         public string Title => HonamiDocLocalization.Get("Animator's Guide", "Посібник аніматора");
-        public string Category => HonamiDocLocalization.Get("09. Theory & Background", "09. Теорія та довідка");
+        public string Category => HonamiDocLocalization.Get("10. Theory & Background", "10. Теорія та довідка");
         public string SearchKeywords => "artist guide workflow export blender maya fbx tips аніматор посібник воркфлоу";
         public int Order => 840;
         public int EstimatedReadTime => 3;
@@ -13,8 +13,8 @@ namespace HonamiAnimationSystem.Editor.Documentation.Pages
         public void BuildContent(VisualElement root)
         {
             HonamiDocumentationBuilder.AddParagraph(root, HonamiDocLocalization.Get(
-                "A practical checklist for animators preparing content for Honami: coordinate systems on export, what to keyframe versus what to leave procedural, the Humanoid/Generic choice, and FBX technical standards — with the reasons behind each rule.",
-                "Практичний чекліст для аніматорів, що готують контент для Honami: системи координат при експорті, що бейкати ключами, а що лишати процедурним, вибір Humanoid/Generic та технічні стандарти FBX — із поясненням, чому саме так."
+                "A practical checklist for animators preparing content for Honami: coordinate systems on export, what to keyframe versus what to leave procedural, the Humanoid/Generic choice, and FBX technical standards - with the reasons behind each rule.",
+                "Практичний чекліст для аніматорів, що готують контент для Honami: системи координат при експорті, що бейкати ключами, а що лишати процедурним, вибір Humanoid/Generic та технічні стандарти FBX - із поясненням, чому саме так."
             ));
 
             // --- Section 1: Coordinates ---
@@ -25,9 +25,9 @@ namespace HonamiAnimationSystem.Editor.Documentation.Pages
                 "• Unity (Y-Up): Born from screen-space CG. Looking at a screen (XY). Z is depth, Y is height.\n\n" +
                 "Also, Blender is Right-Handed, Unity is Left-Handed. Without correction, your character will be rotated 90 degrees.",
                 "Чому персонажі «лягають» після експорту? Це питання спадковості ПЗ:\n\n" +
-                "• Blender (Z-Up): Походить з архітектури. Ми дивимося зверху на підлогу (XY). Z — це висота.\n" +
-                "• Unity (Y-Up): Походить з комп'ютерної графіки. Ми дивимося на екран (XY). Z — глибина, Y — висота.\n\n" +
-                "Крім того, Blender — правостороння система, Unity — лівостороння. Без корекції ваш персонаж буде повернутий на 90 градусів."
+                "• Blender (Z-Up): Походить з архітектури. Ми дивимося зверху на підлогу (XY). Z - це висота.\n" +
+                "• Unity (Y-Up): Походить з комп'ютерної графіки. Ми дивимося на екран (XY). Z - глибина, Y - висота.\n\n" +
+                "Крім того, Blender - правостороння система, Unity - лівостороння. Без корекції ваш персонаж буде повернутий на 90 градусів."
             ));
 
             HonamiDocumentationBuilder.AddCallout(root, HonamiDocLocalization.Get(
@@ -73,11 +73,11 @@ namespace HonamiAnimationSystem.Editor.Documentation.Pages
             ));
             HonamiDocumentationBuilder.AddBulletPoint(root, HonamiDocLocalization.Get(
                 "The Rigidity Trap: Humanoid is a 'Biped-only' cage. You cannot use it for spiders, quadrupeds, or multi-armed creatures. It forces you into a rigid 15-bone minimum hierarchy.",
-                "Пастка жорсткості: Humanoid — це клітка «тільки для двоногих». Ви не можете використати його для павуків, чотирилапих чи істот з багатьма руками. Він змушує вас дотримуватися жорсткої ієрархії мінімум з 15 кісток."
+                "Пастка жорсткості: Humanoid - це клітка «тільки для двоногих». Ви не можете використати його для павуків, чотирилапих чи істот з багатьма руками. Він змушує вас дотримуватися жорсткої ієрархії мінімум з 15 кісток."
             ));
             HonamiDocumentationBuilder.AddBulletPoint(root, HonamiDocLocalization.Get(
                 "Honami's True Freedom: Honami is rig-agnostic. Whether it's a human, a dragon, or a complex vehicle, Honami treats them all with the same high-performance logic, allowing shared animations through virtual mapping without the 'Humanoid' restrictions.",
-                "Справжня свобода Honami: Honami — ріг-агностик. Чи це людина, чи дракон, чи складна техніка — Honami обробляє їх усіх з однаковою високопродуктивною логікою, дозволяючи спільні анімації через віртуальний мапінг без обмежень «Humanoid»."
+                "Справжня свобода Honami: Honami - ріг-агностик. Чи це людина, чи дракон, чи складна техніка - Honami обробляє їх усіх з однаковою високопродуктивною логікою, дозволяючи спільні анімації через віртуальний мапінг без обмежень «Humanoid»."
             ));
 
             HonamiDocumentationBuilder.AddFeatureGrid(root,
@@ -90,8 +90,8 @@ namespace HonamiAnimationSystem.Editor.Documentation.Pages
             );
 
             HonamiDocumentationBuilder.AddParagraph(root, HonamiDocLocalization.Get(
-                "Practical takeaway: for production characters in Honami, author and import as Generic. Humanoid remains genuinely useful in one role — as an import format for marketplace content (see the tip below).",
-                "Практичний висновок: для продакшн-персонажів у Honami створюйте та імпортуйте контент як Generic. У Humanoid лишається одна справді корисна роль — формат імпорту контенту з маркетплейсів (див. пораду нижче)."
+                "Practical takeaway: for production characters in Honami, author and import as Generic. Humanoid remains genuinely useful in one role - as an import format for marketplace content (see the tip below).",
+                "Практичний висновок: для продакшн-персонажів у Honami створюйте та імпортуйте контент як Generic. У Humanoid лишається одна справді корисна роль - формат імпорту контенту з маркетплейсів (див. пораду нижче)."
             ));
 
             HonamiDocumentationBuilder.AddTip(root, HonamiDocLocalization.Get(
@@ -112,7 +112,7 @@ namespace HonamiAnimationSystem.Editor.Documentation.Pages
 
             HonamiDocumentationBuilder.AddTip(root, HonamiDocLocalization.Get(
                 "A perfect FBX is one that you can drop into Unity and it 'just works' without any rotation or scale adjustments in the Inspector.",
-                "Ідеальний FBX — це той, який ви кидаєте в Unity, і він «просто працює» без жодних коригувань повороту чи масштабу в інспекторі."
+                "Ідеальний FBX - це той, який ви кидаєте в Unity, і він «просто працює» без жодних коригувань повороту чи масштабу в інспекторі."
             ));
         }
     }

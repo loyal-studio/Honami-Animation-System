@@ -4,7 +4,7 @@ using UnityEngine.UIElements;
 
 namespace HonamiAnimationSystem.Editor
 {
-    internal static class HonamiGraphAccent
+    public static class HonamiGraphAccent
     {
         private sealed class SubNodeBadgeState
         {
@@ -21,17 +21,9 @@ namespace HonamiAnimationSystem.Editor
             return color;
         }
 
-        public static void SetBorderColor(VisualElement element, Color color)
-        {
-            element.style.borderTopColor = element.style.borderBottomColor =
-            element.style.borderLeftColor = element.style.borderRightColor = color;
-        }
+       public static void SetBorderColor(VisualElement element, Color color) => element.BorderColor(color);
 
-        public static void ClearBorderColor(VisualElement element)
-        {
-            element.style.borderTopColor = element.style.borderBottomColor =
-            element.style.borderLeftColor = element.style.borderRightColor = StyleKeyword.Null;
-        }
+        public static void ClearBorderColor(VisualElement element) => element.BorderColor(StyleKeyword.Null);
 
         public static void SetSelectionBorder(VisualElement element, bool selected)
         {

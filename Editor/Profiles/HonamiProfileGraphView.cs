@@ -32,9 +32,7 @@ namespace HonamiAnimationSystem.Editor
             this.AddManipulator(new ContentDragger());
             this.AddManipulator(new SelectionDragger());
 
-            var styleSheet = Resources.Load<StyleSheet>("HonamiGraphStyle");
-            if (styleSheet != null)
-                styleSheets.Add(styleSheet);
+            HonamiGraphStyleSheets.Apply(this);
 
             _treeRoot = new VisualElement { name = "tree-root" };
             _treeRoot.style.paddingLeft = 50;
@@ -108,8 +106,7 @@ namespace HonamiAnimationSystem.Editor
         {
             var toolbar = new VisualElement();
             toolbar.style.flexDirection = FlexDirection.Row;
-            toolbar.style.paddingLeft = toolbar.style.paddingRight = 10;
-            toolbar.style.paddingTop = toolbar.style.paddingBottom = 8;
+            toolbar.Padding(8, 10);
             toolbar.style.backgroundColor = HonamiGraphStyles.PanelBg;
             toolbar.style.borderBottomWidth = 1;
             toolbar.style.borderBottomColor = HonamiGraphStyles.ListBoxBorder;
@@ -141,8 +138,7 @@ namespace HonamiAnimationSystem.Editor
             addRootBtn.style.height = 22;
             addRootBtn.style.fontSize = 11;
             addRootBtn.style.backgroundColor = new Color(1, 1, 1, 0.05f);
-            addRootBtn.style.borderLeftWidth = addRootBtn.style.borderRightWidth =
-            addRootBtn.style.borderTopWidth = addRootBtn.style.borderBottomWidth = 0;
+            addRootBtn.BorderWidth(0);
             addRootBtn.style.color = HonamiGraphStyles.TitleClr;
             toolbar.Add(addRootBtn);
 
@@ -155,12 +151,8 @@ namespace HonamiAnimationSystem.Editor
             _breadcrumbContainer.style.height = 28;
             _breadcrumbContainer.style.paddingLeft = 12;
             _breadcrumbContainer.style.backgroundColor = new Color(0.08f, 0.09f, 0.1f, 0.9f);
-            _breadcrumbContainer.style.borderTopLeftRadius = _breadcrumbContainer.style.borderTopRightRadius =
-            _breadcrumbContainer.style.borderBottomLeftRadius = _breadcrumbContainer.style.borderBottomRightRadius = 6;
-            _breadcrumbContainer.style.borderTopWidth = _breadcrumbContainer.style.borderBottomWidth =
-            _breadcrumbContainer.style.borderLeftWidth = _breadcrumbContainer.style.borderRightWidth = 1;
-            _breadcrumbContainer.style.borderTopColor = _breadcrumbContainer.style.borderBottomColor =
-            _breadcrumbContainer.style.borderLeftColor = _breadcrumbContainer.style.borderRightColor = HonamiGraphStyles.ListBoxBorder;
+            _breadcrumbContainer.Radius(6);
+            _breadcrumbContainer.Border(1, HonamiGraphStyles.ListBoxBorder);
             _breadcrumbContainer.style.alignItems = Align.Center;
             _breadcrumbContainer.pickingMode = PickingMode.Ignore;
             Add(_breadcrumbContainer);
@@ -476,8 +468,7 @@ namespace HonamiAnimationSystem.Editor
             _bg.style.position = Position.Absolute;
             _bg.style.left = _bg.style.right = _bg.style.top = _bg.style.bottom = 0;
             _bg.style.backgroundColor = new Color(0.12f, 0.13f, 0.15f, 0.95f);
-            _bg.style.borderTopLeftRadius = _bg.style.borderTopRightRadius =
-            _bg.style.borderBottomLeftRadius = _bg.style.borderBottomRightRadius = 8;
+            _bg.Radius(8);
             _bg.style.borderTopWidth = _bg.style.borderBottomWidth = _bg.style.borderRightWidth = 1;
             _bg.style.borderLeftWidth = 0;
             _bg.style.borderTopColor = _bg.style.borderBottomColor = _bg.style.borderRightColor = new Color(1, 1, 1, 0.05f);
@@ -543,7 +534,7 @@ namespace HonamiAnimationSystem.Editor
                 textInput.style.fontSize = 13;
                 textInput.style.unityFontStyleAndWeight = FontStyle.Bold;
                 textInput.style.backgroundColor = Color.clear;
-                textInput.style.borderTopWidth = textInput.style.borderBottomWidth = textInput.style.borderLeftWidth = textInput.style.borderRightWidth = 0;
+                textInput.BorderWidth(0);
             }
 
             _nameField.RegisterValueChangedCallback(evt =>
@@ -563,12 +554,9 @@ namespace HonamiAnimationSystem.Editor
                 defBadge.style.unityFontStyleAndWeight = FontStyle.Bold;
                 defBadge.style.backgroundColor = new Color(HonamiGraphStyles.Orange.r, HonamiGraphStyles.Orange.g, HonamiGraphStyles.Orange.b, 0.1f);
                 defBadge.style.color = HonamiGraphStyles.Orange;
-                defBadge.style.paddingLeft = defBadge.style.paddingRight = 6;
-                defBadge.style.paddingTop = defBadge.style.paddingBottom = 1;
-                defBadge.style.borderTopLeftRadius = defBadge.style.borderTopRightRadius =
-                defBadge.style.borderBottomLeftRadius = defBadge.style.borderBottomRightRadius = 4;
-                defBadge.style.borderTopWidth = defBadge.style.borderBottomWidth = defBadge.style.borderLeftWidth = defBadge.style.borderRightWidth = 1;
-                defBadge.style.borderTopColor = defBadge.style.borderBottomColor = defBadge.style.borderLeftColor = defBadge.style.borderRightColor = new Color(HonamiGraphStyles.Orange.r, HonamiGraphStyles.Orange.g, HonamiGraphStyles.Orange.b, 0.2f);
+                defBadge.Padding(1, 6);
+                defBadge.Radius(4);
+                defBadge.Border(1, new Color(HonamiGraphStyles.Orange.r, HonamiGraphStyles.Orange.g, HonamiGraphStyles.Orange.b, 0.2f));
                 defBadge.style.marginRight = 8;
                 Add(defBadge);
             }
@@ -579,7 +567,7 @@ namespace HonamiAnimationSystem.Editor
             addBtn.style.marginRight = 8;
             addBtn.style.justifyContent = Justify.Center;
             addBtn.style.alignItems = Align.Center;
-            addBtn.style.borderTopLeftRadius = addBtn.style.borderTopRightRadius = addBtn.style.borderBottomLeftRadius = addBtn.style.borderBottomRightRadius = 4;
+            addBtn.Radius(4);
 
             var addLabel = new Label("+");
             addLabel.style.fontSize = 16;

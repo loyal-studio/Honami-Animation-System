@@ -1,4 +1,4 @@
-using UnityEngine;
+﻿using UnityEngine;
 using UnityEditor;
 using UnityEditor.Animations;
 using System.Collections.Generic;
@@ -232,14 +232,9 @@ namespace HonamiAnimationSystem.Editor
                 }
                 else if (aState.motion is UBlendTree blendTree)
                 {
-                    HonamiBlendTreeNode btNode = ScriptableObject.CreateInstance<HonamiBlendTreeNode>();
-                    btNode.name = aState.name + "_Node";
-                    btNode.blendParameter = blendTree.blendParameter;
-
-                    ExtractBlendTreeMotionsFlat(blendTree, btNode.blendMotions);
-
-                    AssetDatabase.AddObjectToAsset(btNode, target);
-                    hState.node = btNode;
+                    hState.node = IsTwoDimensional(blendTree.blendType)
+                        ? ConvertToBlendSpace(blendTree, aState.name, target)
+                        : ConvertToBlendTree(blendTree, aState.name, target);
                     hState.loop = true;
                 }
                 else if (aState.motion == null)
@@ -267,6 +262,49 @@ namespace HonamiAnimationSystem.Editor
             }
         }
 
+        private static bool IsTwoDimensional(BlendTreeType type)
+            => type == BlendTreeType.SimpleDirectional2D
+               || type == BlendTreeType.FreeformDirectional2D
+               || type == BlendTreeType.FreeformCartesian2D;
+
+        private HonamiNodeBase ConvertToBlendTree(UBlendTree tree, string stateName, HonamiController target)
+        {
+            if (tree.blendType == BlendTreeType.Direct)
+            {
+                Debug.LogWarning($"[Honami] Blend tree on state '{stateName}' uses Direct blending, which Honami does not support. Converted as a 1D blend tree.");
+            }
+
+            HonamiBlendTreeNode node = ScriptableObject.CreateInstance<HonamiBlendTreeNode>();
+            node.name = stateName + "_Node";
+            node.blendParameter = tree.blendParameter;
+
+            ExtractBlendTreeMotionsFlat(tree, node.blendMotions);
+
+            AssetDatabase.AddObjectToAsset(node, target);
+            return node;
+        }
+
+        private HonamiNodeBase ConvertToBlendSpace(UBlendTree tree, string stateName, HonamiController target)
+        {
+            HonamiBlendSpaceNode node = ScriptableObject.CreateInstance<HonamiBlendSpaceNode>();
+            node.name = stateName + "_Node";
+            node.spaceType = tree.blendType switch
+            {
+                BlendTreeType.SimpleDirectional2D => HonamiBlendSpaceType.SimpleDirectional,
+                BlendTreeType.FreeformCartesian2D => HonamiBlendSpaceType.FreeformCartesian,
+                _ => HonamiBlendSpaceType.FreeformDirectional
+            };
+
+            node.blendParameters.Add(tree.blendParameter);
+            node.blendParameters.Add(tree.blendParameterY);
+
+            ExtractBlendSpaceMotionsFlat(tree, node.blendMotions);
+            node.OnValidateNode();
+
+            AssetDatabase.AddObjectToAsset(node, target);
+            return node;
+        }
+
         private void ExtractBlendTreeMotionsFlat(UBlendTree tree, List<HonamiBlendTreeMotion> motions)
         {
             foreach (var child in tree.children)
@@ -277,11 +315,33 @@ namespace HonamiAnimationSystem.Editor
                     btm.clip = clip;
                     btm.threshold = child.threshold;
                     btm.speed = child.timeScale;
+                    btm.mirror = child.mirror;
                     motions.Add(btm);
                 }
                 else if (child.motion is UBlendTree nestedTree)
                 {
                     ExtractBlendTreeMotionsFlat(nestedTree, motions);
+                }
+            }
+        }
+
+        private void ExtractBlendSpaceMotionsFlat(UBlendTree tree, List<HonamiBlendSpaceMotion> motions)
+        {
+            foreach (var child in tree.children)
+            {
+                if (child.motion is AnimationClip clip)
+                {
+                    motions.Add(new HonamiBlendSpaceMotion
+                    {
+                        clip = clip,
+                        position = new[] { child.position.x, child.position.y },
+                        speed = child.timeScale,
+                        mirror = child.mirror
+                    });
+                }
+                else if (child.motion is UBlendTree nestedTree)
+                {
+                    ExtractBlendSpaceMotionsFlat(nestedTree, motions);
                 }
             }
         }

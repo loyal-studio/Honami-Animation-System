@@ -1,4 +1,3 @@
-#if UNITY_EDITOR
 using System;
 using System.Collections.Generic;
 using HonamiAnimationSystem.Runtime.Core;
@@ -6,190 +5,864 @@ using HonamiAnimationSystem.Runtime.Timeline;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.UIElements;
+using HonamiEditorController = HonamiAnimationSystem.Editor.Core.HonamiEditorController;
 
 namespace HonamiAnimationSystem.Editor.Timeline
 {
-    internal sealed partial class TimelinePanelView : ITimelineTrackDrawer
+    internal sealed partial class TimelinePanelView : ITimelineTrackDrawer, ITimelineItemViewHost
     {
+        private const float MarkerLaneHeight = 16f;
+        private const float RulerLabelTop = MarkerLaneHeight + 2f;
+        private const float MajorTickHeight = 12f;
+        private const float MinorTickHeight = 6f;
+        private const float MinLabelSpacing = 70f;
+        private const float MinMinorSpacing = 7f;
+        private const float AddModuleRowHeight = 30f;
+        private const float MinItemDisplayDuration = 0.1f;
+
+        private static readonly float[] SecondSteps = { 1f, 2f, 5f, 10f, 15f, 30f, 60f, 120f, 300f, 600f, 1800f, 3600f };
+        private static readonly float[] FrameSteps = { 1f, 2f, 5f, 10f };
+        private static readonly float[] FractionSteps = { 0.01f, 0.02f, 0.05f, 0.1f, 0.2f, 0.5f };
+        private static readonly int[] FrameCountSteps = { 1, 2, 5, 10, 20, 50, 100, 200, 500, 1000, 2000, 5000, 10000, 20000, 50000 };
+
+        private static readonly Color MinorTick = new(1f, 1f, 1f, 0.16f);
+        private static readonly Color MajorTick = new(1f, 1f, 1f, 0.34f);
+        private static readonly Color MajorGridLine = new(0f, 0f, 0f, 0.38f);
+        private static readonly Color MinorGridLine = new(0f, 0f, 0f, 0.14f);
+        private static readonly Color PastEndShade = new(0f, 0f, 0f, 0.22f);
+        private static readonly Color LockedHatch = new(1f, 1f, 1f, 0.07f);
+
+        private const float RulerLabelFontSize = 10f;
+        private const int MaxQuadsPerMesh = ushort.MaxValue / 4;
+
         private int _rowCount;
-        private GUIStyle _rulerLabelStyle;
+        private readonly List<(Rect rect, Color32 color)> _quadBuffer = new();
+        private readonly List<float> _tickCandidates = new();
         private readonly List<float> _snapPointsBuffer = new();
+        private bool _draggingItemHandle;
+        private bool _draggingMarker;
 
-        private void DrawTimelineOverlay(float height)
+        private bool HasAddModuleRow => _state.Mode != TimelineMode.HonamiClipEdit && _state.ActiveContainer != null;
+
+        private bool IsInteractingWithCanvas() =>
+            _itemDrag != null || _draggingItemHandle || _draggingMarker || _draggingPlayhead || _state.IsBoxSelecting || _state.IsDraggingTrack
+            || _state.IsResizingPropsPanel || _state.IsResizingTrackHeader || _panning;
+
+        #region Ticks
+
+        private void ComputeTickSpacing(out float major, out float minor)
         {
-            float rulerHeight = TimelineTheme.RulerHeight;
+            float scale = Mathf.Max(0.0001f, _state.TimeScale);
+            float fps = Mathf.Max(1f, _state.FrameRate);
+            var candidates = _tickCandidates;
+            candidates.Clear();
 
-            var rulerContainer = new IMGUIContainer(() => DrawIMGUIRuler(Mathf.Max(10f, Mathf.Max(_canvas.layout.width, _canvas.style.width.value.value))))
+            switch (_state.EffectiveTimeFormat)
             {
-                style = { position = Position.Absolute, left = 0, top = 0, width = new StyleLength(new Length(100, LengthUnit.Percent)), height = rulerHeight }
-            };
-            _canvas.Add(rulerContainer);
-            RegisterPlayheadDrag(rulerContainer);
-
-            var bgContainer = new IMGUIContainer(() => DrawIMGUIBackground(Mathf.Max(10f, Mathf.Max(_canvas.layout.width, _canvas.style.width.value.value)), height))
-            {
-                style = { position = Position.Absolute, left = 0, top = 0, width = new StyleLength(new Length(100, LengthUnit.Percent)), height = height }
-            };
-            IgnorePicking(bgContainer);
-            _canvas.Add(bgContainer);
-
-            var headerSpacer = RectElement(0, 0, 0, rulerHeight, TimelineTheme.RulerBg);
-            headerSpacer.style.left = 0;
-            headerSpacer.style.width = new StyleLength(new Length(100, LengthUnit.Percent));
-            IgnorePicking(headerSpacer);
-            _headers.Add(headerSpacer);
-
-            DrawCurrentFrameBand(height);
-        }
-
-        private void ShowAddMenu(float time)
-        {
-            var menu = new GenericMenu();
-
-            if (_state.Mode == TimelineMode.HonamiState && _state.SelectedState != null)
-            {
-                menu.AddItem(new GUIContent("Add Local Event"), false, () => AddStateEvent(time, HonamiEventType.Local));
-                menu.AddItem(new GUIContent("Add Global Event"), false, () => AddStateEvent(time, HonamiEventType.Global));
-                if (_state.IsSeqState)
-                    menu.AddItem(new GUIContent("Add Clip"), false, () => AddSequencedClip(time));
-            }
-            else if (_state.Mode == TimelineMode.HonamiTimeline && _state.ActiveTimeline != null)
-            {
-                if (_state.SelectedTimelineTrack?.trackType == HonamiTimelineTrackType.Animation)
-                    menu.AddItem(new GUIContent("Add Clip on Selected Track"), false, () => AddTimelineClip(time));
-                else
-                    menu.AddDisabledItem(new GUIContent("Add Clip on Selected Track"));
-                menu.AddSeparator("");
-                menu.AddItem(new GUIContent("Add Animation Track"), false, () => AddTimelineTrack(HonamiTimelineTrackType.Animation, "Anim Track"));
-                menu.AddItem(new GUIContent("Add Event Track"), false, () => AddTimelineTrack(HonamiTimelineTrackType.Event, "Event Track"));
+                case TimelineTimeFormat.Frames:
+                    foreach (int frames in FrameCountSteps) candidates.Add(frames / fps);
+                    break;
+                case TimelineTimeFormat.Seconds:
+                    candidates.AddRange(FractionSteps);
+                    candidates.AddRange(SecondSteps);
+                    break;
+                default:
+                    foreach (float frames in FrameSteps)
+                    {
+                        if (frames < fps) candidates.Add(frames / fps);
+                    }
+                    candidates.AddRange(SecondSteps);
+                    break;
             }
 
-            if (menu.GetItemCount() > 0)
-                menu.ShowAsContext();
-        }
-
-        private void AddStateEvent(float time, HonamiEventType eventType)
-        {
-            if (_state.SelectedState == null) return;
-            _state.PreModifyState();
-            Undo.RecordObject(_state.SelectedState, eventType == HonamiEventType.Local ? "Add Local Event" : "Add Global Event");
-            _state.SelectedState.events ??= new List<HonamiEventMarker>();
-            _state.SelectedState.events.Add(new HonamiEventMarker
+            major = candidates[candidates.Count - 1];
+            int majorIndex = candidates.Count - 1;
+            for (int i = 0; i < candidates.Count; i++)
             {
-                time = time,
-                eventType = eventType,
-                eventName = "NewEvent",
-                globalEventId = eventType == HonamiEventType.Global ? "NewEvent" : string.Empty
-            });
-            EditorUtility.SetDirty(_state.SelectedState);
-            _state.PostModifyState();
-            _rebuild();
-        }
+                if (candidates[i] * scale < MinLabelSpacing) continue;
+                major = candidates[i];
+                majorIndex = i;
+                break;
+            }
 
-        private void AddSequencedClip(float time)
-        {
-            if (!_state.IsSeqState) return;
-            _state.PreModifyState();
-            Undo.RecordObject(_state.SeqNode, "Add Sequenced Clip");
-            _state.SeqNode.sequencedClips.Add(new HonamiSequencedAnimationClip { startTime = time });
-            EditorUtility.SetDirty(_state.SeqNode);
-            _state.PostModifyState();
-            _rebuild();
-        }
-
-        private void AddTimelineClip(float time)
-        {
-            if (_state.SelectedTimelineTrack?.trackType != HonamiTimelineTrackType.Animation) return;
-            Undo.RecordObject(_state.ActiveTimeline, "Add Timeline Clip");
-            _state.SelectedTimelineTrack.clips.Add(new HonamiTimelineClip { startTime = time });
-            EditorUtility.SetDirty(_state.ActiveTimeline);
-            _rebuild();
-        }
-
-        private void AddTimelineTrack(HonamiTimelineTrackType trackType, string trackName)
-        {
-            if (_state.ActiveTimeline == null) return;
-            Undo.RecordObject(_state.ActiveTimeline, "Add Timeline Track");
-            _state.ActiveTimeline.tracks.Add(new HonamiTimelineTrack { trackType = trackType, trackName = trackName });
-            EditorUtility.SetDirty(_state.ActiveTimeline);
-            _rebuild();
-        }
-
-        private void DrawIMGUIRuler(float width)
-        {
-            if (Event.current.type != EventType.Repaint) return;
-
-            float rulerHeight = TimelineTheme.RulerHeight;
-            float timeScale = _state.TimeScale;
-            float fps = DisplayFps();
-
-            EditorGUI.DrawRect(new Rect(0, 0, width, rulerHeight), TimelineTheme.RulerBg);
-
-            float step = 1f;
-            if (timeScale > 200f) step = 0.1f;
-            else if (timeScale > 100f) step = 0.2f;
-            else if (timeScale > 50f) step = 0.5f;
-            else if (timeScale < 20f) step = 2f;
-            else if (timeScale < 10f) step = 5f;
-
-            float duration = width / timeScale;
-            _rulerLabelStyle ??= new GUIStyle(EditorStyles.miniLabel) { fontSize = 9 };
-            _rulerLabelStyle.normal.textColor = TimelineTheme.MutedText;
-
-            for (float t = 0; t <= duration; t += step)
+            minor = major;
+            for (int i = majorIndex - 1; i >= 0; i--)
             {
-                float x = t * timeScale;
-                if (x < 0 || x > width) continue;
-                EditorGUI.DrawRect(new Rect(x, rulerHeight - 8, 1, 8), TimelineTheme.MajorGrid);
-                string txt = _state.ShowFrames && fps > 0 ? $"{(t * fps):F0}f" : $"{t:F1}s";
-                GUI.Label(new Rect(x + 3, 2, 60, 15), txt, _rulerLabelStyle);
+                float candidate = candidates[i];
+                if (candidate * scale < MinMinorSpacing) break;
+                float ratio = major / candidate;
+                if (Mathf.Abs(ratio - Mathf.Round(ratio)) > 0.001f) continue;
+                minor = candidate;
             }
         }
 
-        private void DrawIMGUIBackground(float width, float height)
-        {
-            if (Event.current.type != EventType.Repaint) return;
+        private int _timeAxisSignature;
 
-            float timeScale = _state.TimeScale;
+        // Drags can move the end or markers without a rebuild, and the cached ruler and grid would not follow on their own.
+        public void RefreshTimeAxisIfChanged()
+        {
+            int signature = TimeAxisSignature();
+            if (signature == _timeAxisSignature) return;
+            _timeAxisSignature = signature;
+            _rulerTicks.MarkDirtyRepaint();
+            _gridBackground.MarkDirtyRepaint();
+        }
+
+        private int TimeAxisSignature()
+        {
+            if (IsStateEmpty()) return 0;
+
+            var hash = new HashCode();
+            hash.Add(_state.GetDuration());
+            hash.Add(_state.FrameRate);
+            hash.Add(_state.EffectiveTimeFormat);
+            hash.Add(_rowCount);
+
+            if (_state.Mode == TimelineMode.HonamiTimeline && _state.ActiveTimeline != null)
+            {
+                var markers = _state.ActiveTimeline.Markers;
+                for (int i = 0; i < markers.Count; i++)
+                {
+                    var marker = markers[i];
+                    if (marker is HonamiTimelineLoopMarker loop)
+                    {
+                        hash.Add(loop.time);
+                        hash.Add(loop.endTime);
+                    }
+                    else if (marker is HonamiTimelineCueMarker cue)
+                    {
+                        hash.Add(cue.time);
+                        hash.Add(cue.color);
+                    }
+                }
+            }
+            return hash.ToHashCode();
+        }
+
+        private void AddQuad(float x, float y, float width, float height, Color color) =>
+            _quadBuffer.Add((new Rect(x, y, width, height), color));
+
+        // All ticks and rows go into one cached mesh, which is only rebuilt when the element is marked dirty.
+        private void FlushQuads(MeshGenerationContext mesh)
+        {
+            int count = Mathf.Min(_quadBuffer.Count, MaxQuadsPerMesh);
+            if (count > 0)
+            {
+                var data = mesh.Allocate(count * 4, count * 6);
+                for (int i = 0; i < count; i++)
+                {
+                    var (rect, color) = _quadBuffer[i];
+                    data.SetNextVertex(new Vertex { position = new Vector3(rect.xMin, rect.yMin, Vertex.nearZ), tint = color });
+                    data.SetNextVertex(new Vertex { position = new Vector3(rect.xMax, rect.yMin, Vertex.nearZ), tint = color });
+                    data.SetNextVertex(new Vertex { position = new Vector3(rect.xMax, rect.yMax, Vertex.nearZ), tint = color });
+                    data.SetNextVertex(new Vertex { position = new Vector3(rect.xMin, rect.yMax, Vertex.nearZ), tint = color });
+
+                    ushort v = (ushort)(i * 4);
+                    data.SetNextIndex(v);
+                    data.SetNextIndex((ushort)(v + 1));
+                    data.SetNextIndex((ushort)(v + 2));
+                    data.SetNextIndex(v);
+                    data.SetNextIndex((ushort)(v + 2));
+                    data.SetNextIndex((ushort)(v + 3));
+                }
+            }
+            _quadBuffer.Clear();
+        }
+
+        private void DrawRulerTicks(MeshGenerationContext mesh)
+        {
+            var rect = _rulerTicks.contentRect;
+            if (rect.width < 1f || IsStateEmpty()) return;
+
+            float scale = _state.TimeScale;
+            float scrollX = _state.ScrollPos.x;
+            float height = rect.height;
+            float fps = Mathf.Max(1f, _state.FrameRate);
+
+            float endX = _state.GetDuration() * scale - scrollX;
+            if (endX < rect.width)
+                AddQuad(Mathf.Max(0f, endX), MarkerLaneHeight, rect.width - Mathf.Max(0f, endX), height - MarkerLaneHeight, PastEndShade);
+
+            ComputeTickSpacing(out float major, out float minor);
+
+            bool labelFrames = major < 0.999f;
+            long first = (long)Math.Floor(scrollX / scale / minor);
+            for (long index = first; ; index++)
+            {
+                float time = index * minor;
+                float x = Mathf.Round(time * scale - scrollX);
+                if (x > rect.width) break;
+                if (time < 0f) continue;
+
+                float majorRatio = time / major;
+                bool isMajor = Mathf.Abs(majorRatio - Mathf.Round(majorRatio)) < 0.001f;
+                if (isMajor) AddQuad(x, height - MajorTickHeight, 1f, MajorTickHeight, MajorTick);
+                else AddQuad(x, height - MinorTickHeight, 1f, MinorTickHeight, MinorTick);
+            }
+
+            AddQuad(0f, MarkerLaneHeight, rect.width, 1f, new Color(0f, 0f, 0f, 0.25f));
+            FlushQuads(mesh);
+
+            var font = _rulerTicks.resolvedStyle.unityFontDefinition.fontAsset;
+            for (long index = (long)Math.Floor(scrollX / scale / major); ; index++)
+            {
+                float time = index * major;
+                float x = Mathf.Round(time * scale - scrollX);
+                if (x > rect.width) break;
+                if (time < 0f) continue;
+                mesh.DrawText(TimelineTimecode.FormatRulerLabel(time, fps, _state.EffectiveTimeFormat, labelFrames), new Vector2(x + 3f, RulerLabelTop), RulerLabelFontSize, TimelineTheme.MutedText, font);
+            }
+        }
+
+        private void DrawGridBackground(MeshGenerationContext mesh)
+        {
+            var rect = _gridBackground.contentRect;
+            AddQuad(rect.x, rect.y, rect.width, rect.height, TimelineTheme.TrackBgB);
+            if (rect.width < 1f || IsStateEmpty())
+            {
+                FlushQuads(mesh);
+                return;
+            }
+
+            float scale = _state.TimeScale;
+            float scrollX = _state.ScrollPos.x;
+            float scrollY = _state.ScrollPos.y;
             float rowHeight = TimelineTheme.RowHeight;
 
-            float step = 1f;
-            if (timeScale > 200f) step = 0.1f;
-            else if (timeScale > 100f) step = 0.5f;
-            else if (timeScale < 20f) step = 2f;
-
-            float duration = width / timeScale;
-            for (float t = 0; t <= duration; t += step)
-                EditorGUI.DrawRect(new Rect(t * timeScale, 0, 1, height), TimelineTheme.MajorGrid);
-
-            float y = TimelineTheme.RulerHeight;
-            for (int i = 0; i < _rowCount; i++)
+            int firstRow = Mathf.Max(0, Mathf.FloorToInt(scrollY / rowHeight));
+            for (int i = firstRow; i < _rowCount; i++)
             {
-                Color c = i % 2 == 0 ? TimelineTheme.TrackBgA : TimelineTheme.TrackBgB;
-                EditorGUI.DrawRect(new Rect(0, y, width, rowHeight), c);
-                EditorGUI.DrawRect(new Rect(0, y + rowHeight - 1, width, 1), TimelineTheme.Divider);
-                y += rowHeight;
+                float y = i * rowHeight - scrollY;
+                if (y > rect.height) break;
+                AddQuad(0f, y, rect.width, rowHeight, i % 2 == 0 ? TimelineTheme.TrackBgA : TimelineTheme.TrackBgB);
+                AddQuad(0f, y + rowHeight - 1f, rect.width, 1f, TimelineTheme.Divider);
+            }
+
+            ComputeTickSpacing(out float major, out float minor);
+            long first = (long)Math.Floor(scrollX / scale / minor);
+            bool drawMinor = minor * scale >= 14f;
+            for (long index = first; ; index++)
+            {
+                float time = index * minor;
+                float x = Mathf.Round(time * scale - scrollX);
+                if (x > rect.width) break;
+                if (time < 0f) continue;
+                float majorRatio = time / major;
+                bool isMajor = Mathf.Abs(majorRatio - Mathf.Round(majorRatio)) < 0.001f;
+                if (isMajor) AddQuad(x, 0f, 1f, rect.height, MajorGridLine);
+                else if (drawMinor) AddQuad(x, 0f, 1f, rect.height, MinorGridLine);
+            }
+
+            if (_state.Mode == TimelineMode.HonamiTimeline && _state.ActiveTimeline != null)
+            {
+                foreach (var marker in _state.ActiveTimeline.Markers)
+                {
+                    if (marker is HonamiTimelineLoopMarker loop)
+                    {
+                        float x0 = loop.time * scale - scrollX;
+                        float x1 = loop.endTime * scale - scrollX;
+                        var band = TimelineTheme.Accent;
+                        band.a = 0.05f;
+                        AddQuad(x0, 0f, x1 - x0, rect.height, band);
+                    }
+                    else if (marker is HonamiTimelineCueMarker cue)
+                    {
+                        var line = cue.color;
+                        line.a = 0.5f;
+                        AddQuad(Mathf.Round(cue.time * scale - scrollX), 0f, 1f, rect.height, line);
+                    }
+                }
+            }
+
+            float endX = _state.GetDuration() * scale - scrollX;
+            if (endX < rect.width)
+            {
+                AddQuad(Mathf.Max(0f, endX), 0f, rect.width - Mathf.Max(0f, endX), rect.height, PastEndShade);
+                AddQuad(endX, 0f, 1f, rect.height, TimelineTheme.EndBoundary);
+            }
+            FlushQuads(mesh);
+        }
+
+        #endregion
+
+        #region Ruler
+
+        private void RegisterRulerEvents(VisualElement ruler)
+        {
+            ruler.RegisterCallback<PointerDownEvent>(evt =>
+            {
+                if (IsStateEmpty()) return;
+                _focus();
+                Focus();
+                float time = TimeAtCanvasX(_rulerContent.WorldToLocal(evt.position).x);
+
+                if (evt.button == 1)
+                {
+                    ShowRulerMenu(Mathf.Max(0f, time));
+                    evt.StopPropagation();
+                    return;
+                }
+                if (evt.button != 0) return;
+
+                if (evt.clickCount == 2 && _state.Mode == TimelineMode.HonamiTimeline && _state.ActiveTimeline != null)
+                {
+                    var marker = HonamiEditorController.AddCueMarker(_state.ActiveTimeline, SnapTime(Mathf.Max(0f, time), null, ShouldSnap(evt.shiftKey)));
+                    _state.ClearSelection();
+                    _state.SelectedMarkers.Add(marker);
+                    _rebuild();
+                    evt.StopPropagation();
+                    return;
+                }
+
+                _draggingPlayhead = true;
+                _state.IsDraggingPlayhead = true;
+                ruler.CapturePointer(evt.pointerId);
+                SetPlayheadFromLocal(_rulerContent.WorldToLocal(evt.position).x, false, evt.shiftKey);
+                evt.StopPropagation();
+            });
+            ruler.RegisterCallback<PointerMoveEvent>(evt =>
+            {
+                if (!_draggingPlayhead || !ruler.HasPointerCapture(evt.pointerId)) return;
+                SetPlayheadFromLocal(_rulerContent.WorldToLocal(evt.position).x, false, evt.shiftKey);
+                evt.StopPropagation();
+            });
+            ruler.RegisterCallback<PointerUpEvent>(evt =>
+            {
+                if (!ruler.HasPointerCapture(evt.pointerId)) return;
+                ruler.ReleasePointer(evt.pointerId);
+                StopSelection();
+                evt.StopPropagation();
+            });
+        }
+
+        private void ShowRulerMenu(float time)
+        {
+            var menu = new GenericMenu();
+            menu.AddItem(new GUIContent("Move Playhead Here"), false, () =>
+            {
+                _state.PlayheadTime = Mathf.Clamp(time, 0f, _state.GetDuration());
+                _rebuild();
+            });
+
+            if (_state.Mode == TimelineMode.HonamiTimeline && _state.ActiveTimeline != null)
+            {
+                var timeline = _state.ActiveTimeline;
+                menu.AddSeparator("");
+                menu.AddItem(new GUIContent("Add Marker  (M)"), false, () =>
+                {
+                    var marker = HonamiEditorController.AddCueMarker(timeline, time);
+                    _state.ClearSelection();
+                    _state.SelectedMarkers.Add(marker);
+                    _rebuild();
+                });
+                menu.AddItem(new GUIContent("Add Wait"), false, () =>
+                {
+                    var marker = HonamiEditorController.AddWaitMarker(timeline, time);
+                    _state.ClearSelection();
+                    _state.SelectedMarkers.Add(marker);
+                    _rebuild();
+                });
+                menu.AddItem(new GUIContent("Add Runtime Loop Region"), false, () =>
+                {
+                    float end = time + 2f;
+                    var marker = HonamiEditorController.AddRuntimeLoopMarker(timeline, time, end);
+                    _state.ClearSelection();
+                    _state.SelectedMarkers.Add(marker);
+                    _rebuild();
+                });
+                menu.AddItem(new GUIContent("Set Loop In  (I)"), false, () => SetLoopPoint(time, true));
+                menu.AddItem(new GUIContent("Set Loop Out  (O)"), false, () => SetLoopPoint(time, false));
+                if (timeline.Markers.Count > 0)
+                {
+                    menu.AddSeparator("");
+                    menu.AddItem(new GUIContent("Delete All Markers"), false, () =>
+                    {
+                        HonamiEditorController.DeleteMarkers(timeline, new List<HonamiTimelineMarker>(timeline.Markers));
+                        _state.SelectedMarkers.Clear();
+                        _rebuild();
+                    });
+                }
+            }
+
+            if (_state.Mode != TimelineMode.HonamiTimeline)
+            {
+                menu.ShowAsContext();
+                return;
+            }
+
+            menu.AddSeparator("");
+            foreach (TimelineTimeFormat format in Enum.GetValues(typeof(TimelineTimeFormat)))
+            {
+                var captured = format;
+                menu.AddItem(new GUIContent($"Display/{ObjectNames.NicifyVariableName(format.ToString())}"), _state.TimeFormat == format, () =>
+                {
+                    _state.TimeFormat = captured;
+                    _state.SaveSettings();
+                    _rebuild();
+                });
+            }
+            menu.ShowAsContext();
+        }
+
+        private void DrawRulerMarkers()
+        {
+            if (_state.Mode != TimelineMode.HonamiTimeline || _state.ActiveTimeline == null) return;
+
+            foreach (var marker in _state.ActiveTimeline.Markers)
+            {
+                switch (marker)
+                {
+                    case HonamiTimelineLoopMarker loop:
+                        AddLoopMarkerElement(loop);
+                        break;
+                    case HonamiTimelineCueMarker cue:
+                        AddCueMarkerElement(cue);
+                        break;
+                    case HonamiTimelineWaitMarker wait:
+                        AddWaitMarkerElement(wait);
+                        break;
+                }
             }
         }
 
-        private void DrawRows(float width)
+        private void AddCueMarkerElement(HonamiTimelineCueMarker cue)
         {
-            float y = TimelineTheme.RulerHeight;
-            var rows = GetRows();
+            bool selected = _state.SelectedMarkers.Contains(cue);
+            float x = cue.time * _state.TimeScale;
+            var flag = new VisualElement
+            {
+                tooltip = string.IsNullOrEmpty(cue.note) ? $"{cue.id}\n{FormatTime(cue.time)}" : $"{cue.id}\n{FormatTime(cue.time)}\n{cue.note}",
+                style =
+                {
+                    position = Position.Absolute,
+                    left = x - 1f,
+                    top = 2,
+                    height = MarkerLaneHeight - 3f,
+                    flexDirection = FlexDirection.Row
+                }
+            };
+            var pole = new VisualElement
+            {
+                pickingMode = PickingMode.Ignore,
+                style = { width = 9, height = Length.Percent(100), backgroundColor = cue.color }
+            };
+            pole.style.borderTopRightRadius = pole.style.borderBottomRightRadius = 4;
+            if (selected) pole.Border(1.5f, Color.white);
+            flag.Add(pole);
+            var label = new Label(cue.id)
+            {
+                pickingMode = PickingMode.Ignore,
+                style =
+                {
+                    fontSize = 9,
+                    color = selected ? Color.white : TimelineTheme.Text,
+                    marginLeft = 2,
+                    paddingTop = 0,
+                    unityTextAlign = TextAnchor.MiddleLeft
+                }
+            };
+            flag.Add(label);
+            RegisterMarkerDrag(flag, cue, null);
+            _rulerContent.Add(flag);
+            _markerElements[cue] = flag;
+            DecorateMarkerLink(flag, cue);
+        }
+
+        private void AddLoopMarkerElement(HonamiTimelineLoopMarker loop)
+        {
+            bool selected = _state.SelectedMarkers.Contains(loop);
+            float x0 = loop.time * _state.TimeScale;
+            float x1 = loop.endTime * _state.TimeScale;
+            var loopColor = loop.mode switch
+            {
+                HonamiTimelineLoopMode.RuntimeLoop => TimelineTheme.Accent,
+                HonamiTimelineLoopMode.RuntimeLoopUntilSignal => TimelineTheme.RandomTrack,
+                _ => TimelineTheme.EndBoundary
+            };
+            var color = selected ? TimelineTheme.Accent : loopColor;
+            var bar = RectElement(x0, 3f, Mathf.Max(8f, x1 - x0), 12f, color);
+            bar.Radius(3);
+            bar.style.opacity = 0.85f;
+            string runtime = loop.mode == HonamiTimelineLoopMode.PreviewOnly ? "Preview only" : loop.mode == HonamiTimelineLoopMode.RuntimeLoop ? "Runtime loop" : $"Runtime loop until '{loop.signal}'";
+            bar.tooltip = $"{loop.id}: {FormatTime(loop.time)} - {FormatTime(loop.endTime)}\n{runtime}";
+            RegisterMarkerDrag(bar, loop, null);
+
+            var modeLabel = new Label(loop.mode == HonamiTimelineLoopMode.PreviewOnly ? "LOOP" : loop.mode == HonamiTimelineLoopMode.RuntimeLoop ? "∞ LOOP" : "LOOP · WAIT")
+            {
+                pickingMode = PickingMode.Ignore,
+                style = { position = Position.Absolute, left = 7, right = 7, top = 0, bottom = 0, fontSize = 8, color = Color.white, unityTextAlign = TextAnchor.MiddleCenter, overflow = Overflow.Hidden }
+            };
+            bar.Add(modeLabel);
+
+            var inHandle = RectElement(0f, 0f, 6f, 12f, new Color(1f, 1f, 1f, 0.35f));
+            inHandle.AddManipulator(new HonamiTimelineItemView.CursorManipulator(MouseCursor.ResizeHorizontal));
+            RegisterMarkerDrag(inHandle, loop, true);
+            bar.Add(inHandle);
+
+            var outHandle = RectElement(0f, 0f, 6f, 12f, new Color(1f, 1f, 1f, 0.35f));
+            outHandle.style.left = StyleKeyword.Auto;
+            outHandle.style.right = 0;
+            outHandle.AddManipulator(new HonamiTimelineItemView.CursorManipulator(MouseCursor.ResizeHorizontal));
+            RegisterMarkerDrag(outHandle, loop, false);
+            bar.Add(outHandle);
+
+            _rulerContent.Add(bar);
+            _markerElements[loop] = bar;
+            DecorateMarkerLink(bar, loop);
+        }
+
+        private void AddWaitMarkerElement(HonamiTimelineWaitMarker wait)
+        {
+            bool selected = _state.SelectedMarkers.Contains(wait);
+            float x = wait.time * _state.TimeScale;
+            var flag = new VisualElement
+            {
+                tooltip = $"{wait.id}: wait for '{wait.signal}'\n{FormatTime(wait.time)}",
+                style = { position = Position.Absolute, left = x - 3f, top = 1, width = 16, height = MarkerLaneHeight - 2f, backgroundColor = new Color(0.68f, 0.45f, 0.96f) }
+            };
+            flag.Radius(3);
+            if (selected) flag.Border(1.5f, Color.white);
+            flag.Add(new Label("W")
+            {
+                pickingMode = PickingMode.Ignore,
+                style = { color = Color.white, fontSize = 9, unityTextAlign = TextAnchor.MiddleCenter, flexGrow = 1 }
+            });
+            RegisterMarkerDrag(flag, wait, null);
+            _rulerContent.Add(flag);
+            _markerElements[wait] = flag;
+            DecorateMarkerLink(flag, wait);
+        }
+
+        // edge: null drags the whole marker, true the loop start, false the loop end.
+        private void RegisterMarkerDrag(VisualElement element, HonamiTimelineMarker marker, bool? edge)
+        {
+            float pointerStart = 0f;
+            float timeStart = 0f;
+            float endStart = 0f;
+            int undoGroup = -1;
+            bool moved = false;
+            // Linked markers move as a group when the marker is dragged by its body, not by a loop edge.
+            // The group can also contain clips, which follow the same shift.
+            var peers = new List<HonamiTimelineMarker>();
+            var peerStarts = new List<float>();
+            var peerEnds = new List<float>();
+            var itemPeers = new List<HonamiTimelineItem>();
+            var itemStarts = new List<float>();
+            bool recordedItems = false;
+
+            element.RegisterCallback<PointerDownEvent>(evt =>
+            {
+                if (evt.button == 1)
+                {
+                    SelectOnly(_state.SelectedMarkers, marker, false, keepIfSelected: true);
+                    ShowMarkerMenu(marker);
+                    evt.StopPropagation();
+                    return;
+                }
+                if (evt.button != 0) return;
+                _focus();
+                Focus();
+
+                if (evt.clickCount == 2)
+                {
+                    _state.PlayheadTime = marker.time;
+                    _rebuild();
+                    evt.StopPropagation();
+                    return;
+                }
+
+                bool additive = evt.shiftKey || evt.ctrlKey || evt.commandKey;
+                if (!additive) _state.ClearSelection();
+                _state.ClearSelectedGap();
+                SelectOnly(_state.SelectedMarkers, marker, true, keepIfSelected: !additive);
+                pointerStart = TimeAtCanvasX(_rulerContent.WorldToLocal(evt.position).x);
+                timeStart = marker.time;
+                endStart = marker is HonamiTimelineLoopMarker loop ? loop.endTime : marker.time;
+                moved = false;
+
+                peers.Clear();
+                peerStarts.Clear();
+                peerEnds.Clear();
+                itemPeers.Clear();
+                itemStarts.Clear();
+                recordedItems = false;
+                if (edge == null)
+                {
+                    peers.Add(marker);
+                    ExpandLinkGroup(itemPeers, peers);
+                    foreach (var peer in peers)
+                    {
+                        peerStarts.Add(peer.time);
+                        peerEnds.Add(peer is HonamiTimelineLoopMarker linkedLoop ? linkedLoop.endTime : peer.time);
+                    }
+                    foreach (var item in itemPeers) itemStarts.Add(GetStartTime(item));
+                }
+                _draggingMarker = true;
+                Undo.IncrementCurrentGroup();
+                undoGroup = Undo.GetCurrentGroup();
+                element.CapturePointer(evt.pointerId);
+                evt.StopPropagation();
+            });
+            element.RegisterCallback<PointerMoveEvent>(evt =>
+            {
+                if (!_draggingMarker || !element.HasPointerCapture(evt.pointerId)) return;
+                float delta = TimeAtCanvasX(_rulerContent.WorldToLocal(evt.position).x) - pointerStart;
+                if (!moved && Mathf.Abs(delta * _state.TimeScale) < 2f) return;
+                moved = true;
+
+                Undo.RecordObject(_state.ActiveTimeline, "Move Marker");
+                bool snap = ShouldSnap(evt.shiftKey);
+                if (marker is HonamiTimelineLoopMarker loop && edge.HasValue)
+                {
+                    if (edge.Value) loop.time = Mathf.Clamp(SnapTime(timeStart + delta, marker, snap), 0f, loop.endTime - 1f / _state.FrameRate);
+                    else loop.endTime = Mathf.Max(SnapTime(endStart + delta, marker, snap), loop.time + 1f / _state.FrameRate);
+                }
+                else
+                {
+                    float start = Mathf.Max(0f, SnapTime(timeStart + delta, marker, snap));
+                    float shift = start - timeStart;
+
+                    // Keep clips in the group from being pushed before zero when the marker is the later member.
+                    if (itemPeers.Count > 0)
+                    {
+                        float earliestItem = float.MaxValue;
+                        foreach (float itemStart in itemStarts) earliestItem = Mathf.Min(earliestItem, itemStart);
+                        shift = Mathf.Max(shift, -earliestItem);
+                        start = timeStart + shift;
+                    }
+
+                    marker.time = start;
+                    if (marker is HonamiTimelineLoopMarker body) body.endTime = start + (endStart - timeStart);
+
+                    for (int i = 1; i < peers.Count; i++)
+                    {
+                        var peer = peers[i];
+                        float peerStart = Mathf.Max(0f, peerStarts[i] + shift);
+                        peer.time = peerStart;
+                        if (peer is HonamiTimelineLoopMarker peerLoop)
+                            peerLoop.endTime = peerStart + (peerEnds[i] - peerStarts[i]);
+                        if (_markerElements.TryGetValue(peer, out var peerElement))
+                            RepositionRulerMarker(peerElement, peer, null);
+                    }
+
+                    for (int i = 0; i < itemPeers.Count; i++)
+                    {
+                        if (!recordedItems)
+                        {
+                            var container = _state.ActiveContainer;
+                            if (container != null) HonamiEditorController.RecordUndo(container, "Move Linked Items");
+                            recordedItems = true;
+                        }
+
+                        SetStartTime(itemPeers[i], itemStarts[i] + shift);
+                        if (_elements.TryGetValue(itemPeers[i], out var itemElement))
+                        {
+                            float left = GetStartTime(itemPeers[i]) * _state.TimeScale;
+                            itemElement.style.left = itemPeers[i] is HonamiTimelineItem { IsInstant: true } ? left - 8f : left;
+                        }
+                    }
+                }
+                EditorUtility.SetDirty(_state.ActiveTimeline);
+                UpdateSnapLineVisual();
+                _gridBackground.MarkDirtyRepaint();
+                RepositionRulerMarker(element, marker, edge);
+                evt.StopPropagation();
+            });
+            element.RegisterCallback<PointerUpEvent>(evt =>
+            {
+                if (!element.HasPointerCapture(evt.pointerId)) return;
+                element.ReleasePointer(evt.pointerId);
+                _draggingMarker = false;
+                if (undoGroup >= 0) Undo.CollapseUndoOperations(undoGroup);
+                if (itemPeers.Count > 0)
+                {
+                    var container = _state.ActiveContainer;
+                    if (container != null) HonamiEditorController.MarkModulesChanged(container);
+                }
+                _state.SnapLineTime = -1f;
+                _rebuild();
+                evt.StopPropagation();
+            });
+        }
+
+        private void RepositionRulerMarker(VisualElement element, HonamiTimelineMarker marker, bool? edge)
+        {
+            float scale = _state.TimeScale;
+            var target = edge.HasValue ? element.parent : element;
+            if (target == null) return;
+            if (marker is HonamiTimelineLoopMarker loop)
+            {
+                target.style.left = loop.time * scale;
+                target.style.width = Mathf.Max(8f, (loop.endTime - loop.time) * scale);
+            }
+            else
+            {
+                target.style.left = marker.time * scale - 1f;
+            }
+        }
+
+        private void ShowMarkerMenu(HonamiTimelineMarker marker)
+        {
+            var timeline = _state.ActiveTimeline;
+            if (timeline == null) return;
+            var menu = new GenericMenu();
+            menu.AddItem(new GUIContent("Move Playhead To Marker"), false, () =>
+            {
+                _state.PlayheadTime = marker.time;
+                _rebuild();
+            });
+            menu.AddItem(new GUIContent("Delete Marker"), false, () =>
+            {
+                HonamiEditorController.DeleteMarkers(timeline, new List<HonamiTimelineMarker> { marker });
+                _state.SelectedMarkers.Remove(marker);
+                _rebuild();
+            });
+
+            // Markers count together with any selected items, so a LOOP or WAIT marker can be linked
+            // straight to the clip it belongs to.
+            bool canLink = _state.SelectedMarkers.Count + _state.SelectedTimelineItems.Count >= 2;
+            bool hasLinked = HasLinkedSelection();
+
+            menu.AddSeparator("");
+            AddMenuItem(menu, "Link Selected  (Ctrl+L)", canLink, () => LinkSelection(false));
+            AddMenuItem(menu, "Link And Sequence Selected  (Ctrl+Shift+L)", canLink, () => LinkSelection(true));
+            AddMenuItem(menu, "Unlink Selected", hasLinked, UnlinkSelection);
+            AddMenuItem(menu, "Select Linked Group", hasLinked, SelectLinkedGroup);
+
+            menu.ShowAsContext();
+            _rebuild();
+        }
+
+        private void SetLoopPoint(float time, bool isIn)
+        {
+            var timeline = _state.ActiveTimeline;
+            if (timeline == null) return;
+
+            HonamiTimelineLoopMarker loop = null;
+            foreach (var marker in timeline.Markers)
+            {
+                if (marker is HonamiTimelineLoopMarker candidate)
+                {
+                    loop = candidate;
+                    break;
+                }
+            }
+
+            float frame = 1f / Mathf.Max(1f, _state.FrameRate);
+            if (loop == null)
+            {
+                float start = isIn ? time : Mathf.Max(0f, time - 2f);
+                float end = isIn ? Mathf.Max(time + 2f, time + frame) : time;
+                HonamiEditorController.AddLoopMarker(timeline, start, end);
+            }
+            else
+            {
+                Undo.RecordObject(timeline, isIn ? "Set Loop In" : "Set Loop Out");
+                if (isIn) loop.time = Mathf.Min(time, loop.endTime - frame);
+                else loop.endTime = Mathf.Max(time, loop.time + frame);
+                EditorUtility.SetDirty(timeline);
+            }
+            _rebuild();
+        }
+
+        #endregion
+
+        #region Rows
+
+        private VisualElement BuildAddModuleRow(float y)
+        {
+            var row = new VisualElement
+            {
+                tooltip = "Add a module: animation, camera shots, audio, events, activation, screen fade...",
+                style = { position = Position.Absolute, left = 0, right = 0, top = y, height = AddModuleRowHeight }
+            };
+
+            var plus = new Label("+")
+            {
+                pickingMode = PickingMode.Ignore,
+                style =
+                {
+                    position = Position.Absolute,
+                    left = 13,
+                    width = 16,
+                    top = 0,
+                    bottom = 0,
+                    unityTextAlign = TextAnchor.MiddleCenter,
+                    fontSize = 15,
+                    color = TimelineTheme.MutedText
+                }
+            };
+            var label = new Label("Add Module")
+            {
+                pickingMode = PickingMode.Ignore,
+                style =
+                {
+                    position = Position.Absolute,
+                    left = 36,
+                    right = 8,
+                    top = 0,
+                    bottom = 0,
+                    unityTextAlign = TextAnchor.MiddleLeft,
+                    fontSize = 12,
+                    color = TimelineTheme.MutedText
+                }
+            };
+            row.Add(plus);
+            row.Add(label);
+
+            row.RegisterCallback<PointerEnterEvent>(_ =>
+            {
+                row.style.backgroundColor = Color.Lerp(TimelineTheme.HeaderBg, Color.white, 0.04f);
+                plus.style.color = label.style.color = TimelineTheme.Accent;
+            });
+            row.RegisterCallback<PointerLeaveEvent>(_ =>
+            {
+                row.style.backgroundColor = Color.clear;
+                plus.style.color = label.style.color = TimelineTheme.MutedText;
+            });
+            row.RegisterCallback<PointerDownEvent>(evt =>
+            {
+                if (evt.button != 0) return;
+                _focus();
+                var menu = new GenericMenu();
+                AddModuleTypeItems(menu, string.Empty);
+                menu.DropDown(row.worldBound);
+                evt.StopPropagation();
+            });
+            return row;
+        }
+
+        private void DrawRows()
+        {
+            var rows = _cachedRows;
             for (int i = 0; i < rows.Count; i++)
             {
                 var row = rows[i];
+                float y = RowY(i);
                 Color headerBg = row.IsSelected ? TimelineTheme.HeaderSelected
                     : row.IsBoneGroup ? TimelineTheme.BoneGroupHeaderBg
                     : TimelineTheme.HeaderBg;
-                var header = RectElement(0, y, _state.TrackHeaderWidth, TimelineTheme.RowHeight, headerBg);
+                var header = new VisualElement
+                {
+                    style =
+                    {
+                        position = Position.Absolute,
+                        left = 0,
+                        right = 0,
+                        top = y,
+                        height = TimelineTheme.RowHeight,
+                        backgroundColor = headerBg,
+                        borderBottomWidth = 1,
+                        borderBottomColor = TimelineTheme.Divider
+                    }
+                };
+                header.userData = row.Index;
                 RegisterRowHeaderEvents(header, row);
                 _headers.Add(header);
 
                 if (_state.Mode == TimelineMode.HonamiClipEdit)
                 {
                     FillClipChannelHeader(header, row);
-                    y += TimelineTheme.RowHeight;
                     continue;
                 }
 
@@ -210,9 +883,11 @@ namespace HonamiAnimationSystem.Editor.Timeline
                     labelLeft += 15f;
                 }
 
-                if (!string.IsNullOrEmpty(row.IconName))
+                var rowIcon = row.Icon != null ? row.Icon
+                    : !string.IsNullOrEmpty(row.IconName) ? EditorGUIUtility.IconContent(row.IconName).image : null;
+                if (rowIcon != null)
                 {
-                    var icon = RowIcon(row.IconName);
+                    var icon = RowIcon(rowIcon);
                     icon.style.left = labelLeft;
                     header.Add(icon);
                     labelLeft += 20f;
@@ -222,19 +897,183 @@ namespace HonamiAnimationSystem.Editor.Timeline
                 label.style.left = labelLeft;
                 if (row.IsBoneGroup) label.style.unityFontStyleAndWeight = FontStyle.Bold;
                 header.Add(label);
-                if (row.Track != null)
-                    header.Add(MuteButton(row.Track));
-                y += TimelineTheme.RowHeight;
+                if (row.Module != null)
+                {
+                    var module = row.Module;
+                    if (module.muted || row.IsDimmed) label.style.color = TimelineTheme.MutedText;
+                    if (row.IsDimmed) header.tooltip = "Its clip is not the one being previewed.";
+
+                    float right = 6f;
+                    header.Add(HeaderToggle(module.muted ? "d_scenevis_hidden_hover" : "d_scenevis_visible_hover", module.muted,
+                        module.muted ? "Muted: this module does nothing. Click to enable it." : "Enabled. Click to mute this module.", right,
+                        () => ModifyModules(container => HonamiEditorController.ToggleModuleMute(container, module))));
+                    right += 24f;
+                    header.Add(HeaderToggle(module.locked ? "InspectorLock" : "IN LockButton", module.locked,
+                        module.locked ? "Locked: items cannot be moved, trimmed or deleted. Click to unlock." : "Click to lock this module against edits.", right,
+                        () => ModifyModules(container => HonamiEditorController.SetModuleLocked(container, module, !module.locked))));
+                    right += 24f;
+
+                    if (HostItemsOf(module).Count > 0)
+                    {
+                        header.Add(AddNestedModuleButton("Add a module inside this module's items", rect => ShowModuleNestMenu(module, rect), right));
+                        right += 24f;
+                    }
+                    if (!string.IsNullOrEmpty(row.Problem))
+                    {
+                        var problemIcon = ProblemIcon(row.Problem);
+                        problemIcon.style.right = right + 2f;
+                        header.Add(problemIcon);
+                        right += 22f;
+                    }
+                    label.style.right = right;
+                }
+                else if (row.IsNodeRow && row.MotionIndex >= 0)
+                {
+                    label.style.right = 30;
+                    var choice = MotionChoice(row.MotionIndex);
+                    header.Add(AddNestedModuleButton($"Add a module that runs inside {choice.Label}", rect => ShowNestedModuleMenu(choice, rect), 6f));
+                }
             }
+
+            if (HasAddModuleRow)
+                _headers.Add(BuildAddModuleRow(RowY(rows.Count)));
 
             if (_state.IsDraggingTrack && _state.DragTrackInsertIndex >= 0)
             {
-                float insertY = TimelineTheme.RulerHeight + _state.DragTrackInsertIndex * TimelineTheme.RowHeight;
-                var insertLine = RectElement(0, insertY - 1, _state.TrackHeaderWidth, 2, TimelineTheme.Accent);
-                insertLine.style.opacity = 0.8f;
-                IgnorePicking(insertLine);
+                int draggedRow = RowOfModule(_state.DraggedTrack);
+                float insertY = RowY(_state.DragTrackInsertIndex) + (_state.DragTrackInsertIndex > draggedRow ? TimelineTheme.RowHeight : 0f);
+                var insertLine = new VisualElement
+                {
+                    pickingMode = PickingMode.Ignore,
+                    style = { position = Position.Absolute, left = 0, right = 0, top = insertY - 1, height = 2, backgroundColor = TimelineTheme.Accent, opacity = 0.8f }
+                };
                 _headers.Add(insertLine);
             }
+        }
+
+        private VisualElement HeaderToggle(string iconName, bool active, string tooltip, float right, Action toggle)
+        {
+            var button = new VisualElement
+            {
+                tooltip = tooltip,
+                style =
+                {
+                    position = Position.Absolute,
+                    right = right,
+                    top = (TimelineTheme.RowHeight - 22f) * 0.5f,
+                    width = 22,
+                    height = 22,
+                    alignItems = Align.Center,
+                    justifyContent = Justify.Center
+                }
+            };
+            button.Radius(3);
+
+            var icon = new Image
+            {
+                image = EditorGUIUtility.IconContent(iconName).image,
+                pickingMode = PickingMode.Ignore,
+                style = { width = 16, height = 16, opacity = active ? 1f : 0.45f }
+            };
+            if (active) icon.tintColor = TimelineTheme.Accent;
+            button.Add(icon);
+
+            button.RegisterCallback<PointerEnterEvent>(_ =>
+            {
+                button.style.backgroundColor = TimelineTheme.ToolbarButtonHot;
+                icon.style.opacity = 1f;
+            });
+            button.RegisterCallback<PointerLeaveEvent>(_ =>
+            {
+                button.style.backgroundColor = Color.clear;
+                icon.style.opacity = active ? 1f : 0.45f;
+            });
+            button.RegisterCallback<PointerDownEvent>(evt =>
+            {
+                if (evt.button != 0) return;
+                toggle();
+                _rebuild();
+                evt.StopPropagation();
+            });
+            return button;
+        }
+
+        private int RowOfModule(HonamiTimelineModule module)
+        {
+            for (int i = 0; i < _cachedRows.Count; i++)
+            {
+                if (_cachedRows[i].Module == module) return i;
+            }
+            return -1;
+        }
+
+        private bool InSameGroup(int rowIndex, string groupKey) =>
+            _cachedRows[rowIndex].Module != null && _cachedRows[rowIndex].GroupKey == groupKey;
+
+        private void GetModuleGroupRange(string groupKey, out int first, out int last)
+        {
+            first = -1;
+            last = -1;
+            for (int i = 0; i < _cachedRows.Count; i++)
+            {
+                if (!InSameGroup(i, groupKey)) continue;
+                if (first < 0) first = i;
+                last = i;
+            }
+        }
+
+        // Siblings are not always adjacent: a sibling's own nested modules can sit between them.
+        private int NearestGroupRow(string groupKey, int first, int last, float y)
+        {
+            int best = first;
+            float bestDistance = float.MaxValue;
+            for (int i = first; i <= last; i++)
+            {
+                if (!InSameGroup(i, groupKey)) continue;
+                float distance = Mathf.Abs(RowY(i) - y);
+                if (distance >= bestDistance) continue;
+                bestDistance = distance;
+                best = i;
+            }
+            return best;
+        }
+
+        private VisualElement AddNestedModuleButton(string tooltip, Action<Rect> onClick, float right)
+        {
+            var button = new Label("+")
+            {
+                tooltip = tooltip,
+                style =
+                {
+                    position = Position.Absolute,
+                    right = right,
+                    top = (TimelineTheme.RowHeight - 22f) * 0.5f,
+                    width = 22,
+                    height = 22,
+                    fontSize = 15,
+                    unityTextAlign = TextAnchor.MiddleCenter,
+                    color = TimelineTheme.MutedText
+                }
+            };
+            button.Radius(3);
+            button.RegisterCallback<PointerEnterEvent>(_ =>
+            {
+                button.style.backgroundColor = TimelineTheme.ToolbarButtonHot;
+                button.style.color = TimelineTheme.Accent;
+            });
+            button.RegisterCallback<PointerLeaveEvent>(_ =>
+            {
+                button.style.backgroundColor = Color.clear;
+                button.style.color = TimelineTheme.MutedText;
+            });
+            button.RegisterCallback<PointerDownEvent>(evt =>
+            {
+                if (evt.button != 0) return;
+                _focus();
+                onClick(button.worldBound);
+                evt.StopPropagation();
+            });
+            return button;
         }
 
         private void RegisterRowHeaderEvents(VisualElement header, RowData row)
@@ -260,67 +1099,78 @@ namespace HonamiAnimationSystem.Editor.Timeline
                     return;
                 }
 
-                if (row.Track != null)
+                if (row.IsNodeRow && row.MotionIndex >= 0 && evt.button == 1)
                 {
-                    _state.SelectedTimelineTrack = row.Track;
-                    _state.SelectedTimelineClips.Clear();
-                    _state.SelectedTimelineEvents.Clear();
+                    ShowNestedModuleMenu(MotionChoice(row.MotionIndex));
+                    evt.StopPropagation();
+                    return;
+                }
 
-                    if (evt.ctrlKey || evt.commandKey)
+                if (row.Module != null)
+                {
+                    _state.SelectedModule = row.Module;
+                    _state.SelectedTimelineItems.Clear();
+                    _state.SelectedMarkers.Clear();
+                    _state.ClearSelectedGap();
+
+                    if (evt.button == 1)
                     {
-                        _state.IsDraggingTrack = true;
-                        _state.DraggedTrack = row.Track;
-                        _state.DragTrackStartY = header.resolvedStyle.top;
-                        _state.DragTrackStartMouseY = evt.position.y;
-                        _state.DragTrackInsertIndex = _state.ActiveTimeline.tracks.IndexOf(row.Track);
-                        header.CapturePointer(evt.pointerId);
+                        _rebuild();
+                        ShowModuleHeaderMenu(row.Module, header);
+                    }
+                    else if (evt.clickCount == 2)
+                    {
+                        BeginModuleRename(row.Module, header);
                     }
                     else
                     {
-                        _rebuild();
+                        _state.IsDraggingTrack = true;
+                        _state.DraggedTrack = row.Module;
+                        _state.DragTrackStartY = RowY(row.Index);
+                        _state.DragTrackStartMouseY = evt.position.y;
+                        _state.DragTrackInsertIndex = row.Index;
+                        header.CapturePointer(evt.pointerId);
+                        RefreshHeaderSelection();
                     }
                 }
-                header.style.backgroundColor = TimelineTheme.HeaderSelected;
                 evt.StopPropagation();
             });
 
             header.RegisterCallback<PointerMoveEvent>(evt =>
             {
-                if (!_state.IsDraggingTrack || _state.DraggedTrack != row.Track) return;
+                if (!_state.IsDraggingTrack || _state.DraggedTrack != row.Module || !header.HasPointerCapture(evt.pointerId)) return;
 
                 float deltaY = evt.position.y - _state.DragTrackStartMouseY;
-                float maxDrag = TimelineTheme.RulerHeight + (_state.ActiveTimeline.tracks.Count - 1) * TimelineTheme.RowHeight;
-                float newY = Mathf.Clamp(_state.DragTrackStartY + deltaY, TimelineTheme.RulerHeight, maxDrag);
+                if (Mathf.Abs(deltaY) < 4f) return;
+
+                GetModuleGroupRange(row.GroupKey, out int first, out int last);
+                if (first < 0) return;
+                float newY = Mathf.Clamp(_state.DragTrackStartY + deltaY, RowY(first), RowY(last));
 
                 header.style.top = newY;
                 header.BringToFront();
                 header.style.opacity = 0.8f;
 
-                int newIndex = Mathf.FloorToInt((newY - TimelineTheme.RulerHeight + TimelineTheme.RowHeight * 0.5f) / TimelineTheme.RowHeight);
-                _state.DragTrackInsertIndex = Mathf.Clamp(newIndex, 0, _state.ActiveTimeline.tracks.Count - 1);
-
-                _rebuild();
+                int insert = NearestGroupRow(row.GroupKey, first, last, newY);
+                if (insert != _state.DragTrackInsertIndex)
+                {
+                    _state.DragTrackInsertIndex = insert;
+                    UpdateTrackInsertLine(row.Module);
+                }
                 evt.StopPropagation();
             });
 
             header.RegisterCallback<PointerUpEvent>(evt =>
             {
-                if (_state.IsDraggingTrack && _state.DraggedTrack == row.Track)
+                if (_state.IsDraggingTrack && _state.DraggedTrack == row.Module)
                 {
                     _state.IsDraggingTrack = false;
                     header.ReleasePointer(evt.pointerId);
 
-                    if (_state.ActiveTimeline != null && _state.DragTrackInsertIndex >= 0)
-                    {
-                        int oldIndex = _state.ActiveTimeline.tracks.IndexOf(row.Track);
-                        if (oldIndex != -1 && oldIndex != _state.DragTrackInsertIndex)
-                        {
-                            Undo.RecordObject(_state.ActiveTimeline, "Reorder Timeline Tracks");
-                            _state.ActiveTimeline.tracks.RemoveAt(oldIndex);
-                            _state.ActiveTimeline.tracks.Insert(_state.DragTrackInsertIndex, row.Track);
-                            EditorUtility.SetDirty(_state.ActiveTimeline);
-                        }
-                    }
+                    int insertIndex = _state.DragTrackInsertIndex;
+                    var slotModule = insertIndex >= 0 && insertIndex < _cachedRows.Count && InSameGroup(insertIndex, row.GroupKey) ? _cachedRows[insertIndex].Module : null;
+                    if (slotModule != null && slotModule != row.Module)
+                        ModifyModules(target => HonamiEditorController.MoveModule(target, row.Module, target.Modules.IndexOf(slotModule)));
                     _state.DraggedTrack = null;
                     _state.DragTrackInsertIndex = -1;
                     _rebuild();
@@ -340,148 +1190,192 @@ namespace HonamiAnimationSystem.Editor.Timeline
             });
         }
 
+        private VisualElement _trackInsertLine;
+
+        private void UpdateTrackInsertLine(HonamiTimelineModule dragged)
+        {
+            if (_trackInsertLine == null || _trackInsertLine.parent != _headers)
+            {
+                _trackInsertLine = new VisualElement
+                {
+                    pickingMode = PickingMode.Ignore,
+                    style = { position = Position.Absolute, left = 0, right = 0, height = 2, backgroundColor = TimelineTheme.Accent }
+                };
+                _headers.Add(_trackInsertLine);
+            }
+            int draggedRow = RowOfModule(dragged);
+            int index = _state.DragTrackInsertIndex;
+            _trackInsertLine.style.top = RowY(index) + (index > draggedRow ? TimelineTheme.RowHeight : 0f) - 1f;
+            _trackInsertLine.BringToFront();
+        }
+
+        private void RefreshHeaderSelection()
+        {
+            foreach (var child in _headers.Children())
+            {
+                if (child.userData is not int index || index < 0 || index >= _cachedRows.Count) continue;
+                var row = _cachedRows[index];
+                if (row.Module == null) continue;
+                child.style.backgroundColor = row.Module == _state.SelectedModule ? TimelineTheme.HeaderSelected : TimelineTheme.HeaderBg;
+            }
+        }
+
+        private static VisualElement ProblemIcon(string problem)
+        {
+            var icon = new Image
+            {
+                image = EditorGUIUtility.IconContent("console.warnicon.sml").image,
+                tooltip = char.ToUpperInvariant(problem[0]) + problem.Substring(1),
+                style = { position = Position.Absolute, right = 32, top = (TimelineTheme.RowHeight - 16f) * 0.5f, width = 16, height = 16 }
+            };
+            return icon;
+        }
+
+        #endregion
+
+        #region Content
+
         private void DrawContent()
         {
-            _state.EventRects.Clear();
-            _state.TimelineClipRects.Clear();
-            _state.TimelineEventRects.Clear();
+            _state.TimelineItemRects.Clear();
             _state.SeqClipRects.Clear();
             _state.KeyframeRects.Clear();
 
-            float y = TimelineTheme.RulerHeight;
-
             if (_state.Mode == TimelineMode.HonamiClipEdit)
             {
-                DrawClipEditContent(y);
+                DrawClipEditContent(0f);
                 return;
             }
 
-            if (_state.Mode == TimelineMode.HonamiTimeline)
+            var nodeEditor = _state.Mode == TimelineMode.HonamiState && _state.node != null
+                ? HonamiNodeEditorRegistry.GetEditor(_state.node)
+                : null;
+
+            for (int i = 0; i < _cachedRows.Count; i++)
             {
-                if (_state.ActiveTimeline == null) return;
-                foreach (var track in _state.ActiveTimeline.tracks)
+                var row = _cachedRows[i];
+                float y = RowY(i);
+                if (row.IsNodeRow)
+                    nodeEditor?.DrawTimelineRow(_state, this, row.NodeRow, y);
+                else if (row.Module != null)
+                    DrawModuleItems(row.Module, y, row.IsDimmed);
+            }
+
+            DrawGapSelection();
+            BringSelectedElementsToFront();
+        }
+
+        private void DrawGapSelection()
+        {
+            if (!_state.HasSelectedGap) return;
+            int rowIndex = RowOfModule(_state.SelectedGapModule);
+            if (rowIndex < 0) return;
+
+            var fill = TimelineTheme.Accent;
+            fill.a = 0.12f;
+            float x = _state.SelectedGapStart * _state.TimeScale;
+            float width = Mathf.Max(2f, (_state.SelectedGapEnd - _state.SelectedGapStart) * _state.TimeScale);
+            var gap = RectElement(x, RowY(rowIndex) + 3f, width, TimelineTheme.RowHeight - 6f, fill);
+            gap.Radius(3).Border(1f, TimelineTheme.AccentDim);
+            IgnorePicking(gap);
+            _canvas.Add(gap);
+        }
+
+        private void DrawModuleItems(HonamiTimelineModule module, float y, bool dimmed)
+        {
+            var editor = HonamiTimelineModuleEditorRegistry.GetEditor(module);
+            var context = CreateEditContext(module);
+            float offset = context.TimeOffset;
+            bool locked = _state.IsModuleLocked(module);
+            int count = module.ItemCount;
+            for (int i = 0; i < count; i++)
+            {
+                var item = module.GetItem(i);
+                if (item == null) continue;
+
+                bool selected = _state.SelectedTimelineItems.Contains(item);
+                string label = editor.GetItemLabel(context, item);
+                Color color = editor.GetItemColor(item);
+                if (module.muted || dimmed) color.a *= 0.4f;
+
+                if (item.IsInstant)
+                    AddEventElement(item, label, editor.GetItemIcon(item), editor.ItemDisplayName, offset + item.time, y, selected, color, locked);
+                else
+                    AddClipBlock(item, label, offset + item.time, Mathf.Max(item.Duration, MinItemDisplayDuration), y, selected, color, locked);
+
+                if (_elements.TryGetValue(item, out var element))
                 {
-                    if (track.trackType == HonamiTimelineTrackType.Animation)
-                    {
-                        foreach (var clip in track.clips)
-                        {
-                            if (clip.clip == null) continue;
-                            AddClipElement(clip, clip.clip.name, clip.startTime, clip.GetDuration(), y, _state.SelectedTimelineClips.Contains(clip), TimelineTheme.AnimationTrack);
-                        }
-                    }
-                    else
-                    {
-                        foreach (var evt in track.events)
-                            AddEventElement(evt, evt.eventId, evt.time, y, _state.SelectedTimelineEvents.Contains(evt), TimelineTheme.EventTrack);
-                    }
-                    y += TimelineTheme.RowHeight;
+                    editor.DecorateItem(new HonamiTimelineItemView(this, context, item, element));
+                    DecorateLink(element, item);
                 }
-                AddTimelineMarkers();
-                return;
-            }
-
-            if (_state.ShowAnimTrack)
-            {
-                var editor = _state.SelectedState?.node != null ? HonamiNodeEditorRegistry.GetEditor(_state.SelectedState.node) : null;
-                if (editor != null) editor.DrawTimelineTracks(_state, this, ref y);
-                else y += TimelineTheme.RowHeight;
-            }
-
-            if (_state.ShowLocalEventsTrack)
-            {
-                AddStateEvents(HonamiEventType.Local, y);
-                y += TimelineTheme.RowHeight;
-            }
-            if (_state.ShowGlobalEventsTrack)
-            {
-                AddStateEvents(HonamiEventType.Global, y);
             }
         }
 
-        private void AddStateEvents(HonamiEventType type, float y)
+        internal HonamiTimelineEditContext CreateEditContext(HonamiTimelineModule module, float? playheadTime = null)
         {
-            if (_state.SelectedState?.events == null) return;
-            var events = _state.SelectedState.events;
-            for (int i = 0; i < events.Count; i++)
-            {
-                var evt = events[i];
-                if (evt.eventType == type)
-                    AddEventElement(evt, type == HonamiEventType.Local ? evt.eventName : evt.globalEventId, evt.time, y, _state.SelectedEvents.Contains(evt),
-                        type == HonamiEventType.Local ? TimelineTheme.EventTrack : TimelineTheme.GlobalEventTrack);
-            }
+            float offset = _state.GetModuleTimeOffset(module);
+            return new(_state.ActiveContainer, module,
+                _state.Mode == TimelineMode.HonamiTimeline ? _state.ResolveDirector() : null,
+                _state.Mode == TimelineMode.HonamiState ? _state.ResolvePreviewRoot() : null,
+                offset,
+                (playheadTime ?? _state.PlayheadTime) - offset,
+                _state.SelectedTimelineItems,
+                () => { _state.PostModifyState(); _rebuild(); },
+                OpenClipEdit,
+                _state.FrameRate);
         }
 
-        private void AddTimelineMarkers()
+        float ITimelineItemViewHost.PixelsPerSecond => _state.TimeScale;
+
+        float ITimelineItemViewHost.SnapItemTime(float time, HonamiTimelineItem ignore, bool shiftHeld)
         {
-            if (_state.ActiveTimeline?.markers == null) return;
-            foreach (var marker in _state.ActiveTimeline.markers)
+            float snapped = SnapTime(Mathf.Max(0f, time), ignore, ShouldSnap(shiftHeld));
+            UpdateSnapLineVisual();
+            return snapped;
+        }
+
+        void ITimelineItemViewHost.ClearSnap()
+        {
+            _state.SnapLineTime = -1f;
+            UpdateSnapLineVisual();
+        }
+
+        void ITimelineItemViewHost.SetHandleDragging(bool dragging) => _draggingItemHandle = dragging;
+
+        float ITimelineItemViewHost.TimeAtWorldX(float worldX) => TimeAtCanvasX(_canvas.WorldToLocal(new Vector2(worldX, 0f)).x);
+
+        bool ITimelineItemViewHost.IsLocked(HonamiTimelineModule module) => _state.IsModuleLocked(module);
+
+        void ITimelineItemViewHost.SelectItem(HonamiTimelineItem item, bool additive)
+        {
+            if (additive) ToggleTarget(item);
+            else if (!IsTargetSelected(item)) SelectTarget(item, false);
+            RefreshSelectionVisuals();
+            UpdatePropertiesPanel(PropertiesVisible());
+        }
+
+        void ITimelineItemViewHost.BringItemToFront(HonamiTimelineItem item)
+        {
+            if (_elements.TryGetValue(item, out var element) && element.parent == _canvas)
             {
-                if (marker is not HonamiTimelineLoopMarker loop) continue;
-                float x1 = loop.time * _state.TimeScale;
-                float x2 = loop.endTime * _state.TimeScale;
-                var bar = RectElement(x1, 7, Mathf.Max(8, x2 - x1), 12, _state.SelectedMarkers.Contains(marker) ? TimelineTheme.Accent : TimelineTheme.EndBoundary);
-                bar.tooltip = marker.id;
-                bar.RegisterCallback<PointerDownEvent>(evt =>
-                {
-                    if (evt.button != 0) return;
-                    _focus();
-                    SelectOnly(_state.SelectedMarkers, marker, evt.shiftKey || evt.ctrlKey || evt.commandKey);
-                    _draggingTimelineMarker = true;
-                    _dragMarker = loop;
-                    _dragStartTime = loop.time;
-                    _dragMarkerEndTime = loop.endTime;
-                    _dragStartMouseTime = TimeAtPointer(evt);
-                    bar.CapturePointer(evt.pointerId);
-                    UpdateMarkerVisual(bar, loop);
-                    evt.StopPropagation();
-                });
-                bar.RegisterCallback<PointerMoveEvent>(evt =>
-                {
-                    if (!_draggingTimelineMarker || _dragMarker != loop) return;
-
-                    float delta = TimeAtPointer(evt) - _dragStartMouseTime;
-                    float duration = Mathf.Max(0.01f, _dragMarkerEndTime - _dragStartTime);
-                    float newStart = Mathf.Max(0f, _dragStartTime + delta);
-                    newStart = SnapTime(newStart, loop, ShouldSnap(evt.shiftKey));
-                    float newEnd = Mathf.Min(_state.GetDuration(), newStart + duration);
-                    if (newEnd - newStart < duration)
-                        newStart = Mathf.Max(0f, newEnd - duration);
-
-                    Undo.RecordObject(_state.ActiveTimeline, "Move Timeline Marker");
-                    loop.time = newStart;
-                    loop.endTime = newEnd;
-                    EditorUtility.SetDirty(_state.ActiveTimeline);
-                    UpdateMarkerVisual(bar, loop);
-                    evt.StopPropagation();
-                });
-                bar.RegisterCallback<PointerUpEvent>(evt =>
-                {
-                    if (_draggingTimelineMarker && _dragMarker == loop)
-                    {
-                        _state.SnapLineTime = -1f;
-                        _draggingTimelineMarker = false;
-                        _dragMarker = null;
-                        bar.ReleasePointer(evt.pointerId);
-                        _rebuild();
-                    }
-                    evt.StopPropagation();
-                });
-                _canvas.Add(bar);
+                element.BringToFront();
+                BringOverlaysToFront();
             }
         }
+
+        #endregion
+
+        #region Node editor drawing
 
         public void AddReadonlyClip(AnimationClip clipAsset, string label, float start, float duration, float y, Color color)
         {
-            var clip = ClipElement(label, start, duration, y, false, color);
-            if (clipAsset != null)
+            var clip = ClipBlock(label, start, duration, y, false, color, false);
+            clip.RegisterCallback<PointerDownEvent>(evt =>
             {
-                clip.RegisterCallback<PointerDownEvent>(evt =>
-                {
-                    if (evt.clickCount == 2)
-                        OpenClipEdit(clipAsset);
-                    evt.StopPropagation();
-                });
-            }
+                if (evt.button == 0 && evt.clickCount == 2 && clipAsset != null)
+                    OpenClipEdit(clipAsset);
+                if (evt.button == 0) evt.StopPropagation();
+            });
             _canvas.Add(clip);
         }
 
@@ -499,7 +1393,7 @@ namespace HonamiAnimationSystem.Editor.Timeline
             Action onDragEnd,
             float maxDuration = 1000f)
         {
-            var body = ClipElement(label, start / speed, duration / speed, y, false, themeColor);
+            var body = ClipBlock(label, start / speed, duration / speed, y, false, themeColor, false);
             body.RegisterCallback<PointerDownEvent>(evt =>
             {
                 if (evt.button != 0) return;
@@ -513,11 +1407,12 @@ namespace HonamiAnimationSystem.Editor.Timeline
             _canvas.Add(body);
 
             const float handleWidth = 8f;
-            var startHandle = TrimHandle((start / speed) * _state.TimeScale, y, $"Start: {start:F3}s — drag to trim");
+            float top = y + (TimelineTheme.RowHeight - TimelineTheme.ClipHeight) * 0.5f;
+            var startHandle = TrimHandle((start / speed) * _state.TimeScale, top, $"Start: {start:F3}s. Drag to trim");
             startHandle.style.borderTopLeftRadius = startHandle.style.borderBottomLeftRadius = 4;
             _canvas.Add(startHandle);
 
-            var endHandle = TrimHandle(((start + duration) / speed) * _state.TimeScale - handleWidth, y, $"End: {start + duration:F3}s — drag to trim");
+            var endHandle = TrimHandle(((start + duration) / speed) * _state.TimeScale - handleWidth, top, $"End: {start + duration:F3}s. Drag to trim");
             endHandle.style.borderTopRightRadius = endHandle.style.borderBottomRightRadius = 4;
             _canvas.Add(endHandle);
 
@@ -598,7 +1493,7 @@ namespace HonamiAnimationSystem.Editor.Timeline
             });
         }
 
-        private static VisualElement TrimHandle(float x, float y, string tooltip)
+        private static VisualElement TrimHandle(float x, float top, string tooltip)
         {
             var handle = new VisualElement
             {
@@ -606,223 +1501,284 @@ namespace HonamiAnimationSystem.Editor.Timeline
                 {
                     position = Position.Absolute,
                     left = x,
-                    top = y + 4,
+                    top = top,
                     width = 8f,
                     height = TimelineTheme.ClipHeight,
-                    backgroundColor = new Color(1f, 1f, 1f, 0.18f)
+                    backgroundColor = new Color(1f, 1f, 1f, 0.14f)
                 },
                 tooltip = tooltip
             };
             handle.RegisterCallback<PointerEnterEvent>(_ => handle.style.backgroundColor = new Color(1f, 1f, 1f, 0.36f));
-            handle.RegisterCallback<PointerLeaveEvent>(_ => handle.style.backgroundColor = new Color(1f, 1f, 1f, 0.18f));
+            handle.RegisterCallback<PointerLeaveEvent>(_ => handle.style.backgroundColor = new Color(1f, 1f, 1f, 0.14f));
+            handle.AddManipulator(new HonamiTimelineItemView.CursorManipulator(MouseCursor.ResizeHorizontal));
             return handle;
         }
 
-        public void AddClipElement(object target, string label, float start, float duration, float y, bool selected, Color color)
+        public void AddClipElement(object target, string label, float start, float duration, float y, bool selected, Color color) =>
+            AddClipBlock(target, label, start, duration, y, selected, color, false);
+
+        #endregion
+
+        #region Item visuals
+
+        private void AddClipBlock(object target, string label, float start, float duration, float y, bool selected, Color color, bool locked)
         {
-            var clip = ClipElement(label, start, duration, y, selected, color);
+            var clip = ClipBlock(label, start, duration, y, selected, color, locked);
+            clip.userData = color;
             _elements[target] = clip;
-            clip.RegisterCallback<PointerDownEvent>(evt =>
-            {
-                if (evt.button != 0) return;
-                if (evt.clickCount == 2)
-                {
-                    var animClip = GetClip(target);
-                    if (animClip != null)
-                        OpenClipEdit(animClip);
-                    evt.StopPropagation();
-                    return;
-                }
+            RegisterItemInteraction(clip, target);
 
-                _focus();
-                SelectClipTarget(target, evt.shiftKey || evt.ctrlKey || evt.commandKey);
-                _draggingElement = true;
-                _dragTarget = target;
-                _dragStartTime = GetStartTime(target);
-                _dragStartMouseTime = TimeAtCanvasX(clip.resolvedStyle.left + evt.localPosition.x);
-                clip.CapturePointer(evt.pointerId);
-                evt.StopPropagation();
-            });
-            clip.RegisterCallback<PointerMoveEvent>(evt =>
-            {
-                if (!_draggingElement || _dragTarget != target) return;
-                float delta = TimeAtCanvasX(clip.resolvedStyle.left + evt.localPosition.x) - _dragStartMouseTime;
-                float time = SnapTime(Mathf.Max(0f, _dragStartTime + delta), target, ShouldSnap(evt.shiftKey));
-                SetStartTime(target, time);
-                UpdateDraggedElementVisual(target);
-                UpdateSnapLineVisual();
-                evt.StopPropagation();
-            });
-            clip.RegisterCallback<PointerUpEvent>(evt =>
-            {
-                _state.PostModifyState();
-                _state.SnapLineTime = -1f;
-                _draggingElement = false;
-                _dragTarget = null;
-                clip.ReleasePointer(evt.pointerId);
-                _rebuild();
-            });
-
-            var rect = new Rect(start * _state.TimeScale, y + 4, Mathf.Max(1f, duration * _state.TimeScale), TimelineTheme.ClipHeight);
-            if (target is HonamiTimelineClip tc) _state.TimelineClipRects[tc] = rect;
+            var rect = new Rect(start * _state.TimeScale, y + (TimelineTheme.RowHeight - TimelineTheme.ClipHeight) * 0.5f, Mathf.Max(1f, duration * _state.TimeScale), TimelineTheme.ClipHeight);
+            if (target is HonamiTimelineItem ti) _state.TimelineItemRects[ti] = rect;
             else if (target is HonamiSequencedAnimationClip sc) _state.SeqClipRects[sc] = rect;
 
             _canvas.Add(clip);
         }
 
-        private void OpenClipEdit(AnimationClip clip)
-        {
-            _state.Mode = TimelineMode.HonamiClipEdit;
-            _state.ActiveClip = clip;
-            _rebuild();
-        }
-
-        private VisualElement ClipElement(string label, float start, float duration, float y, bool selected, Color color)
+        private VisualElement ClipBlock(string label, float start, float duration, float y, bool selected, Color color, bool locked)
         {
             float paddingY = (TimelineTheme.RowHeight - TimelineTheme.ClipHeight) * 0.5f;
-            var root = RectElement(start * _state.TimeScale, y + paddingY, Mathf.Max(1f, duration * _state.TimeScale), TimelineTheme.ClipHeight, selected ? TimelineTheme.Selected : color);
-
-            root.style.borderTopWidth = root.style.borderRightWidth = root.style.borderBottomWidth = root.style.borderLeftWidth = selected ? 2 : 1;
-            root.style.borderTopColor = root.style.borderRightColor = root.style.borderBottomColor = root.style.borderLeftColor = selected ? Color.white : new Color(0, 0, 0, 0.5f);
-            root.style.borderTopLeftRadius = root.style.borderTopRightRadius = root.style.borderBottomLeftRadius = root.style.borderBottomRightRadius = 6;
+            var root = RectElement(start * _state.TimeScale, y + paddingY, Mathf.Max(1f, duration * _state.TimeScale), TimelineTheme.ClipHeight, color);
+            root.Radius(6);
             root.style.overflow = Overflow.Hidden;
             root.tooltip = label;
+            StyleClipBlock(root, color, selected, false);
 
-            var text = new Label(label);
-            IgnorePicking(text);
-            text.style.position = Position.Absolute;
-            text.style.left = 10;
-            text.style.right = 8;
-            text.style.top = (TimelineTheme.ClipHeight - 16f) * 0.5f;
-            text.style.height = 16;
-            text.style.color = Color.white;
-            text.style.unityFontStyleAndWeight = FontStyle.Bold;
-            text.style.fontSize = 11;
-            text.style.overflow = Overflow.Hidden;
+            var text = new Label(label)
+            {
+                name = "clip-label",
+                pickingMode = PickingMode.Ignore,
+                style =
+                {
+                    position = Position.Absolute,
+                    left = 10,
+                    right = 8,
+                    top = (TimelineTheme.ClipHeight - 16f) * 0.5f,
+                    height = 16,
+                    color = locked ? new Color(1f, 1f, 1f, 0.55f) : Color.white,
+                    unityFontStyleAndWeight = FontStyle.Bold,
+                    fontSize = 11,
+                    overflow = Overflow.Hidden,
+                    textOverflow = TextOverflow.Ellipsis,
+                    whiteSpace = WhiteSpace.NoWrap
+                }
+            };
             root.Add(text);
 
-            root.RegisterCallback<PointerEnterEvent>(_ => root.style.backgroundColor = Color.Lerp(selected ? TimelineTheme.Selected : color, Color.white, 0.1f));
-            root.RegisterCallback<PointerLeaveEvent>(_ => root.style.backgroundColor = selected ? TimelineTheme.Selected : color);
+            if (locked)
+            {
+                var hatch = new VisualElement
+                {
+                    pickingMode = PickingMode.Ignore,
+                    style = { position = Position.Absolute, left = 0, right = 0, top = 0, bottom = 0 }
+                };
+                hatch.generateVisualContent += DrawHatch;
+                root.Add(hatch);
+            }
 
+            root.RegisterCallback<PointerEnterEvent>(_ => StyleClipBlock(root, (Color)(root.userData ?? color), IsElementSelected(root), true));
+            root.RegisterCallback<PointerLeaveEvent>(_ => StyleClipBlock(root, (Color)(root.userData ?? color), IsElementSelected(root), false));
             return root;
         }
 
-        private void AddEventElement(object target, string label, float time, float y, bool selected, Color color)
+        private static void StyleClipBlock(VisualElement block, Color color, bool selected, bool hovered)
         {
-            var marker = RectElement(time * _state.TimeScale - 8, y + 10, 16, 20, selected ? TimelineTheme.Accent : color);
+            var fill = selected ? TimelineTheme.Selected : color;
+            if (hovered) fill = Color.Lerp(fill, Color.white, 0.1f);
+            block.style.backgroundColor = fill;
+            block.Border(selected ? 2f : 1f, selected ? Color.white : new Color(0f, 0f, 0f, 0.5f));
+        }
+
+        private bool IsElementSelected(VisualElement element)
+        {
+            foreach (var pair in _elements)
+            {
+                if (pair.Value == element) return IsTargetSelected(pair.Key);
+            }
+            return false;
+        }
+
+        private static void DrawHatch(MeshGenerationContext mesh)
+        {
+            var element = mesh.visualElement;
+            var rect = element.contentRect;
+            var painter = mesh.painter2D;
+            painter.strokeColor = LockedHatch;
+            painter.lineWidth = 1.5f;
+            for (float x = -rect.height; x < rect.width; x += 9f)
+            {
+                painter.BeginPath();
+                painter.MoveTo(new Vector2(x, rect.height));
+                painter.LineTo(new Vector2(x + rect.height, 0f));
+                painter.Stroke();
+            }
+        }
+
+        private void AddEventElement(object target, string label, Texture icon, string kind, float time, float y, bool selected, Color color, bool locked)
+        {
+            Color background = Color.Lerp(TimelineTheme.PanelBg, color, selected ? 0.55f : 0.22f);
+            var marker = RectElement(time * _state.TimeScale - 8, y + 10, 16, 20, background);
+            marker.userData = color;
             _elements[target] = marker;
-            marker.style.borderTopLeftRadius = marker.style.borderTopRightRadius = marker.style.borderBottomLeftRadius = marker.style.borderBottomRightRadius = 3;
-            marker.tooltip = $"{label}\n{time:F2}s";
-            var eventLabel = new Label("E")
+            marker.Radius(3);
+            marker.Border(selected ? 2 : 1, selected ? TimelineTheme.Accent : color);
+            marker.tooltip = $"{kind}: {label}\n{FormatTime(time)}";
+            if (locked) marker.style.opacity = 0.6f;
+
+            if (icon != null)
             {
-                style =
+                var glyph = new Image
                 {
-                    color = Color.black,
-                    fontSize = 10,
-                    unityFontStyleAndWeight = FontStyle.Bold,
-                    unityTextAlign = TextAnchor.MiddleCenter
-                }
-            };
-            IgnorePicking(eventLabel);
-            marker.Add(eventLabel);
-            marker.RegisterCallback<PointerDownEvent>(evt =>
+                    image = icon,
+                    scaleMode = ScaleMode.ScaleToFit,
+                    style = { position = Position.Absolute, left = 1, right = 1, top = 3, bottom = 3 }
+                };
+                IgnorePicking(glyph);
+                marker.Add(glyph);
+            }
+            else
             {
-                if (evt.button != 0) return;
-                _focus();
-                SelectEventTarget(target, evt.shiftKey || evt.ctrlKey || evt.commandKey);
-                _draggingElement = true;
-                _dragTarget = target;
-                _dragStartTime = GetStartTime(target);
-                _dragStartMouseTime = TimeAtCanvasX(marker.resolvedStyle.left + evt.localPosition.x);
-                marker.CapturePointer(evt.pointerId);
-                evt.StopPropagation();
-            });
-            marker.RegisterCallback<PointerMoveEvent>(evt =>
+                var letter = new Label(string.IsNullOrEmpty(kind) ? "?" : kind.Substring(0, 1))
+                {
+                    style =
+                    {
+                        flexGrow = 1,
+                        color = color,
+                        fontSize = 10,
+                        unityFontStyleAndWeight = FontStyle.Bold,
+                        unityTextAlign = TextAnchor.MiddleCenter
+                    }
+                };
+                IgnorePicking(letter);
+                marker.Add(letter);
+            }
+
+            if (!string.IsNullOrEmpty(label) && _state.TimeScale >= 60f)
             {
-                if (!_draggingElement || _dragTarget != target) return;
-                float delta = TimeAtCanvasX(marker.resolvedStyle.left + evt.localPosition.x) - _dragStartMouseTime;
-                float newTime = SnapTime(Mathf.Max(0f, _dragStartTime + delta), target, ShouldSnap(evt.shiftKey));
-                SetStartTime(target, newTime);
-                UpdateDraggedElementVisual(target);
-                UpdateSnapLineVisual();
-                evt.StopPropagation();
-            });
-            marker.RegisterCallback<PointerUpEvent>(evt =>
-            {
-                _state.PostModifyState();
-                _state.SnapLineTime = -1f;
-                _draggingElement = false;
-                _dragTarget = null;
-                marker.ReleasePointer(evt.pointerId);
-                _rebuild();
-            });
+                var caption = new Label(label)
+                {
+                    pickingMode = PickingMode.Ignore,
+                    style =
+                    {
+                        position = Position.Absolute,
+                        left = 18,
+                        top = 2,
+                        fontSize = 10,
+                        color = TimelineTheme.Text,
+                        whiteSpace = WhiteSpace.NoWrap,
+                        overflow = Overflow.Visible
+                    }
+                };
+                marker.style.overflow = Overflow.Visible;
+                marker.Add(caption);
+            }
+
+            RegisterItemInteraction(marker, target);
 
             var rect = new Rect(time * _state.TimeScale - 8, y + 10, 16, 20);
-            if (target is HonamiEventMarker em) _state.EventRects[em] = rect;
-            else if (target is HonamiTimelineEvent te) _state.TimelineEventRects[te] = rect;
+            if (target is HonamiTimelineItem ti) _state.TimelineItemRects[ti] = rect;
 
             _canvas.Add(marker);
         }
 
-        private void DrawPlayhead(float height)
+        private void RefreshSelectionVisuals()
         {
-            float x = _state.PlayheadTime * _state.TimeScale;
-            _playheadLine = RectElement(x - 1, 0, 2, height, TimelineTheme.Playhead);
-            _canvas.Add(_playheadLine);
-            _playheadHead = RectElement(x - 6, 2, 12, 16, TimelineTheme.Playhead);
-            _playheadHead.style.borderTopLeftRadius = _playheadHead.style.borderTopRightRadius = _playheadHead.style.borderBottomLeftRadius = _playheadHead.style.borderBottomRightRadius = 3;
-            _canvas.Add(_playheadHead);
-            RegisterPlayheadDrag(_playheadLine);
-            RegisterPlayheadDrag(_playheadHead);
+            RefreshSelectionVisualsOnly();
+            BringSelectedElementsToFront();
         }
 
-        private void RegisterPlayheadDrag(VisualElement target)
+        private void RefreshSelectionVisualsOnly()
         {
-            target.RegisterCallback<PointerDownEvent>(evt =>
+            foreach (var pair in _elements)
             {
-                if (evt.button != 0) return;
-                _focus();
-                _draggingPlayhead = true;
-                _state.IsDraggingPlayhead = true;
-                SetPlayheadFromLocal(PointerXInCanvas(evt), false, evt.shiftKey);
-                target.CapturePointer(evt.pointerId);
-                evt.StopPropagation();
-            });
-            target.RegisterCallback<PointerMoveEvent>(evt =>
-            {
-                if (!_draggingPlayhead || !target.HasPointerCapture(evt.pointerId)) return;
-                SetPlayheadFromLocal(PointerXInCanvas(evt), false, evt.shiftKey);
-                evt.StopPropagation();
-            });
-            target.RegisterCallback<PointerUpEvent>(evt =>
-            {
-                if (target.HasPointerCapture(evt.pointerId))
-                    target.ReleasePointer(evt.pointerId);
-                _state.SnapLineTime = -1f;
-                _draggingPlayhead = false;
-                _state.IsDraggingPlayhead = false;
-                _rebuild();
-                evt.StopPropagation();
-            });
+                bool selected = IsTargetSelected(pair.Key);
+                var element = pair.Value;
+                var color = element.userData is Color c ? c : TimelineTheme.AnimationTrack;
+                if (pair.Key is HonamiTimelineItem { IsInstant: true })
+                {
+                    element.style.backgroundColor = Color.Lerp(TimelineTheme.PanelBg, color, selected ? 0.55f : 0.22f);
+                    element.Border(selected ? 2 : 1, selected ? TimelineTheme.Accent : color);
+                }
+                else
+                {
+                    StyleClipBlock(element, color, selected, false);
+                }
+            }
         }
+
+        private void BringOverlaysToFront()
+        {
+            if (_playheadBand != null && _playheadBand.parent == _canvas) _playheadBand.BringToFront();
+            if (_dropGhost != null && _dropGhost.parent == _canvas) _dropGhost.BringToFront();
+            if (_bladeLine != null && _bladeLine.parent == _canvas) _bladeLine.BringToFront();
+            if (_snapLine != null && _snapLine.parent == _canvas) _snapLine.BringToFront();
+            if (_playheadLine != null && _playheadLine.parent == _canvas) _playheadLine.BringToFront();
+            if (_boxSelection != null && _boxSelection.parent == _canvas) _boxSelection.BringToFront();
+        }
+
+        private void BringSelectedElementsToFront()
+        {
+            foreach (var item in _state.SelectedTimelineItems)
+            {
+                if (_elements.TryGetValue(item, out var element) && element.parent == _canvas)
+                    element.BringToFront();
+            }
+
+            foreach (var clip in _state.SelectedSeqClips)
+            {
+                if (_elements.TryGetValue(clip, out var element) && element.parent == _canvas)
+                    element.BringToFront();
+            }
+
+            BringOverlaysToFront();
+        }
+
+        private bool IsTargetSelected(object target) => target switch
+        {
+            HonamiTimelineItem item => _state.SelectedTimelineItems.Contains(item),
+            HonamiSequencedAnimationClip clip => _state.SelectedSeqClips.Contains(clip),
+            _ => false
+        };
+
+        #endregion
+
+        #region Playhead and snapping
+
+        private void DrawPlayhead()
+        {
+            float x = _state.PlayheadTime * _state.TimeScale;
+            _playheadLine = RectElement(x - 1, 0, 2, _canvasHeight, TimelineTheme.Playhead);
+            IgnorePicking(_playheadLine);
+            _canvas.Add(_playheadLine);
+
+            _playheadHead = RectElement(x - 6, TimelineTheme.RulerHeight - 18f, 12, 16, TimelineTheme.Playhead);
+            _playheadHead.Radius(3);
+            IgnorePicking(_playheadHead);
+            _rulerContent.Add(_playheadHead);
+
+            var stem = RectElement(x - 1, TimelineTheme.RulerHeight - 2f, 2, 2, TimelineTheme.Playhead);
+            IgnorePicking(stem);
+            _rulerContent.Add(stem);
+            _playheadStem = stem;
+        }
+
+        private VisualElement _playheadStem;
 
         private void UpdatePlayheadVisual()
         {
             float x = _state.PlayheadTime * _state.TimeScale;
             if (_playheadLine != null) _playheadLine.style.left = x - 1;
             if (_playheadHead != null) _playheadHead.style.left = x - 6;
+            if (_playheadStem != null) _playheadStem.style.left = x - 1;
             UpdateCurrentFrameBand();
             UpdateSnapLineVisual();
+            RefreshCornerTimecode();
         }
 
-        private void DrawSnapLine(float height)
+        private void DrawSnapLine()
         {
             if (_state.SnapLineTime < 0f) return;
-            float x = _state.SnapLineTime * _state.TimeScale;
-            _snapLine = RectElement(x - 1f, 0, 2f, height, TimelineTheme.Accent);
-            _snapLine.style.opacity = 0.9f;
-            IgnorePicking(_snapLine);
-            _canvas.Add(_snapLine);
+            UpdateSnapLineVisual();
         }
 
         private void UpdateSnapLineVisual()
@@ -834,64 +1790,20 @@ namespace HonamiAnimationSystem.Editor.Timeline
                 return;
             }
 
-            if (_snapLine == null)
+            if (_snapLine == null || _snapLine.parent != _canvas)
             {
-                float height = Mathf.Max(200f, _canvas.resolvedStyle.height);
-                _snapLine = RectElement(0f, 0f, 2f, height, TimelineTheme.Accent);
+                _snapLine = RectElement(0f, 0f, 1f, _canvasHeight, TimelineTheme.Accent);
                 _snapLine.style.opacity = 0.9f;
                 IgnorePicking(_snapLine);
                 _canvas.Add(_snapLine);
             }
 
             _snapLine.style.display = DisplayStyle.Flex;
-            _snapLine.style.left = _state.SnapLineTime * _state.TimeScale - 1f;
+            _snapLine.style.left = _state.SnapLineTime * _state.TimeScale;
+            _snapLine.BringToFront();
         }
 
-        private void UpdateDraggedElementVisual(object target)
-        {
-            if (!_elements.TryGetValue(target, out VisualElement element)) return;
-
-            float startTime = GetStartTime(target);
-            element.style.left = target is HonamiEventMarker || target is HonamiTimelineEvent
-                ? startTime * _state.TimeScale - 8f
-                : startTime * _state.TimeScale;
-        }
-
-        private void UpdateMarkerVisual(VisualElement element, HonamiTimelineLoopMarker marker)
-        {
-            element.style.left = marker.time * _state.TimeScale;
-            element.style.width = Mathf.Max(8f, (marker.endTime - marker.time) * _state.TimeScale);
-            UpdateSnapLineVisual();
-        }
-
-        private void DrawBoxSelection()
-        {
-            if (!_state.IsBoxSelecting) return;
-
-            var borderColor = new Color(0.4f, 0.7f, 1f, 0.8f);
-            var box = new VisualElement
-            {
-                style =
-                {
-                    position = Position.Absolute,
-                    left = _state.BoxSelectRect.x,
-                    top = _state.BoxSelectRect.y,
-                    width = _state.BoxSelectRect.width,
-                    height = _state.BoxSelectRect.height,
-                    backgroundColor = new Color(0.18f, 0.45f, 0.85f, 0.25f),
-                    borderTopWidth = 1,
-                    borderBottomWidth = 1,
-                    borderLeftWidth = 1,
-                    borderRightWidth = 1,
-                    borderTopColor = borderColor,
-                    borderBottomColor = borderColor,
-                    borderLeftColor = borderColor,
-                    borderRightColor = borderColor
-                }
-            };
-            IgnorePicking(box);
-            _canvas.Add(box);
-        }
+        private string FormatTime(float time) => TimelineTimecode.Format(time, _state.FrameRate, _state.EffectiveTimeFormat);
 
         private float PointerXInCanvas(IPointerEvent evt) => _canvas.WorldToLocal(evt.position).x;
 
@@ -904,11 +1816,14 @@ namespace HonamiAnimationSystem.Editor.Timeline
             float time = SnapTime(localX / _state.TimeScale, null, ShouldSnap(shiftHeld));
             _state.PlayheadTime = Mathf.Clamp(time, 0f, _state.GetDuration());
             UpdatePlayheadVisual();
+            RefreshTimeLabel();
             if (rebuild)
                 _rebuild();
         }
 
         private bool ShouldSnap(bool shiftHeld) => _state.SnapEnabled != shiftHeld;
+
+        private float SnapThreshold => 10f / Mathf.Max(1f, _state.TimeScale);
 
         private float SnapTime(float time, object ignore, bool useSnap)
         {
@@ -918,21 +1833,14 @@ namespace HonamiAnimationSystem.Editor.Timeline
                 return time;
             }
 
-            float threshold = 40f / Mathf.Max(1f, _state.TimeScale);
+            CollectSnapPoints(_snapPointsBuffer, ignore);
+            if (!_state.IsDraggingPlayhead)
+                _snapPointsBuffer.Add(_state.PlayheadTime);
+
+            float threshold = SnapThreshold;
             float best = time;
             float minDistance = float.MaxValue;
-
-            var points = _snapPointsBuffer;
-            points.Clear();
-            points.Add(0f);
-            points.Add(_state.GetDuration());
-            AddStateSnapPoints(points, ignore);
-            AddTimelineSnapPoints(points, ignore);
-
-            if (!_state.IsDraggingPlayhead)
-                points.Add(_state.PlayheadTime);
-
-            foreach (float point in points)
+            foreach (float point in _snapPointsBuffer)
             {
                 float distance = Mathf.Abs(time - point);
                 if (distance < threshold && distance < minDistance)
@@ -948,30 +1856,21 @@ namespace HonamiAnimationSystem.Editor.Timeline
                 return best;
             }
 
-            float fps = Mathf.Max(1f, DisplayFps());
-            float frameStep = 1f / fps;
-            float frameTime = Mathf.Round(time / frameStep) * frameStep;
-            if (Mathf.Abs(time - frameTime) < threshold)
-            {
-                _state.SnapLineTime = frameTime;
-                return frameTime;
-            }
-
             _state.SnapLineTime = -1f;
-            return time;
+            return _state.SnapToFrame(time);
+        }
+
+        private void CollectSnapPoints(List<float> points, object ignore)
+        {
+            points.Clear();
+            points.Add(0f);
+            points.Add(_state.GetDuration());
+            AddStateSnapPoints(points, ignore);
+            AddTimelineSnapPoints(points, ignore);
         }
 
         private void AddStateSnapPoints(List<float> points, object ignore)
         {
-            if (_state.SelectedState?.events != null)
-            {
-                foreach (var evt in _state.SelectedState.events)
-                {
-                    if (ReferenceEquals(evt, ignore) || _state.SelectedEvents.Contains(evt)) continue;
-                    points.Add(evt.time);
-                }
-            }
-
             if (_state.IsSeqState && _state.SeqNode?.sequencedClips != null)
             {
                 foreach (var clip in _state.SeqNode.sequencedClips)
@@ -986,26 +1885,26 @@ namespace HonamiAnimationSystem.Editor.Timeline
 
         private void AddTimelineSnapPoints(List<float> points, object ignore)
         {
-            if (_state.Mode != TimelineMode.HonamiTimeline || _state.ActiveTimeline == null) return;
+            var modules = _state.ActiveModules;
+            if (modules == null) return;
 
-            foreach (var track in _state.ActiveTimeline.tracks)
+            foreach (var module in modules)
             {
-                foreach (var clip in track.clips)
+                if (module == null) continue;
+                float offset = _state.GetModuleTimeOffset(module);
+                int count = module.ItemCount;
+                for (int i = 0; i < count; i++)
                 {
-                    if (ReferenceEquals(clip, ignore) || _state.SelectedTimelineClips.Contains(clip)) continue;
-                    points.Add(clip.startTime);
-                    points.Add(clip.startTime + clip.GetDuration());
-                }
-
-                foreach (var evt in track.events)
-                {
-                    if (ReferenceEquals(evt, ignore) || _state.SelectedTimelineEvents.Contains(evt)) continue;
-                    points.Add(evt.time);
+                    var item = module.GetItem(i);
+                    if (item == null || ReferenceEquals(item, ignore) || _state.SelectedTimelineItems.Contains(item)) continue;
+                    points.Add(offset + item.time);
+                    if (!item.IsInstant)
+                        points.Add(offset + item.EndTime);
                 }
             }
 
-            if (_state.ActiveTimeline.markers == null) return;
-            foreach (var marker in _state.ActiveTimeline.markers)
+            if (_state.Mode != TimelineMode.HonamiTimeline || _state.ActiveTimeline == null) return;
+            foreach (var marker in _state.ActiveTimeline.Markers)
             {
                 if (ReferenceEquals(marker, ignore) || _state.SelectedMarkers.Contains(marker)) continue;
                 points.Add(marker.time);
@@ -1014,14 +1913,22 @@ namespace HonamiAnimationSystem.Editor.Timeline
             }
         }
 
-        private static float GetStartTime(object target)
+        private float GetStartTime(object target)
         {
             return target switch
             {
                 HonamiSequencedAnimationClip clip => clip.startTime,
-                HonamiTimelineClip clip => clip.startTime,
-                HonamiEventMarker evt => evt.time,
-                HonamiTimelineEvent evt => evt.time,
+                HonamiTimelineItem item => _state.GetItemTimeOffset(item) + item.time,
+                _ => 0f
+            };
+        }
+
+        private float GetEndTime(object target)
+        {
+            return target switch
+            {
+                HonamiSequencedAnimationClip clip => clip.startTime + (clip.clip != null ? clip.clip.length / (clip.speed != 0f ? Mathf.Abs(clip.speed) : 1f) : 0f),
+                HonamiTimelineItem item => _state.GetItemTimeOffset(item) + item.EndTime,
                 _ => 0f
             };
         }
@@ -1035,70 +1942,28 @@ namespace HonamiAnimationSystem.Editor.Timeline
                     clip.startTime = value;
                     EditorUtility.SetDirty(_state.SeqNode);
                     break;
-                case HonamiTimelineClip clip:
-                    Undo.RecordObject(_state.ActiveTimeline, "Move Timeline Clip");
-                    clip.startTime = value;
-                    EditorUtility.SetDirty(_state.ActiveTimeline);
-                    break;
-                case HonamiEventMarker evt:
-                    Undo.RecordObject(_state.SelectedState, "Move Event");
-                    evt.time = Mathf.Clamp(value, 0f, _state.GetDuration());
-                    EditorUtility.SetDirty(_state.SelectedState);
-                    break;
-                case HonamiTimelineEvent evt:
-                    Undo.RecordObject(_state.ActiveTimeline, "Move Timeline Event");
-                    evt.time = value;
-                    EditorUtility.SetDirty(_state.ActiveTimeline);
+                case HonamiTimelineItem item:
+                    if (_state.ActiveContainer != null)
+                        HonamiEditorController.MoveTimelineItem(_state.ActiveContainer, item, value - _state.GetItemTimeOffset(item));
                     break;
             }
         }
 
-        private void SelectClipTarget(object target, bool additive)
+        private static void SelectOnly<T>(List<T> list, T item, bool additive, bool keepIfSelected = false)
         {
-            switch (target)
-            {
-                case HonamiSequencedAnimationClip clip:
-                    SelectOnly(_state.SelectedSeqClips, clip, additive);
-                    _state.SelectedEvents.Clear();
-                    break;
-                case HonamiTimelineClip clip:
-                    SelectOnly(_state.SelectedTimelineClips, clip, additive);
-                    _state.SelectedTimelineEvents.Clear();
-                    break;
-            }
-        }
-
-        private void SelectEventTarget(object target, bool additive)
-        {
-            switch (target)
-            {
-                case HonamiEventMarker evt:
-                    SelectOnly(_state.SelectedEvents, evt, additive);
-                    _state.SelectedSeqClips.Clear();
-                    break;
-                case HonamiTimelineEvent evt:
-                    SelectOnly(_state.SelectedTimelineEvents, evt, additive);
-                    _state.SelectedTimelineClips.Clear();
-                    break;
-            }
-        }
-
-        private static void SelectOnly<T>(List<T> list, T item, bool additive)
-        {
+            if (keepIfSelected && list.Contains(item)) return;
             if (!additive) list.Clear();
             if (list.Contains(item)) list.Remove(item);
             else list.Add(item);
         }
 
-        private static AnimationClip GetClip(object target)
+        private void OpenClipEdit(AnimationClip clip)
         {
-            return target switch
-            {
-                HonamiSequencedAnimationClip sc => sc.clip,
-                HonamiTimelineClip tc => tc.clip,
-                _ => null
-            };
+            _state.Mode = TimelineMode.HonamiClipEdit;
+            _state.ActiveClip = clip;
+            _rebuild();
         }
+
+        #endregion
     }
 }
-#endif

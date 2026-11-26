@@ -1,4 +1,4 @@
-using UnityEngine.UIElements;
+﻿using UnityEngine.UIElements;
 
 namespace HonamiAnimationSystem.Editor.Documentation.Pages
 {
@@ -14,7 +14,7 @@ namespace HonamiAnimationSystem.Editor.Documentation.Pages
         {
             HonamiDocumentationBuilder.AddParagraph(root, HonamiDocLocalization.Get(
                 "The HonamiLinkedAnimator component (the Brain) is the central command for a specific group of animators. It coordinates complex behaviors through a unified API or a visual Graph.",
-                "Компонент HonamiLinkedAnimator (Мозок) — це центральна команда для конкретної групи аніматорів. Він координує складну поведінку через єдине API або візуальний граф."
+                "Компонент HonamiLinkedAnimator (Мозок) - це центральна команда для конкретної групи аніматорів. Він координує складну поведінку через єдине API або візуальний граф."
             ));
 
             HonamiDocumentationBuilder.AddHeader(root, HonamiDocLocalization.Get("Setup", "Налаштування"), HonamiEditorIcons.Controller);
@@ -27,12 +27,12 @@ namespace HonamiAnimationSystem.Editor.Documentation.Pages
                 (HonamiDocLocalization.Get("Mode", "Режим"), 120),
                 (HonamiDocLocalization.Get("Description", "Опис"), 0),
                 ("", 0),
-                ("Childs", HonamiDocLocalization.Get("Automatically finds and controls every Honami animator in children — Honami Animators and Clip Players alike, including inactive ones.", "Автоматично знаходить і керує всіма аніматорами Honami у дочірніх об'єктах — і Honami Animator, і Clip Player, включно з неактивними."), ""),
+                ("Childs", HonamiDocLocalization.Get("Automatically finds and controls every Honami animator in children - Honami Animators and Clip Players alike, including inactive ones.", "Автоматично знаходить і керує всіма аніматорами Honami у дочірніх об'єктах - і Honami Animator, і Clip Player, включно з неактивними."), ""),
                 ("Manual", HonamiDocLocalization.Get("You explicitly specify a list of animators to control.", "Ви явно вказуєте список аніматорів для керування."), "")
             );
             HonamiDocumentationBuilder.AddCallout(root, HonamiDocLocalization.Get(
-                "Animators with Prevent Linking enabled are skipped in both modes. Targeting by tag is not a link mode — it happens per broadcast: pass HonamiBroadcastTargetMode.ByTag plus a HonamiTagID, and only linked animators whose Linking Tag matches will react.",
-                "Аніматори з увімкненим Prevent Linking пропускаються в обох режимах. Таргетинг за тегом — не режим зв'язку, а параметр конкретної розсилки: передайте HonamiBroadcastTargetMode.ByTag разом із HonamiTagID, і зреагують лише прилінковані аніматори з відповідним Linking Tag."
+                "Animators with Prevent Linking enabled are skipped in both modes. Targeting by tag is not a link mode - it happens per broadcast: pass HonamiBroadcastTargetMode.ByTag plus a HonamiTagID, and only linked animators whose Linking Tag matches will react.",
+                "Аніматори з увімкненим Prevent Linking пропускаються в обох режимах. Таргетинг за тегом - не режим зв'язку, а параметр конкретної розсилки: передайте HonamiBroadcastTargetMode.ByTag разом із HonamiTagID, і зреагують лише прилінковані аніматори з відповідним Linking Tag."
             ), HonamiDocumentationBuilder.CalloutType.Info);
 
             HonamiDocumentationBuilder.AddHeader(root, HonamiDocLocalization.Get("Managing links at runtime", "Керування зв'язками в рантаймі"), HonamiEditorIcons.GraphWhite);
@@ -51,19 +51,19 @@ foreach (var anim in brain.LinkedAnimators)
 // Zero-allocation snapshot into a reusable buffer (Span-based):
 var results = new HonamiAnimator[32];
 int count = brain.GetLinkedAnimatorsNonAlloc(results,
-    HonamiBroadcastTargetMode.ByTag, squadTag);");
+    HonamiLinkedTarget.ByTag(squadTag));");
 
             HonamiDocumentationBuilder.AddHeader(root, HonamiDocLocalization.Get("Animators and Clip Players", "Аніматори та Clip Player"), HonamiEditorIcons.Profile);
             HonamiDocumentationBuilder.AddParagraph(root, HonamiDocLocalization.Get(
-                "A group can mix both Honami components. Playback broadcasts — PlayState by name, ActionIDs, StopAll, PauseAll, ResumeAll, GlobalWeight — reach everything the brain drives. Anything that needs a controller behind it — parameters, TrySkipState, SetLayerWeight, SetController, SetProfile — is applied only to the Honami Animators and silently skips Clip Players, which have no parameters to set.",
-                "Група може змішувати обидва компоненти Honami. Розсилки відтворення — PlayState за іменем, ActionID, StopAll, PauseAll, ResumeAll, GlobalWeight — дістають усе, чим керує мозок. Усе, що потребує контролера — параметри, TrySkipState, SetLayerWeight, SetController, SetProfile — застосовується лише до Honami Animator і тихо оминає Clip Player, у яких немає параметрів."
+                "A group can mix both Honami components. Playback broadcasts - PlayState by name, ActionIDs, StopAll, PauseAll, ResumeAll, GlobalWeight - reach everything the brain drives. Anything that needs a controller behind it - parameters, TrySkipState, SetLayerWeight, SetController, SetProfile - is applied only to the Honami Animators and silently skips Clip Players, which have no parameters to set.",
+                "Група може змішувати обидва компоненти Honami. Розсилки відтворення - PlayState за іменем, ActionID, StopAll, PauseAll, ResumeAll, GlobalWeight - дістають усе, чим керує мозок. Усе, що потребує контролера - параметри, TrySkipState, SetLayerWeight, SetController, SetProfile - застосовується лише до Honami Animator і тихо оминає Clip Player, у яких немає параметрів."
             ));
             HonamiDocumentationBuilder.AddTable(root,
                 (HonamiDocLocalization.Get("Property", "Властивість"), 200),
                 (HonamiDocLocalization.Get("Contains", "Містить"), 0),
                 ("", 0),
                 ("LinkedAnimators", HonamiDocLocalization.Get("Every linked component, typed as HonamiAnimatorBase.", "Усі прилінковані компоненти, типізовані як HonamiAnimatorBase."), ""),
-                ("FullAnimators", HonamiDocLocalization.Get("Only the controller-backed HonamiAnimators — the targets of parameter and state-machine calls.", "Лише HonamiAnimator із контролерами — цілі викликів параметрів і стейт-машини."), "")
+                ("FullAnimators", HonamiDocLocalization.Get("Only the controller-backed HonamiAnimators - the targets of parameter and state-machine calls.", "Лише HonamiAnimator із контролерами - цілі викликів параметрів і стейт-машини."), "")
             );
             HonamiDocumentationBuilder.AddTip(root, HonamiDocLocalization.Get(
                 "GetLinkedAnimatorsNonAlloc fills a Span<HonamiAnimator> and therefore only sees the controller-backed subset. Use GetAllLinkedNonAlloc with a Span<HonamiAnimatorBase> when Clip Players should be included.",
@@ -72,25 +72,30 @@ int count = brain.GetLinkedAnimatorsNonAlloc(results,
 
             HonamiDocumentationBuilder.AddHeader(root, HonamiDocLocalization.Get("Group control API", "API групового керування"), HonamiEditorIcons.Controller);
             HonamiDocumentationBuilder.AddParagraph(root, HonamiDocLocalization.Get(
-                "The Brain mirrors most of the HonamiAnimator API, applied to every linked animator at once: PlayState, TrySkipState / TryAutoSkipState, SetFloat / SetInteger / SetBool / SetTrigger (plus ...ByTag variants), SetLayerWeight, PauseAll / ResumeAll / StopAll, and SetController / SetProfile for whole-group controller swaps. Broadcast targeting, distance filters and ActionIDs are covered on the Targeting and Advanced pages.",
-                "Мозок дублює більшість API HonamiAnimator, застосовуючи його одразу до всіх прилінкованих аніматорів: PlayState, TrySkipState / TryAutoSkipState, SetFloat / SetInteger / SetBool / SetTrigger (плюс варіанти ...ByTag), SetLayerWeight, PauseAll / ResumeAll / StopAll, а також SetController / SetProfile для групової зміни контролерів. Таргетинг розсилок, фільтри за відстанню та ActionID описані на сторінках Targeting і Advanced."
+                "The Brain mirrors most of the HonamiAnimator API, applied to every linked animator at once: PlayState, TrySkipState / TryAutoSkipState, SetFloat / SetInteger / SetBool / SetTrigger / ResetTrigger, SetLayerWeight, PauseAll / ResumeAll / StopAll, and SetController / SetProfile for whole-group controller swaps. AnyPlayingState and CountPlayingState query the group instead of commanding it. Anything that can address a subset - SetActionID, PlayState, the parameter setters, the ...NonAlloc getters - takes a trailing HonamiLinkedTarget; everything else applies to the whole group. See the Targeting page.",
+                "Мозок дублює більшість API HonamiAnimator, застосовуючи його одразу до всіх прилінкованих аніматорів: PlayState, TrySkipState / TryAutoSkipState, SetFloat / SetInteger / SetBool / SetTrigger / ResetTrigger, SetLayerWeight, PauseAll / ResumeAll / StopAll, а також SetController / SetProfile для групової зміни контролерів. AnyPlayingState і CountPlayingState не командують групою, а опитують її. Усе, що може адресувати підмножину - SetActionID, PlayState, сеттери параметрів, ...NonAlloc-геттери - приймає останнім аргументом HonamiLinkedTarget; решта застосовується до всієї групи. Див. сторінку Targeting."
             ));
             HonamiDocumentationBuilder.AddCodeBlock(root,
-@"// The whole squad ducks — one call.
+@"// The whole squad ducks - one call.
 brain.PlayState(""TakeCover"", transitionDuration: 0.2f);
 
 // Only heavies (by tag) raise shields.
-brain.PlayState(""ShieldUp"", HonamiBroadcastTargetMode.ByTag, heavyTag);
+brain.PlayState(""ShieldUp"", target: HonamiLinkedTarget.ByTag(heavyTag));
 
 // Everyone within 15 m of the blast reacts, closest 5 only.
-brain.PlayState(""Flinch"", explosion.position, 15f, transitionDuration: 0.1f, limit: 5);
+brain.PlayState(""Flinch"", 0.1f, HonamiLinkedTarget.Within(explosion.position, 15f, limit: 5));
 
 // Drive a shared parameter for one sub-group.
-brain.SetFloatByTag(crowdTag, ""PanicLevel"", 0.8f);
+brain.SetFloat(""PanicLevel"", 0.8f, HonamiLinkedTarget.ByTag(crowdTag));
 
 // Query helpers.
 if (brain.AnyPlayingState(""Reload"")) { /* ... */ }
-if (brain.TryGetAnimatorByTag(bossTag, out var boss)) { /* ... */ }");
+int reloading = brain.CountPlayingState(""Reload"");        // how many, not just whether
+if (brain.AnyPlayingState(""Block"", layer: 1)) { /* ... */ }  // per layer
+if (brain.TryGetAnimatorByTag(bossTag, out var boss)) { /* ... */ }
+
+// Every broadcast returns how many animators it reached.
+int ducked = brain.SetActionID(duckAction);");
         }
     }
 }

@@ -50,7 +50,8 @@ namespace HonamiAnimationSystem.Runtime.Core
         InCirc, OutCirc, InOutCirc,
         InBack, OutBack, InOutBack,
         InElastic, OutElastic, InOutElastic,
-        InBounce, OutBounce, InOutBounce
+        InBounce, OutBounce, InOutBounce,
+        SmoothStep
     }
 
     /// <summary>
@@ -134,7 +135,7 @@ namespace HonamiAnimationSystem.Runtime.Core
         [Tooltip("Offset in seconds to start the target animation from.")]
         public float destinationStartTime = 0f;
 
-        [Tooltip("Destination: the target holds its first frame during the blend and starts playing once the transition completes — keeps fast attacks crisp. Source: the state being left freezes on its current pose and fades out static.")]
+        [Tooltip("Destination: the target holds its first frame during the blend and starts playing once the transition completes - keeps fast attacks crisp. Source: the state being left freezes on its current pose and fades out static.")]
         [UnityEngine.Serialization.FormerlySerializedAs("freezeDestination")]
         public HonamiTransitionFreezeMode freezeMode = HonamiTransitionFreezeMode.None;
 

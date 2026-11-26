@@ -1,4 +1,4 @@
-using UnityEngine.UIElements;
+﻿using UnityEngine.UIElements;
 
 namespace HonamiAnimationSystem.Editor.Documentation.Pages
 {
@@ -18,8 +18,8 @@ namespace HonamiAnimationSystem.Editor.Documentation.Pages
             ));
 
             HonamiDocumentationBuilder.AddInfoBox(root, HonamiDocLocalization.Get(
-                "Honami Blend Trees are 1D only — there is no 2D blend space. For multi-directional movement, drive a 1D tree with a signed parameter (e.g. -1..1) or split the motion across layers and states.",
-                "Дерева змішування Honami лише 1D — 2D-простору змішування немає. Для багатонаправленого руху керуйте 1D-деревом знаковим параметром (напр. -1..1) або розділіть рух між шарами та станами."
+                "This node is one-dimensional by design: it sorts by threshold and crossfades two neighbours, which keeps it cheap. For multi-directional movement use the Blend Space node, which takes one float parameter per axis.",
+                "Цей вузол одновимірний за задумом: він сортує за порогом і перехресно змішує двох сусідів, що тримає його дешевим. Для багатонаправленого руху беріть вузол Blend Space, який приймає по одному float-параметру на вісь."
             ));
 
             HonamiDocumentationBuilder.AddHeader(root, HonamiDocLocalization.Get("Blend Types", "Типи змішування"), HonamiEditorIcons.BlendTreeWhite);
@@ -39,6 +39,7 @@ namespace HonamiAnimationSystem.Editor.Documentation.Pages
             HonamiDocumentationBuilder.AddBulletPoint(root, HonamiDocLocalization.Get("Below the first threshold or above the last one, that end clip plays at full weight.", "Нижче першого порога або вище останнього повну вагу отримує відповідний крайній кліп."));
             HonamiDocumentationBuilder.AddBulletPoint(root, HonamiDocLocalization.Get("Between two thresholds, the two adjacent clips crossfade proportionally to the parameter.", "Між двома порогами два сусідні кліпи перехресно змішуються пропорційно до параметра."));
             HonamiDocumentationBuilder.AddBulletPoint(root, HonamiDocLocalization.Get("Enable Mirror on a motion to reuse a clip for the opposite side without a separate asset.", "Увімкніть Mirror на мотиві, щоб перевикористати кліп для протилежного боку без окремого ассету."));
+            HonamiDocumentationBuilder.AddBulletPoint(root, HonamiDocLocalization.Get("Outgrown one axis? Right-click the node and pick Change Type / BlendSpace. Every motion carries over with its speed and mirror flag, the threshold becomes the first axis, and the state keeps its transitions and events.", "Переросли одну вісь? Правий клік на ноді та Change Type / BlendSpace. Усі мотиви переїжджають зі своїми Speed і Mirror, поріг стає першою віссю, а стан зберігає переходи та події."));
 
             HonamiDocumentationBuilder.AddNodeVisual(root, "Movement", "BLEND TREE 1D", HonamiGraphStyles.Green);
 

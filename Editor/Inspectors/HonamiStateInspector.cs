@@ -21,8 +21,7 @@ namespace HonamiAnimationSystem.Editor
             System.Action onRebuildRequired)
         {
             VisualElement root = new VisualElement();
-            root.style.paddingLeft = root.style.paddingRight = 10;
-            root.style.paddingTop = root.style.paddingBottom = 12;
+            root.Padding(12, 10);
 
             var overrideController = graphView?.RuntimeController as HonamiOverrideController;
             HonamiOverrideEntry overrideEntry = null;
@@ -179,6 +178,7 @@ namespace HonamiAnimationSystem.Editor
             {
                 infoRow.Add(HonamiGraphStyles.MiniLabel($"Duration: {dur:F2}s"));
                 if (state.loop) infoRow.Add(HonamiGraphStyles.MiniLabel("  |  Looping"));
+                else if (state.holdLastFrame) infoRow.Add(HonamiGraphStyles.MiniLabel("  |  Freezes Last Frame"));
             }
             else
             {
@@ -308,6 +308,9 @@ namespace HonamiAnimationSystem.Editor
             VisualElement subNodesFoldout = HonamiGraphStyles.Foldout("Sub-Nodes", state.subNodes?.Count > 0);
             subNodesFoldout.Add(BuildSubNodes(so, so.FindProperty("subNodes"), controller, selectedNode, graphView, onRebuildRequired));
             root.Add(subNodesFoldout);
+
+           HonamiInspectorSectionRegistry.AppendStateSections(root, new HonamiStateSectionContext(
+                state, so, controller, graphView?.RuntimeController, layerIndex, isOverrideInherited));
 
             root.Add(new VisualElement { style = { height = 4 } });
             TextField guidField = new TextField("Node GUID") { value = state.guid, isReadOnly = true };
@@ -538,8 +541,7 @@ namespace HonamiAnimationSystem.Editor
             btn.style.height = 18;
             btn.style.fontSize = 10;
             btn.style.unityFontStyleAndWeight = FontStyle.Bold;
-            btn.style.paddingLeft = btn.style.paddingRight = 0;
-            btn.style.paddingTop = btn.style.paddingBottom = 0;
+            btn.Padding(0);
             RefreshAxisBtn(btn, prop.boolValue, activeColor);
             btn.clicked += () =>
             {

@@ -1,4 +1,3 @@
-#if UNITY_EDITOR
 using System.Linq;
 using UnityEditor;
 using UnityEditor.UIElements;
@@ -73,6 +72,7 @@ namespace HonamiAnimationSystem.Editor.BlendTree
             {
                 AddBoundField(generalBox, _state.StateSO, "speed", "Overall Speed");
                 AddBoundField(generalBox, _state.StateSO, "loop", "Loop");
+                AddBoundField(generalBox, _state.StateSO, "holdLastFrame", "Freeze Last Frame");
                 AddBoundField(generalBox, _state.StateSO, "isReversed", "Reverse");
                 AddBoundField(generalBox, _state.StateSO, "mirror", "Mirror State");
             }
@@ -306,4 +306,3 @@ namespace HonamiAnimationSystem.Editor.BlendTree
         }
     }
 }
-#endif

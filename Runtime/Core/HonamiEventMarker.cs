@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using UnityEngine;
 
 namespace HonamiAnimationSystem.Runtime.Core
@@ -19,9 +19,6 @@ namespace HonamiAnimationSystem.Runtime.Core
         public string eventName;
 
         [Tooltip("Reference to the global event component. This might be resolved dynamically or via reference.")]
-        public string globalEventId; 
-
-        [NonSerialized]
-        public bool hasFired;
+        public string globalEventId;
     }
 }

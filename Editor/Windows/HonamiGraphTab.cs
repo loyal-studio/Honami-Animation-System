@@ -78,46 +78,7 @@ namespace HonamiAnimationSystem.Editor
             return ModeId == "Empty" ||
                    (ModeId == "Animator" && RuntimeController == null) ||
                    (ModeId == "LinkedAnimator" && LinkedGraph == null) ||
-                   (ModeId == "Profile" && ProfileGraph == null);
-        }
-
-        public void SaveSelectionFrom(HonamiGraphWindow window)
-        {
-            SelectedNodeGuid = window.SelectedNodeGuid;
-            SelectedTransitionGuid = window.SelectedTransitionGuid;
-            SelectedTransitionIndex = window.SelectedTransitionIndex;
-            SelectedTransitionOwner = window.SelectedTransitionOwner;
-            SelectedSubNode = window.SelectedSubNode;
-            SelectedLinkedNode = window.SelectedLinkedNode;
-            SelectedLinkedEvent = window.SelectedLinkedEvent;
-            SelectedProfileState = window.SelectedProfileState;
-            CurrentLayerIndex = window.CurrentLayerIndex;
-            IsLocked = window.IsLocked;
-        }
-
-        public void ApplyTo(HonamiGraphWindow window)
-        {
-            window.SelectedNodeGuid = SelectedNodeGuid;
-            window.SelectedTransitionGuid = SelectedTransitionGuid;
-            window.SelectedTransitionIndex = SelectedTransitionIndex;
-            window.SelectedTransitionOwner = SelectedTransitionOwner;
-            window.SelectedSubNode = SelectedSubNode;
-            window.SelectedLinkedNode = SelectedLinkedNode;
-            window.SelectedLinkedEvent = SelectedLinkedEvent;
-            window.SelectedProfileState = SelectedProfileState;
-            window.CurrentLayerIndex = CurrentLayerIndex;
-            window.IsLocked = IsLocked;
-
-            window.RuntimeController = RuntimeController;
-            window.Controller = RuntimeController != null ? RuntimeController.BaseController : null;
-            if (window.Controller != null) window.SerializedController = new UnityEditor.SerializedObject(window.Controller);
-
-            window.LinkedGraph = LinkedGraph;
-            window.RuntimeLinkedAnimator = RuntimeLinkedAnimator;
-
-            window.ProfileGraph = ProfileGraph;
-
-            window.SwitchMode(ModeId);
+                  (ModeId == "Profile" && ProfileGraph == null);
         }
     }
 }

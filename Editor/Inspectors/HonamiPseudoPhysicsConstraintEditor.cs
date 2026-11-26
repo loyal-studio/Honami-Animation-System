@@ -87,7 +87,7 @@ namespace HonamiAnimationSystem.Editor.Riggings
 
             var mode = (HonamiPhysicsMode)_mode.enumValueIndex;
 
-            DrawHeader("SETUP");
+            HonamiInspectorGUI.SectionHeader("SETUP");
             using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox))
             {
                 EditorGUILayout.PropertyField(_weight);
@@ -95,7 +95,7 @@ namespace HonamiAnimationSystem.Editor.Riggings
                 EditorGUILayout.PropertyField(_timeSource, new GUIContent("Time Source"));
 
                 if ((HonamiPhysicsTimeSource)_timeSource.enumValueIndex == HonamiPhysicsTimeSource.Unscaled)
-                    EditorGUILayout.HelpBox("Real seconds: slow motion no longer slows this rig down, and it keeps swinging while the game is paused. Pick this when the bones are moved by something that ignores Time.timeScale — a photo-mode or menu camera. Leave it on Animation for anything that should slow down with the world.", MessageType.None);
+                    EditorGUILayout.HelpBox("Real seconds: slow motion no longer slows this rig down, and it keeps swinging while the game is paused. Pick this when the bones are moved by something that ignores Time.timeScale - a photo-mode or menu camera. Leave it on Animation for anything that should slow down with the world.", MessageType.None);
             }
 
             EditorGUILayout.Space(5);
@@ -116,7 +116,7 @@ namespace HonamiAnimationSystem.Editor.Riggings
             else DrawPseudoPhysics();
 
             EditorGUILayout.Space(5);
-            DrawHeader("STABILITY");
+            HonamiInspectorGUI.SectionHeader("STABILITY");
             using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox))
             {
                 EditorGUILayout.PropertyField(_teleportDistanceThreshold);
@@ -129,7 +129,7 @@ namespace HonamiAnimationSystem.Editor.Riggings
 
         private void DrawBones(HonamiPhysicsMode mode)
         {
-            DrawHeader("BONES");
+            HonamiInspectorGUI.SectionHeader("BONES");
             using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox))
             {
                 int newSize = EditorGUILayout.DelayedIntField("Count", _bones.arraySize);
@@ -190,7 +190,7 @@ namespace HonamiAnimationSystem.Editor.Riggings
                 }
 
                 if (mode == HonamiPhysicsMode.Simulation && _bones.arraySize > 0)
-                    EditorGUILayout.HelpBox("Bones that are parent and child of each other link into one chain. Order does not matter — it is read from the hierarchy.", MessageType.None);
+                    EditorGUILayout.HelpBox("Bones that are parent and child of each other link into one chain. Order does not matter - it is read from the hierarchy.", MessageType.None);
             }
         }
 
@@ -207,7 +207,7 @@ namespace HonamiAnimationSystem.Editor.Riggings
 
                 if (shapeRenderer.objectReferenceValue != null)
                 {
-                    EditorGUILayout.HelpBox("THIS bone hangs on the renderer's mesh surface instead of swinging on its bone length — a mesh collider purely for the physics (green gizmo). It slides across the surface with momentum and settles on the low side under gravity: assign the keyring's renderer on the charm bone and a single entry is a complete keychain. A MeshRenderer surface follows its own transform; a SkinnedMeshRenderer is anchored to the bone it is skinned to, so the surface must not be skinned to this bone itself. Triangles are baked into this component automatically, so Read/Write can stay off; keep the mesh a simple proxy. Joint and Angle Limit are replaced by the mesh — model the shape itself to limit the travel.", MessageType.None);
+                    EditorGUILayout.HelpBox("THIS bone hangs on the renderer's mesh surface instead of swinging on its bone length - a mesh collider purely for the physics (green gizmo). It slides across the surface with momentum and settles on the low side under gravity: assign the keyring's renderer on the charm bone and a single entry is a complete keychain. A MeshRenderer surface follows its own transform; a SkinnedMeshRenderer is anchored to the bone it is skinned to, so the surface must not be skinned to this bone itself. Triangles are baked into this component automatically, so Read/Write can stay off; keep the mesh a simple proxy. Joint and Angle Limit are replaced by the mesh - model the shape itself to limit the travel.", MessageType.None);
 
                     DrawBoneFacing(element);
                     DrawBoneMassAndTip(element);
@@ -261,7 +261,7 @@ namespace HonamiAnimationSystem.Editor.Riggings
             EditorGUILayout.PropertyField(element.FindPropertyRelative("facingSpeed"), new GUIContent("Speed"));
             EditorGUILayout.PropertyField(element.FindPropertyRelative("facingMaxAngle"), new GUIContent("Max Angle"));
 
-            EditorGUILayout.HelpBox("The bone keeps hanging wherever physics puts it — this only turns it about that hanging direction, so a flat charm keeps showing its face instead of drifting edge-on. Facing Axis is the charm's face normal in bone space (orange gizmo); it meets the yellow line when the bone is on target. An axis running along the bone cannot be reached by a roll and is ignored.", MessageType.None);
+            EditorGUILayout.HelpBox("The bone keeps hanging wherever physics puts it - this only turns it about that hanging direction, so a flat charm keeps showing its face instead of drifting edge-on. Facing Axis is the charm's face normal in bone space (orange gizmo); it meets the yellow line when the bone is on target. An axis running along the bone cannot be reached by a roll and is ignored.", MessageType.None);
 
             if (target == HonamiPhysicsFacingTarget.MainCamera)
                 EditorGUILayout.HelpBox("Resolved from Camera.main once and re-resolved if that camera is destroyed. Assign the camera to Transform instead when the rig lives in a prefab with its own camera.", MessageType.None);
@@ -284,14 +284,14 @@ namespace HonamiAnimationSystem.Editor.Riggings
 
         private void DrawSimulation()
         {
-            DrawHeader("CHAIN BASELINE");
+            HonamiInspectorGUI.SectionHeader("CHAIN BASELINE");
             using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox))
             {
                 EditorGUILayout.PropertyField(_simulationGravity, new GUIContent("Gravity"));
                 EditorGUILayout.PropertyField(_simulationDamping, new GUIContent("Damping"));
                 EditorGUILayout.PropertyField(_simulationStiffness, new GUIContent("Stiffness"));
                 EditorGUILayout.PropertyField(_simulationInertia, new GUIContent("Inertia"));
-                EditorGUILayout.HelpBox("Damping is the air drag on the free swing, Stiffness is the pull back to the animated pose — the two are independent, so tuning one never forces you to retune the other. Inertia sets how much of the handling the whole chain shrugs off; each bone then scales that with its own Motion Response, alongside its Gravity, Damping and Stiffness scales, its joint and its angle limit.", MessageType.None);
+                EditorGUILayout.HelpBox("Damping is the air drag on the free swing, Stiffness is the pull back to the animated pose - the two are independent, so tuning one never forces you to retune the other. Inertia sets how much of the handling the whole chain shrugs off; each bone then scales that with its own Motion Response, alongside its Gravity, Damping and Stiffness scales, its joint and its angle limit.", MessageType.None);
             }
 
             if (_simulationStiffness.floatValue <= 0f)
@@ -303,7 +303,7 @@ namespace HonamiAnimationSystem.Editor.Riggings
 
         private void DrawPseudoPhysics()
         {
-            DrawHeader("SIMULATION SPACE");
+            HonamiInspectorGUI.SectionHeader("SIMULATION SPACE");
             using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox))
             {
                 EditorGUILayout.PropertyField(_simulationSpace);
@@ -312,7 +312,7 @@ namespace HonamiAnimationSystem.Editor.Riggings
             }
 
             EditorGUILayout.Space(5);
-            DrawHeader("POSITION PHYSICS");
+            HonamiInspectorGUI.SectionHeader("POSITION PHYSICS");
             using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox))
             {
                 EditorGUILayout.PropertyField(_positionDrag);
@@ -324,7 +324,7 @@ namespace HonamiAnimationSystem.Editor.Riggings
             }
 
             EditorGUILayout.Space(5);
-            DrawHeader("ROTATION PHYSICS");
+            HonamiInspectorGUI.SectionHeader("ROTATION PHYSICS");
             using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox))
             {
                 EditorGUILayout.PropertyField(_rotationDrag);
@@ -336,7 +336,7 @@ namespace HonamiAnimationSystem.Editor.Riggings
             }
 
             EditorGUILayout.Space(5);
-            DrawHeader("ROTATION GRAVITY (PENDULUM)");
+            HonamiInspectorGUI.SectionHeader("ROTATION GRAVITY (PENDULUM)");
             using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox))
             {
                 EditorGUILayout.PropertyField(_rotationGravity);
@@ -344,26 +344,11 @@ namespace HonamiAnimationSystem.Editor.Riggings
                 {
                     EditorGUILayout.PropertyField(_rotationHangAxis);
                     EditorGUILayout.PropertyField(_rotationGravityDirection);
-                    EditorGUILayout.HelpBox("Switch to Simulation mode for anything that should truly hang and swing — this torque only bends the bone away from its animated pose.", MessageType.None);
+                    EditorGUILayout.HelpBox("Switch to Simulation mode for anything that should truly hang and swing - this torque only bends the bone away from its animated pose.", MessageType.None);
                 }
             }
         }
 
-        private static GUIStyle _headerStyle;
 
-        private void DrawHeader(string label)
-        {
-            _headerStyle ??= new GUIStyle(EditorStyles.boldLabel)
-            {
-                fontSize = 11,
-                fontStyle = FontStyle.Bold,
-                alignment = TextAnchor.MiddleLeft
-            };
-            _headerStyle.normal.textColor = EditorGUIUtility.isProSkin ? new Color(0.8f, 0.8f, 0.8f) : Color.black;
-
-            Rect rect = GUILayoutUtility.GetRect(18, 18, _headerStyle);
-            GUI.Box(rect, GUIContent.none, EditorStyles.toolbar);
-            EditorGUI.LabelField(new Rect(rect.x + 4, rect.y, rect.width, rect.height), label, _headerStyle);
-        }
     }
 }

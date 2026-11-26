@@ -299,7 +299,7 @@ namespace HonamiAnimationSystem.Runtime.Riggings
                 return;
             }
 
-            float effectiveWeight = (enabled && gameObject.activeInHierarchy) ? weight : 0f;
+            float effectiveWeight = (enabled && gameObject.activeInHierarchy) ? EffectiveWeight : 0f;
             _nativeParams[0] = effectiveWeight;
             _nativeParams[1] = (float)mode;
             _nativeParams[2] = (float)target;
@@ -323,7 +323,7 @@ namespace HonamiAnimationSystem.Runtime.Riggings
 
         public override void ProcessRig(float deltaTime)
         {
-            if (bones == null || weight <= 0.001f) return;
+            if (bones == null || EffectiveWeight <= 0.001f) return;
             if (!_restCaptured) CaptureRestPose();
 
             bool processPos = target == HonamiAntiJitterTarget.Position || target == HonamiAntiJitterTarget.Both;
@@ -369,7 +369,7 @@ namespace HonamiAnimationSystem.Runtime.Riggings
                         }
                     }
 
-                    finalPos = Vector3.Lerp(currentPos, finalPos, weight);
+                    finalPos = Vector3.Lerp(currentPos, finalPos, EffectiveWeight);
                     prevPosSpan[i] = finalPos;
                     t.localPosition = finalPos;
                 }
@@ -403,7 +403,7 @@ namespace HonamiAnimationSystem.Runtime.Riggings
                         }
                     }
 
-                    finalRot = Quaternion.Slerp(currentRot, finalRot, weight);
+                    finalRot = Quaternion.Slerp(currentRot, finalRot, EffectiveWeight);
                     prevRotSpan[i] = finalRot;
                     t.localRotation = finalRot;
                 }

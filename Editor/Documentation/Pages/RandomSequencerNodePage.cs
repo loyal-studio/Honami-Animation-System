@@ -32,7 +32,7 @@ namespace HonamiAnimationSystem.Editor.Documentation.Pages
                 (HonamiDocLocalization.Get("Speed", "Speed"), HonamiDocLocalization.Get("Per-clip playback speed multiplier.", "Множник швидкості відтворення для окремого кліпу.")),
                 (HonamiDocLocalization.Get("Start / End Time", "Start / End Time"), HonamiDocLocalization.Get("Optional trim range within the clip (End 0 = to the clip's end).", "Опціональний діапазон обрізки в межах кліпу (End 0 = до кінця кліпу).")),
                 (HonamiDocLocalization.Get("Mirror", "Mirror"), HonamiDocLocalization.Get("Play this specific variation mirrored.", "Відтворити саме цю варіацію віддзеркалено.")),
-                (HonamiDocLocalization.Get("Muted", "Muted"), HonamiDocLocalization.Get("Temporarily excludes this clip from the random pool without deleting it — handy for quickly testing specific variations.", "Тимчасово виключає цей кліп із random-пулу без видалення — зручно, щоб швидко протестити конкретні варіації."))
+                (HonamiDocLocalization.Get("Muted", "Muted"), HonamiDocLocalization.Get("Temporarily excludes this clip from the random pool without deleting it - handy for quickly testing specific variations.", "Тимчасово виключає цей кліп із random-пулу без видалення - зручно, щоб швидко протестити конкретні варіації."))
             );
             HonamiDocumentationBuilder.AddParagraph(root, HonamiDocLocalization.Get(
                 "Enable No Repeat on the node to force unique picks: a clip is never chosen again until every other clip has played (shuffle-bag), and the same clip never plays twice in a row. Weights still bias the order within each cycle.",
@@ -49,6 +49,16 @@ namespace HonamiAnimationSystem.Editor.Documentation.Pages
                 (HonamiDocLocalization.Get("Start Time", "Start Time"), HonamiDocLocalization.Get("When (in seconds along the state) this clip becomes active.", "Коли (у секундах уздовж стану) цей кліп стає активним.")),
                 (HonamiDocLocalization.Get("Speed", "Speed"), HonamiDocLocalization.Get("Per-clip playback speed multiplier.", "Множник швидкості для окремого кліпу."))
             );
+
+            HonamiDocumentationBuilder.AddHeader(root, HonamiDocLocalization.Get("Modules inside one clip", "Модулі всередині одного кліпа"), HonamiEditorIcons.TimelineWhite);
+            HonamiDocumentationBuilder.AddParagraph(root, HonamiDocLocalization.Get(
+                "Every clip row of these nodes in the Timeline window has a + button. A module added there (Local Events, Global Events, Activation, Parameter Curve, any custom one) is drawn under the clip and runs only while that clip plays. Modules can be nested further, for example events inside an Activation item of that clip. On a Random node, an attack's EndPunch can sit at the moment of its own clip instead of one marker per variation on a shared row. On a Sequencer, the module's items are timed from the clip's Start Time, so they move with the clip.",
+                "Кожен рядок кліпа цих нод у вікні Timeline має кнопку +. Модуль, доданий там (Local Events, Global Events, Activation, Parameter Curve, будь-який власний), малюється під кліпом і працює лише поки грає цей кліп. Модулі можна вкладати й далі, наприклад події всередині item-а Activation цього кліпа. На Random-ноді EndPunch атаки стоїть у моменті свого кліпа, а не по маркеру на кожну варіацію в спільному рядку. На Sequencer-і item-и модуля рахуються від Start Time кліпа, тож рухаються разом із ним."
+            ));
+            HonamiDocumentationBuilder.AddParagraph(root, HonamiDocLocalization.Get(
+                "The Parent field in a module's properties, or Parent in its row's right-click menu, moves a module between clips, into another module's item or back to Whole State. Modules of clips other than the one picked in the toolbar are dimmed and left out of the preview. If a clip is removed from the node, its modules stay in the state with a warning and do nothing until you pick a new parent.",
+                "Поле Parent у властивостях модуля або Parent у меню правого кліку його рядка переносить модуль між кліпами, в item іншого модуля чи назад на Whole State. Модулі кліпів, окрім вибраного в тулбарі, притемнені й не беруть участі в прев'ю. Якщо кліп видалити з ноди, його модулі лишаються в стані з попередженням і нічого не роблять, доки ви не виберете нового батька."
+            ));
 
             HonamiDocumentationBuilder.AddTip(root, HonamiDocLocalization.Get(
                 "Both nodes respect the state's Loop, Speed and Reversed settings. Combine the Random node with a Repeater to re-roll a fresh variation on demand.",

@@ -1,4 +1,4 @@
-#if UNITY_EDITOR
+﻿using System.Collections.Generic;
 using System;
 using System.Linq;
 using UnityEngine;
@@ -36,6 +36,8 @@ namespace HonamiAnimationSystem.Editor
         public virtual bool HasInput => true;
         public virtual bool HasOutput => true;
 
+        public virtual StyleSheet StyleSheet => null;
+
         public virtual string GetTitle(HonamiState state) => state.stateName;
         public virtual string GetSubtitle(HonamiState state) => GetType()
             .GetCustomAttributes(typeof(HonamiNodeEditorAttribute), false) is { Length: > 0 } attrs
@@ -47,9 +49,35 @@ namespace HonamiAnimationSystem.Editor
 
         public virtual float GetTimelineDuration(TimelineState state) => 5f;
 
-        public virtual void DrawTimelineTracks(TimelineState state, ITimelineTrackDrawer drawer, ref float y) { }
+        // Module rows can sit between node rows, so y must not be derived from the row index.
+        public virtual void DrawTimelineRow(TimelineState state, ITimelineTrackDrawer drawer, int row, float y) { }
+
+        public virtual void CollectTimelineRows(TimelineState state, List<HonamiTimelineRow> rows)
+        {
+            if (DrawsTimelineRows)
+                rows.Add(new HonamiTimelineRow("Motion", HonamiTimelineRow.ClipIcon, TimelineTheme.AnimationTrack));
+        }
+
+        public virtual bool IsMotionPreviewed(TimelineState state, int motionIndex) => true;
+
+        private bool? _drawsTimelineRows;
+
+        private bool DrawsTimelineRows => _drawsTimelineRows ??=
+            GetType().GetMethod(nameof(DrawTimelineRow)).DeclaringType != typeof(HonamiNodeEditorBase);
 
         public virtual void SampleTimelinePreview(TimelineState state, GameObject rootTarget, float internalT) { }
+
+        /// <summary>
+        /// True when this node can pose the preview character, which is what makes its states
+        /// selectable in the Timeline window.
+        /// </summary>
+        public virtual bool SupportsTimelinePreview => false;
+
+        /// <summary>
+        /// Adds node-specific scrubbing controls to the Timeline toolbar. Call <paramref name="rebuild"/>
+        /// after changing preview state so the tracks and the posed character refresh.
+        /// </summary>
+        public virtual void BuildTimelineControls(TimelineState state, VisualElement container, Action rebuild) { }
 
         public virtual void AppendActionButtons(VisualElement root, HonamiState state, HonamiController controller) { }
 
@@ -131,17 +159,15 @@ namespace HonamiAnimationSystem.Editor
 
         protected static void AddStateField(VisualElement container, HonamiState state, string propName, string label)
         {
-            SerializedObject so;
-            if (_lastStateFieldTarget == state && _lastStateFieldSO != null)
+            if (state == null) return;
+
+            if (_lastStateFieldTarget != state || _lastStateFieldSO == null || _lastStateFieldSO.targetObject == null)
             {
-                so = _lastStateFieldSO;
-            }
-            else
-            {
-                so = new SerializedObject(state);
                 _lastStateFieldTarget = state;
-                _lastStateFieldSO = so;
+                _lastStateFieldSO = new SerializedObject(state);
             }
+
+            SerializedObject so = _lastStateFieldSO;
             so.Update();
             SerializedProperty prop = so.FindProperty(propName);
             if (prop == null) return;
@@ -172,4 +198,3 @@ namespace HonamiAnimationSystem.Editor
         }
     }
 }
-#endif

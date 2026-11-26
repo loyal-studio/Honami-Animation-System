@@ -13,6 +13,29 @@ namespace HonamiAnimationSystem.Runtime.Core
     {
         public List<HonamiSequencedAnimationClip> sequencedClips = new();
 
+        public override int MotionCount => sequencedClips?.Count ?? 0;
+
+        public override string GetMotionId(int index) => sequencedClips[index]?.id;
+
+        public override string GetMotionName(int index)
+        {
+            var clip = sequencedClips[index]?.clip;
+            return clip != null ? clip.name : $"Empty Sequence {index}";
+        }
+
+        public override float GetMotionStart(int index) => sequencedClips[index]?.startTime ?? 0f;
+
+        public override float GetMotionDuration(int index)
+        {
+            var clip = sequencedClips[index];
+            return clip != null ? GetClipDuration(clip) : 0f;
+        }
+
+        public override bool IsMotionPlaying(int index, HonamiNodeRuntime runtime) => sequencedClips[index]?.clip != null;
+
+        public override bool EnsureMotionIds() =>
+            EnsureUniqueMotionIds(sequencedClips, clip => clip.id, (clip, id) => clip.id = id);
+
         public override Playable CreatePlayable(PlayableGraph graph, HonamiState state)
         {
             if (sequencedClips == null)

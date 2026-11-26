@@ -1,7 +1,6 @@
-#if UNITY_EDITOR
 namespace HonamiAnimationSystem.Editor
 {
-    internal static class HonamiEditorSymbols
+    public static class HonamiEditorSymbols
     {
         public const string Remove = "X";
         public const string Enabled = "On";
@@ -13,4 +12,3 @@ namespace HonamiAnimationSystem.Editor
         public const string Bullet = "-";
     }
 }
-#endif

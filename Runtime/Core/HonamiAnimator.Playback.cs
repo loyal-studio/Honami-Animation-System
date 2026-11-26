@@ -1,4 +1,4 @@
-using UnityEngine;
+﻿using UnityEngine;
 
 namespace HonamiAnimationSystem.Runtime.Core
 {
@@ -35,9 +35,9 @@ namespace HonamiAnimationSystem.Runtime.Core
             bool acceleratedWeightDrop,
             AnimationCurve victimCurve)
         {
-            EnsureGraph();
+            EnsureGraphBuilt();
 
-            if (!_stateGuidToIndex.TryGetValue(guid.GetHashCode(), out int targetIndex))
+            if (!TryResolveStateByGuid(guid, out int targetIndex))
             {
                 return;
             }

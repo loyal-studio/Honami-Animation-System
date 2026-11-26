@@ -1,4 +1,4 @@
-using UnityEngine.UIElements;
+﻿using UnityEngine.UIElements;
 
 namespace HonamiAnimationSystem.Editor.Documentation.Pages
 {
@@ -38,22 +38,22 @@ namespace HonamiAnimationSystem.Editor.Documentation.Pages
                 (HonamiDocLocalization.Get("Type", "Тип"), 100),
                 (HonamiDocLocalization.Get("How it fires", "Як спрацьовує"), 0),
                 ("", 0),
-                ("Local", HonamiDocLocalization.Get("Calls TriggerEvent(eventName) on the HonamiLocalEventReceiver component next to the animator. The receiver maps names to UnityEvents you wire up in the inspector — no code required.", "Викликає TriggerEvent(eventName) на компоненті HonamiLocalEventReceiver поруч з аніматором. Ресівер зіставляє назви з UnityEvent, які ви налаштовуєте в інспекторі — код не потрібен."), ""),
-                ("Global", HonamiDocLocalization.Get("Finds every active HonamiGlobalEvent component in the scene whose eventId matches — on any GameObject, not just the animator's — and calls its ExecuteEvent(). Subclass HonamiGlobalEvent to write your own reusable event behaviours.", "Знаходить у сцені кожен активний компонент HonamiGlobalEvent з відповідним eventId — на будь-якому GameObject, не лише на об'єкті аніматора — і викликає його ExecuteEvent(). Наслідуйте HonamiGlobalEvent, щоб писати власні перевикористовувані події."), "")
+                ("Local", HonamiDocLocalization.Get("Calls TriggerEvent(eventName) on the HonamiLocalEventReceiver component next to the animator. The receiver maps names to UnityEvents you wire up in the inspector - no code required.", "Викликає TriggerEvent(eventName) на компоненті HonamiLocalEventReceiver поруч з аніматором. Ресівер зіставляє назви з UnityEvent, які ви налаштовуєте в інспекторі - код не потрібен."), ""),
+                ("Global", HonamiDocLocalization.Get("Finds every active HonamiGlobalEvent component in the scene whose eventId matches - on any GameObject, not just the animator's - and calls its ExecuteEvent(). Subclass HonamiGlobalEvent to write your own reusable event behaviours.", "Знаходить у сцені кожен активний компонент HonamiGlobalEvent з відповідним eventId - на будь-якому GameObject, не лише на об'єкті аніматора - і викликає його ExecuteEvent(). Наслідуйте HonamiGlobalEvent, щоб писати власні перевикористовувані події."), "")
             );
 
             HonamiDocumentationBuilder.AddHeader(root, HonamiDocLocalization.Get("Placing markers in the editor", "Розстановка маркерів у редакторі"), HonamiEditorIcons.GraphWhite);
             HonamiDocumentationBuilder.AddBulletPoint(root, HonamiDocLocalization.Get(
-                "Open the controller in the Honami editor and select a state — its timeline appears in the Timeline panel at the bottom of the window.",
-                "Відкрийте контролер у редакторі Honami та виберіть стан — його таймлайн з'явиться в панелі Timeline внизу вікна."
+                "Open the controller in the Honami editor and select a state - its timeline appears in the Timeline panel at the bottom of the window.",
+                "Відкрийте контролер у редакторі Honami та виберіть стан - його таймлайн з'явиться в панелі Timeline внизу вікна."
             ));
             HonamiDocumentationBuilder.AddBulletPoint(root, HonamiDocLocalization.Get(
-                "Right-click an empty spot on the timeline at the moment you need and choose Add Local Event or Add Global Event. A marker is created at that time.",
-                "Клікніть правою кнопкою по порожньому місцю таймлайна в потрібний момент часу та виберіть Add Local Event або Add Global Event. Маркер створиться в цій точці."
+                "Markers live in modules. Click + Add Module above the rows and choose Events → Local Events or Events → Global Events; a row for that module appears under the state's motion rows. Right-click the row at the moment you need and choose Add Local Event or Add Global Event. A marker is created at that time.",
+                "Маркери живуть у модулях. Натисніть + Add Module над рядками й виберіть Events → Local Events або Events → Global Events; під рядками руху стану з'явиться рядок цього модуля. Клікніть по ньому правою кнопкою в потрібний момент часу та виберіть Add Local Event або Add Global Event. Маркер створиться в цій точці."
             ));
             HonamiDocumentationBuilder.AddBulletPoint(root, HonamiDocLocalization.Get(
-                "Click the marker to select it. The Properties panel shows Time (seconds on the state's timeline), Type, and Event Name for Local or Global ID for Global markers. Remove Event deletes the marker.",
-                "Клікніть по маркеру, щоб вибрати його. Панель Properties покаже Time (секунди на таймлайні стану), Type, а також Event Name для Local або Global ID для Global маркерів. Remove Event видаляє маркер."
+                "Click the marker to select it. The Properties panel shows Time (seconds on the state's timeline) and Event Name for Local or Global Event Id for Global markers; the Remove button deletes the marker. Right-click the module's row header to mute it, move it into a clip or another module's item (Parent) or remove the whole module.",
+                "Клікніть по маркеру, щоб вибрати його. Панель Properties покаже Time (секунди на таймлайні стану) та Event Name для Local або Global Event Id для Global маркерів; кнопка Remove видаляє маркер. Правий клік по заголовку рядка модуля дозволяє заглушити його, перенести в кліп чи item іншого модуля (Parent) або видалити весь модуль."
             ));
 
             HonamiDocumentationBuilder.AddHeader(root, HonamiDocLocalization.Get("Local event: full setup", "Local подія: повне налаштування"), HonamiEditorIcons.Controller);
@@ -70,8 +70,8 @@ namespace HonamiAnimationSystem.Editor.Documentation.Pages
                 "У списку Local Events ресівера додайте запис, чий Event Name точно збігається з назвою маркера, і підключіть до UnityEvent ваші хендлери (аудіо, VFX, будь-який метод)."
             ));
             HonamiDocumentationBuilder.AddCallout(root, HonamiDocLocalization.Get(
-                "Several entries with the same Event Name all fire together. If the marker's name is not found in the receiver, a warning is logged to the console — use it to catch typos.",
-                "Кілька записів з однаковим Event Name спрацюють усі разом. Якщо назву маркера в ресівері не знайдено, у консоль пишеться попередження — так зручно ловити одруки."
+                "Several entries with the same Event Name all fire together. If the marker name is not found in the receiver, a warning is logged once per unknown name - enough to catch a typo, without spamming the console every loop. TriggerEvent returns false in that case, and HasEvent(name) tests without firing anything.",
+                "Кілька записів з однаковим Event Name спрацюють усі разом. Якщо назву маркера в ресівері не знайдено, попередження пишеться один раз на кожну невідому назву - достатньо, щоб зловити одруку, і без спаму в консоль щоцикл. TriggerEvent у цьому разі повертає false, а HasEvent(name) перевіряє наявність, нічого не викликаючи."
             ), HonamiDocumentationBuilder.CalloutType.Info);
 
             HonamiDocumentationBuilder.AddHeader(root, HonamiDocLocalization.Get("Global event: full setup", "Global подія: повне налаштування"), HonamiEditorIcons.Controller);
@@ -80,8 +80,8 @@ namespace HonamiAnimationSystem.Editor.Documentation.Pages
                 "Створіть підклас HonamiGlobalEvent з вашою логікою в ExecuteEvent()."
             ));
             HonamiDocumentationBuilder.AddBulletPoint(root, HonamiDocLocalization.Get(
-                "Add the component to any GameObject in the scene — a door, a camera rig, a VFX manager — and set its eventId.",
-                "Додайте компонент на будь-який GameObject у сцені — двері, camera rig, VFX-менеджер — і задайте його eventId."
+                "Add the component to any GameObject in the scene - a door, a camera rig, a VFX manager - and set its eventId.",
+                "Додайте компонент на будь-який GameObject у сцені - двері, camera rig, VFX-менеджер - і задайте його eventId."
             ));
             HonamiDocumentationBuilder.AddBulletPoint(root, HonamiDocLocalization.Get(
                 "Place a Global marker and set its Global ID to the same value. Every HonamiGlobalEvent whose eventId matches will execute.",
@@ -105,35 +105,40 @@ public sealed class FootstepEvent : HonamiGlobalEvent
 // Set eventId = ""Footstep"" in the inspector and reference it
 // from a Global marker on any state.");
             HonamiDocumentationBuilder.AddParagraph(root, HonamiDocLocalization.Get(
-                "HonamiRigWeightEvent is a ready-made HonamiGlobalEvent that sets the weight of a HonamiRig when executed — handy for enabling IK exactly on the frame a hand grabs a ladder.",
-                "HonamiRigWeightEvent — готова HonamiGlobalEvent, яка при виконанні встановлює вагу HonamiRig — зручно, щоб увімкнути IK точно на кадрі, коли рука хапає драбину."
+                "Because lookup is by eventId, the id is captured when the component registers. Assigning eventId from code at runtime therefore needs a RefreshRegistration() call afterwards; editing it in the inspector during Play mode re-indexes on its own. Execute(id) returns how many events ran, IsRegistered(id) tests without firing, and GetListeners(id) hands you the current listeners.",
+                "Оскільки пошук іде за eventId, id фіксується в момент реєстрації. Тому присвоєння eventId з коду в рантаймі потребує подальшого виклику RefreshRegistration(); правка в інспекторі під час Play mode переіндексовує сама. Execute(id) повертає кількість виконаних подій, IsRegistered(id) перевіряє без запуску, а GetListeners(id) віддає поточних слухачів."
+            ));
+
+            HonamiDocumentationBuilder.AddParagraph(root, HonamiDocLocalization.Get(
+                "HonamiRigWeightEvent is a ready-made HonamiGlobalEvent that sets the weight of a HonamiRig when executed - handy for enabling IK exactly on the frame a hand grabs a ladder.",
+                "HonamiRigWeightEvent - готова HonamiGlobalEvent, яка при виконанні встановлює вагу HonamiRig - зручно, щоб увімкнути IK точно на кадрі, коли рука хапає драбину."
             ));
 
             HonamiDocumentationBuilder.AddCallout(root, HonamiDocLocalization.Get(
-                "Discovery rules differ. HonamiLocalEventReceiver is found once, on the same GameObject as the HonamiAnimator, when the animator initializes — add it next to the animator before Play mode starts. HonamiGlobalEvent components register themselves in OnEnable and unregister in OnDisable, so they work anywhere in the scene, can be added or removed at runtime, and only fire while their GameObject is active and the component is enabled.",
-                "Правила виявлення різні. HonamiLocalEventReceiver шукається один раз, на тому самому GameObject, що й HonamiAnimator, під час ініціалізації аніматора — додавайте його поруч з аніматором до старту Play mode. Компоненти HonamiGlobalEvent реєструють себе в OnEnable і знімають реєстрацію в OnDisable, тому працюють будь-де в сцені, їх можна додавати й прибирати в рантаймі, і спрацьовують вони лише поки їхній GameObject активний, а компонент увімкнений."
+                "Discovery rules differ. HonamiLocalEventReceiver is found once, on the same GameObject as the HonamiAnimator, when the animator initializes - add it next to the animator before Play mode starts. HonamiGlobalEvent components index themselves under their eventId in OnEnable and drop out in OnDisable, so they work anywhere in the scene, can be added or removed at runtime, and only fire while their GameObject is active and the component is enabled.",
+                "Правила виявлення різні. HonamiLocalEventReceiver шукається один раз, на тому самому GameObject, що й HonamiAnimator, під час ініціалізації аніматора - додавайте його поруч з аніматором до старту Play mode. Компоненти HonamiGlobalEvent індексують себе за своїм eventId в OnEnable і випадають з індексу в OnDisable, тому працюють будь-де в сцені, їх можна додавати й прибирати в рантаймі, і спрацьовують вони лише поки їхній GameObject активний, а компонент увімкнений."
             ), HonamiDocumentationBuilder.CalloutType.Warning);
 
             HonamiDocumentationBuilder.AddHeader(root, HonamiDocLocalization.Get("Events and layers", "Події та шари"), HonamiEditorIcons.BlendTreeWhite);
             HonamiDocumentationBuilder.AddParagraph(root, HonamiDocLocalization.Get(
-                "Each layer evaluates markers independently and only for its current state: a state that is blending out no longer fires markers, and paused states or paused layers fire nothing. This makes markers a natural fit for the layer-per-action pipeline — a damage-window marker on an Attack-layer state fires regardless of what the Base layer's locomotion is doing. See Blending & Layers for the full pipeline walkthrough.",
-                "Кожен шар обробляє маркери незалежно й лише для свого поточного стану: стан, який виблендується (fade out), маркери більше не викликає, а стани та шари на паузі не викликають нічого. Тому маркери природно лягають у пайплайн «шар під дію» — маркер вікна урону на стані шару Attack спрацює незалежно від того, що робить locomotion на базовому шарі. Повний розбір пайплайна — на сторінці Blending & Layers."
+                "Each layer evaluates markers independently and only for its current state: a state that is blending out no longer fires markers, and paused states or paused layers fire nothing. This makes markers a natural fit for the layer-per-action pipeline - a damage-window marker on an Attack-layer state fires regardless of what the Base layer's locomotion is doing. See Blending & Layers for the full pipeline walkthrough.",
+                "Кожен шар обробляє маркери незалежно й лише для свого поточного стану: стан, який виблендується (fade out), маркери більше не викликає, а стани та шари на паузі не викликають нічого. Тому маркери природно лягають у пайплайн «шар під дію» - маркер вікна урону на стані шару Attack спрацює незалежно від того, що робить locomotion на базовому шарі. Повний розбір пайплайна - на сторінці Blending & Layers."
             ));
 
             HonamiDocumentationBuilder.AddParagraph(root, HonamiDocLocalization.Get(
-                "Marker guarantees: on looping states markers re-fire every loop (if several loops pass in one tick, at most 3 are replayed); on reversed states markers fire when the playhead moves back past them; TryAutoSkipState with cancelEvents: true suppresses markers the skipped state has not fired yet.",
-                "Гарантії маркерів: на loop-станах маркери спрацьовують кожен цикл (якщо за один тік минуло кілька циклів — програється щонайбільше 3); на реверсних станах маркери спрацьовують, коли головка проходить їх у зворотному напрямку; TryAutoSkipState із cancelEvents: true скасовує маркери, які пропущений стан ще не встиг викликати."
+                "Marker guarantees: on looping states each marker fires exactly once per loop (if several loops pass in one tick, at most 3 are replayed); on reversed states markers fire when the playhead moves back past them; TryAutoSkipState with cancelEvents: true suppresses markers the skipped state has not fired yet.",
+                "Гарантії маркерів: на loop-станах кожен маркер спрацьовує рівно один раз за цикл (якщо за один тік минуло кілька циклів - програється щонайбільше 3); на реверсних станах маркери спрацьовують, коли головка проходить їх у зворотному напрямку; TryAutoSkipState із cancelEvents: true скасовує маркери, які пропущений стан ще не встиг викликати."
             ));
 
             HonamiDocumentationBuilder.AddHeader(root, HonamiDocLocalization.Get("C# state events", "C#-події станів"), HonamiEditorIcons.GraphWhite);
             HonamiDocumentationBuilder.AddParagraph(root, HonamiDocLocalization.Get(
                 "Independently of markers, HonamiAnimator raises three C# events: OnStateEntered(string), OnStateFinished(string) for non-loop states that reached their end, and OnStateExited(HonamiStateExitInfo) with the exact exit reason. See the Scripting API page for the full HonamiStateExitInfo reference.",
-                "Незалежно від маркерів, HonamiAnimator викликає три C#-події: OnStateEntered(string), OnStateFinished(string) для non-loop станів, що дійшли до кінця, та OnStateExited(HonamiStateExitInfo) з точною причиною виходу. Повний довідник HonamiStateExitInfo — на сторінці Scripting API."
+                "Незалежно від маркерів, HonamiAnimator викликає три C#-події: OnStateEntered(string), OnStateFinished(string) для non-loop станів, що дійшли до кінця, та OnStateExited(HonamiStateExitInfo) з точною причиною виходу. Повний довідник HonamiStateExitInfo - на сторінці Scripting API."
             ));
 
             HonamiDocumentationBuilder.AddParagraph(root, HonamiDocLocalization.Get(
-                "Exit and Any State take part in the same lifecycle. Entering an Exit node raises OnStateEntered, and once its transition completes the animator raises OnStateExited (reason Completed) and OnStateFinished — so gameplay code can react to a layer finishing its graph. When an Any State transition fires, the node emits a one-frame pulse: OnStateEntered immediately followed by OnStateExited (reason Transition, with the destination as the next state). Sub-Nodes attached to either node receive OnEnter/OnExit at the same moments, and their parameter assignments apply as usual.",
-                "Exit та Any State беруть участь у тому самому лайфциклі. Вхід у Exit-ноду викликає OnStateEntered, а коли її транзішн завершується — аніматор викликає OnStateExited (причина Completed) та OnStateFinished, тож ігровий код може реагувати на те, що шар завершив свій граф. Коли спрацьовує транзішн з Any State, нода видає одно-кадровий пульс: OnStateEntered і одразу OnStateExited (причина Transition, з ціллю транзішна як наступним стейтом). Sub-Nodes, причеплені до цих нод, отримують OnEnter/OnExit у ті самі моменти, а їхні parameter assignments застосовуються як зазвичай."
+                "Exit and Any State take part in the same lifecycle. Entering an Exit node raises OnStateEntered, and once its transition completes the animator raises OnStateExited (reason Completed) and OnStateFinished - so gameplay code can react to a layer finishing its graph. When an Any State transition fires, the node emits a one-frame pulse: OnStateEntered immediately followed by OnStateExited (reason Transition, with the destination as the next state). Sub-Nodes attached to either node receive OnEnter/OnExit at the same moments, and their parameter assignments apply as usual.",
+                "Exit та Any State беруть участь у тому самому лайфциклі. Вхід у Exit-ноду викликає OnStateEntered, а коли її транзішн завершується - аніматор викликає OnStateExited (причина Completed) та OnStateFinished, тож ігровий код може реагувати на те, що шар завершив свій граф. Коли спрацьовує транзішн з Any State, нода видає одно-кадровий пульс: OnStateEntered і одразу OnStateExited (причина Transition, з ціллю транзішна як наступним стейтом). Sub-Nodes, причеплені до цих нод, отримують OnEnter/OnExit у ті самі моменти, а їхні parameter assignments застосовуються як зазвичай."
             ));
             HonamiDocumentationBuilder.AddCodeBlock(root,
 @"private void OnEnable()
@@ -160,7 +165,7 @@ private void HandleFinished(string state)
 
             HonamiDocumentationBuilder.AddTip(root, HonamiDocLocalization.Get(
                 "Use markers for content-driven moments (footsteps, VFX, damage windows) and C# events for structural logic (state machines, combos, UI). Markers live with the animation data; C# events live with your gameplay code.",
-                "Використовуйте маркери для контентних моментів (кроки, VFX, вікна урону), а C#-події — для структурної логіки (стейт-машини, комбо, UI). Маркери живуть разом з анімаційними даними; C#-події — разом з ігровим кодом."
+                "Використовуйте маркери для контентних моментів (кроки, VFX, вікна урону), а C#-події - для структурної логіки (стейт-машини, комбо, UI). Маркери живуть разом з анімаційними даними; C#-події - разом з ігровим кодом."
             ));
         }
     }

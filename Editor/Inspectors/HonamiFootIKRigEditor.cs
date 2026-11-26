@@ -30,16 +30,12 @@ namespace HonamiAnimationSystem.Editor.Inspectors
         private bool _blendFoldout = true;
         private bool _stickingFoldout = true;
 
-        private static readonly Color _accentColor = new Color(0.18f, 0.76f, 0.9f);
-        private static readonly Color _warningColor = new Color(1f, 0.7f, 0.2f);
-        private static readonly Color _okColor = new Color(0.3f, 0.9f, 0.4f);
+       private static readonly Color _accentColor = HonamiInspectorGUI.Accent;
+        private static readonly Color _warningColor = HonamiInspectorGUI.Warning;
+        private static readonly Color _okColor = HonamiInspectorGUI.Ok;
 
-        private static GUIStyle _headerStyle;
-        private static GUIStyle _subStyle;
-        private static GUIStyle _foldoutStyle;
         private static GUIStyle _legLabelStyle;
         private static GUIStyle _removeStyle;
-        private static GUIStyle _debugHeaderStyle;
         private string[] _legLabelCache = System.Array.Empty<string>();
 
         private void OnEnable()
@@ -66,7 +62,7 @@ namespace HonamiAnimationSystem.Editor.Inspectors
         {
             serializedObject.Update();
 
-            DrawHeader();
+           HonamiInspectorGUI.Title("HONAMI FOOT IK", "Procedural Ground Adaptation - Any Skeleton", _accentColor);
             EditorGUILayout.Space(4);
 
             DrawGlobalWeight();
@@ -95,27 +91,6 @@ namespace HonamiAnimationSystem.Editor.Inspectors
             serializedObject.ApplyModifiedProperties();
         }
 
-        private new void DrawHeader()
-        {
-            _headerStyle ??= new GUIStyle(EditorStyles.boldLabel)
-            {
-                fontSize = 15,
-                alignment = TextAnchor.MiddleCenter,
-                normal = { textColor = _accentColor }
-            };
-            _subStyle ??= new GUIStyle(EditorStyles.centeredGreyMiniLabel)
-            {
-                fontSize = 10,
-                alignment = TextAnchor.MiddleCenter
-            };
-
-            EditorGUILayout.Space(8);
-            GUILayout.Label("HONAMI FOOT IK", _headerStyle);
-            GUILayout.Label("Procedural Ground Adaptation - Any Skeleton", _subStyle);
-
-            Rect line = EditorGUILayout.GetControlRect(false, 2);
-            EditorGUI.DrawRect(line, new Color(_accentColor.r, _accentColor.g, _accentColor.b, 0.5f));
-        }
 
         private void DrawGlobalWeight()
         {
@@ -126,7 +101,7 @@ namespace HonamiAnimationSystem.Editor.Inspectors
 
         private void DrawLegsSection()
         {
-            _legsFoldout = DrawFoldoutHeader("  Legs", _legsFoldout, _accentColor);
+            _legsFoldout = HonamiInspectorGUI.FoldoutHeader("  Legs", _legsFoldout, _accentColor);
             if (!_legsFoldout) return;
 
             EditorGUILayout.BeginVertical(EditorStyles.helpBox);
@@ -200,7 +175,7 @@ namespace HonamiAnimationSystem.Editor.Inspectors
 
         private void DrawRootBoneSection()
         {
-            _rootFoldout = DrawFoldoutHeader("  Root Bone (Pelvis)", _rootFoldout, new Color(0.9f, 0.75f, 0.3f));
+            _rootFoldout = HonamiInspectorGUI.FoldoutHeader("  Root Bone (Pelvis)", _rootFoldout, new Color(0.9f, 0.75f, 0.3f));
             if (!_rootFoldout) return;
 
             EditorGUILayout.BeginVertical(EditorStyles.helpBox);
@@ -221,7 +196,7 @@ namespace HonamiAnimationSystem.Editor.Inspectors
 
         private void DrawRaycastSection()
         {
-            _raycastFoldout = DrawFoldoutHeader("  Raycast", _raycastFoldout, new Color(0.5f, 0.9f, 0.5f));
+            _raycastFoldout = HonamiInspectorGUI.FoldoutHeader("  Raycast", _raycastFoldout, new Color(0.5f, 0.9f, 0.5f));
             if (!_raycastFoldout) return;
 
             EditorGUILayout.BeginVertical(EditorStyles.helpBox);
@@ -235,7 +210,7 @@ namespace HonamiAnimationSystem.Editor.Inspectors
 
         private void DrawBlendSection()
         {
-            _blendFoldout = DrawFoldoutHeader("  Blending", _blendFoldout, new Color(0.8f, 0.5f, 1f));
+            _blendFoldout = HonamiInspectorGUI.FoldoutHeader("  Blending", _blendFoldout, new Color(0.8f, 0.5f, 1f));
             if (!_blendFoldout) return;
 
             EditorGUILayout.BeginVertical(EditorStyles.helpBox);
@@ -246,7 +221,7 @@ namespace HonamiAnimationSystem.Editor.Inspectors
 
         private void DrawStickingSection()
         {
-            _stickingFoldout = DrawFoldoutHeader("  Sticking (Anti-Sliding)", _stickingFoldout, new Color(1f, 0.6f, 0.4f));
+            _stickingFoldout = HonamiInspectorGUI.FoldoutHeader("  Sticking (Anti-Sliding)", _stickingFoldout, new Color(1f, 0.6f, 0.4f));
             if (!_stickingFoldout) return;
 
             EditorGUILayout.BeginVertical(EditorStyles.helpBox);
@@ -263,8 +238,7 @@ namespace HonamiAnimationSystem.Editor.Inspectors
             if (rig.legs == null || rig.legs.Length == 0) return;
 
             EditorGUILayout.BeginVertical(EditorStyles.helpBox);
-            _debugHeaderStyle ??= new GUIStyle(EditorStyles.boldLabel) { normal = { textColor = _warningColor } };
-            GUILayout.Label("  Runtime Status", _debugHeaderStyle);
+           HonamiInspectorGUI.SubHeader("  Runtime Status", _warningColor);
             EditorGUILayout.Space(2);
 
             if (_legLabelCache.Length != rig.legs.Length)
@@ -311,12 +285,5 @@ namespace HonamiAnimationSystem.Editor.Inspectors
             EditorGUILayout.EndVertical();
         }
 
-        private static bool DrawFoldoutHeader(string title, bool state, Color color)
-        {
-            _foldoutStyle ??= new GUIStyle(EditorStyles.foldout) { fontStyle = FontStyle.Bold };
-            _foldoutStyle.normal.textColor = color;
-            _foldoutStyle.onNormal.textColor = color;
-            return EditorGUILayout.Foldout(state, title, true, _foldoutStyle);
-        }
     }
 }

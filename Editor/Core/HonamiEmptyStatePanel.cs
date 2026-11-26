@@ -1,4 +1,3 @@
-#if UNITY_EDITOR
 using System;
 using UnityEngine;
 using UnityEngine.UIElements;
@@ -9,20 +8,19 @@ namespace HonamiAnimationSystem.Editor
     /// Builds the shared "nothing selected" placeholder card (icon, title, CTA button and hint)
     /// shown by editor windows when no asset is loaded.
     /// </summary>
-    internal static class HonamiEmptyStatePanel
+    public static class HonamiEmptyStatePanel
     {
         public static VisualElement Box(Texture2D icon, string title, string subtitle)
         {
             var box = new VisualElement();
             box.style.backgroundColor = new Color(0.06f, 0.065f, 0.075f, 0.98f);
-            box.style.borderTopWidth = box.style.borderBottomWidth = box.style.borderLeftWidth = box.style.borderRightWidth = 1;
+            box.BorderWidth(1);
             box.style.borderTopColor = new Color(0.2f, 0.22f, 0.25f, 0.6f);
             box.style.borderBottomColor = new Color(0.02f, 0.02f, 0.02f, 0.8f);
             box.style.borderLeftColor = new Color(0.1f, 0.1f, 0.1f, 0.6f);
             box.style.borderRightColor = new Color(0.1f, 0.1f, 0.1f, 0.6f);
-            box.style.borderTopLeftRadius = box.style.borderTopRightRadius = box.style.borderBottomLeftRadius = box.style.borderBottomRightRadius = 14;
-            box.style.paddingTop = box.style.paddingBottom = 40;
-            box.style.paddingLeft = box.style.paddingRight = 40;
+            box.Radius(14);
+            box.Padding(40);
             box.style.alignItems = Align.Center;
             box.style.maxWidth = Length.Percent(90);
             box.style.minWidth = 300;
@@ -39,7 +37,7 @@ namespace HonamiAnimationSystem.Editor
             else
             {
                 iconElement.style.backgroundColor = HonamiEditorTheme.AccentSoft;
-                iconElement.style.borderTopLeftRadius = iconElement.style.borderTopRightRadius = iconElement.style.borderBottomLeftRadius = iconElement.style.borderBottomRightRadius = 14;
+                iconElement.Radius(14);
             }
             box.Add(iconElement);
 
@@ -72,30 +70,29 @@ namespace HonamiAnimationSystem.Editor
             btn.style.color = Color.white;
             btn.style.unityFontStyleAndWeight = FontStyle.Bold;
             btn.style.fontSize = 13;
-            btn.style.borderTopLeftRadius = btn.style.borderTopRightRadius = btn.style.borderBottomLeftRadius = btn.style.borderBottomRightRadius = 8;
-            btn.style.borderTopWidth = btn.style.borderBottomWidth = btn.style.borderLeftWidth = btn.style.borderRightWidth = 1;
-            btn.style.borderTopColor = btn.style.borderBottomColor = btn.style.borderLeftColor = btn.style.borderRightColor = new Color(1, 1, 1, 0.1f);
+            btn.Radius(8);
+            btn.Border(1, new Color(1, 1, 1, 0.1f));
             btn.style.marginTop = 10;
 
             btn.RegisterCallback<PointerEnterEvent>(_ =>
             {
                 btn.style.backgroundColor = Color.Lerp(HonamiEditorTheme.Accent, Color.white, 0.2f);
-                btn.style.borderTopColor = btn.style.borderBottomColor = btn.style.borderLeftColor = btn.style.borderRightColor = new Color(1, 1, 1, 0.4f);
+                btn.BorderColor(new Color(1, 1, 1, 0.4f));
             });
             btn.RegisterCallback<PointerLeaveEvent>(_ =>
             {
                 btn.style.backgroundColor = HonamiEditorTheme.Accent;
-                btn.style.borderTopColor = btn.style.borderBottomColor = btn.style.borderLeftColor = btn.style.borderRightColor = new Color(1, 1, 1, 0.1f);
+                btn.BorderColor(new Color(1, 1, 1, 0.1f));
             });
             btn.RegisterCallback<PointerDownEvent>(_ =>
             {
                 btn.style.backgroundColor = Color.Lerp(HonamiEditorTheme.Accent, Color.black, 0.1f);
-                btn.style.borderTopColor = btn.style.borderBottomColor = btn.style.borderLeftColor = btn.style.borderRightColor = new Color(1, 1, 1, 0.2f);
+                btn.BorderColor(new Color(1, 1, 1, 0.2f));
             });
             btn.RegisterCallback<PointerUpEvent>(_ =>
             {
                 btn.style.backgroundColor = Color.Lerp(HonamiEditorTheme.Accent, Color.white, 0.2f);
-                btn.style.borderTopColor = btn.style.borderBottomColor = btn.style.borderLeftColor = btn.style.borderRightColor = new Color(1, 1, 1, 0.4f);
+                btn.BorderColor(new Color(1, 1, 1, 0.4f));
             });
 
             return btn;
@@ -113,4 +110,3 @@ namespace HonamiAnimationSystem.Editor
         }
     }
 }
-#endif

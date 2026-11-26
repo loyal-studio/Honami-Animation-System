@@ -1,4 +1,3 @@
-#if UNITY_EDITOR
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -44,8 +43,24 @@ namespace HonamiAnimationSystem.Editor
                 object[] attrs = editorType.GetCustomAttributes(typeof(HonamiNodeEditorAttribute), false);
                 if (attrs.Length == 0) continue;
 
-                HonamiNodeEditorAttribute attr = (HonamiNodeEditorAttribute)attrs[0];
-                HonamiNodeEditorBase instance = (HonamiNodeEditorBase)Activator.CreateInstance(editorType);
+               HonamiNodeEditorAttribute attr = (HonamiNodeEditorAttribute)attrs[0];
+
+                if (editorType.GetConstructor(Type.EmptyTypes) == null)
+                {
+                    Debug.LogError($"[Honami] Node editor '{editorType.FullName}' needs a public parameterless constructor.");
+                    continue;
+                }
+
+                HonamiNodeEditorBase instance;
+                try
+                {
+                    instance = (HonamiNodeEditorBase)Activator.CreateInstance(editorType);
+                }
+                catch (Exception exception)
+                {
+                    Debug.LogError($"[Honami] Node editor '{editorType.FullName}' failed to construct: {exception}");
+                    continue;
+                }
 
                 _editorByNodeType[attr.NodeType] = instance;
                 _allEntries.Add((attr, editorType));
@@ -68,4 +83,3 @@ namespace HonamiAnimationSystem.Editor
         }
     }
 }
-#endif

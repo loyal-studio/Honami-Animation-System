@@ -12,7 +12,6 @@ namespace HonamiAnimationSystem.Runtime.Core
     }
 
     [CreateAssetMenu(fileName = "SetParameter", menuName = "Honami Animation/Linked Animator Nodes/Set Parameter")]
-    [UnityEngine.Scripting.APIUpdating.MovedFrom("BrainSetParameterNode")]
     public sealed class LinkedAnimatorSetParameterNode : HonamiLinkedAnimatorNodeBase
     {
         public string parameterName;

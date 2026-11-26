@@ -25,6 +25,7 @@ namespace HonamiAnimationSystem.Editor
             "In Back", "Out Back", "In-Out Back",
             "In Elastic", "Out Elastic", "In-Out Elastic",
             "In Bounce", "Out Bounce", "In-Out Bounce",
+            "Smooth Step",
             "Custom Curve"
         };
 
@@ -95,8 +96,7 @@ namespace HonamiAnimationSystem.Editor
             }
 
             var root = new VisualElement();
-            root.style.paddingLeft = root.style.paddingRight = 10;
-            root.style.paddingTop = root.style.paddingBottom = 12;
+            root.Padding(12, 10);
 
             Label ovBadge = null;
             Button ovRevert = null;
@@ -288,7 +288,7 @@ namespace HonamiAnimationSystem.Editor
             var freezeProp = tp.FindPropertyRelative("freezeMode");
             var freezeField = new PropertyField(freezeProp, "Freeze Mode");
             freezeField.style.marginTop = freezeField.style.marginBottom = 3;
-            freezeField.tooltip = "Destination: the target holds its first frame during the blend and starts playing when the transition completes — keeps fast attacks crisp. Source: the state being left freezes on its current pose and fades out static.";
+            freezeField.tooltip = "Destination: the target holds its first frame during the blend and starts playing when the transition completes - keeps fast attacks crisp. Source: the state being left freezes on its current pose and fades out static.";
             freezeField.BindProperty(freezeProp);
             timingBox.Add(freezeField);
 
@@ -487,9 +487,12 @@ namespace HonamiAnimationSystem.Editor
             condFoldout.Add(BuildConditions(so, tp.FindPropertyRelative("conditions"), controller));
             root.Add(condFoldout);
 
-            var assignFoldout = HonamiGraphStyles.Foldout("Parameter Assignments", transition.parameterAssignments?.Count > 0);
+           var assignFoldout = HonamiGraphStyles.Foldout("Parameter Assignments", transition.parameterAssignments?.Count > 0);
             assignFoldout.Add(HonamiStateInspector.BuildParameterAssignments(so, tp.FindPropertyRelative("parameterAssignments"), controller));
             root.Add(assignFoldout);
+
+            HonamiInspectorSectionRegistry.AppendTransitionSections(root, new HonamiTransitionSectionContext(
+                transition, owner, transitionIndex, so, controller, graphView?.RuntimeController, isOverrideInherited));
 
             if (isOverrideInherited && overrideParent != null)
             {

@@ -61,8 +61,7 @@ namespace HonamiAnimationSystem.Editor
         private void CreateGUI()
         {
             rootVisualElement.style.backgroundColor = HonamiGraphStyles.PanelBg;
-            rootVisualElement.style.paddingLeft = rootVisualElement.style.paddingRight = 10;
-            rootVisualElement.style.paddingTop = rootVisualElement.style.paddingBottom = 10;
+            rootVisualElement.Padding(10);
 
             rootVisualElement.Add(HonamiGraphStyles.Title("Honami Bone Debug"));
 
@@ -226,8 +225,7 @@ namespace HonamiAnimationSystem.Editor
         private VisualElement CreateBoneHealthRow(Transform t)
         {
             var row = HonamiGraphStyles.Row();
-            row.style.paddingLeft = row.style.paddingRight = 4;
-            row.style.paddingTop = row.style.paddingBottom = 2;
+            row.Padding(2, 4);
             row.style.borderBottomColor = new Color(0.2f, 0.2f, 0.2f, 0.5f);
             row.style.borderBottomWidth = 1;
 

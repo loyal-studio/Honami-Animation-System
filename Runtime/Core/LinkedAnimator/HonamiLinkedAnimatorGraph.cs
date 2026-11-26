@@ -4,7 +4,6 @@ using UnityEngine;
 namespace HonamiAnimationSystem.Runtime.Core
 {
     [CreateAssetMenu(fileName = "NewLinkedAnimatorGraph", menuName = "Honami Animation/Linked Animator Graph")]
-    [UnityEngine.Scripting.APIUpdating.MovedFrom("HonamiBrainGraph")]
     public sealed class HonamiLinkedAnimatorGraph : ScriptableObject
     {
         public List<HonamiLinkedAnimatorEvent> events = new();

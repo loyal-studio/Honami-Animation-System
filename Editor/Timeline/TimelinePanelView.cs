@@ -1,10 +1,7 @@
-#if UNITY_EDITOR
 using System;
 using System.Collections.Generic;
-using HonamiAnimationSystem.Runtime.Core;
 using HonamiAnimationSystem.Runtime.Timeline;
 using UnityEditor;
-using UnityEditor.UIElements;
 using UnityEngine;
 using UnityEngine.UIElements;
 using HonamiEditorController = HonamiAnimationSystem.Editor.Core.HonamiEditorController;
@@ -13,38 +10,59 @@ namespace HonamiAnimationSystem.Editor.Timeline
 {
     internal sealed partial class TimelinePanelView : VisualElement
     {
+        private const float WheelScrollStep = 18f;
+        private const float WheelZoomFactor = 1.15f;
+        private const float ScrollerSize = 12f;
+
         private readonly TimelineState _state;
         private readonly Action _rebuild;
         private readonly Action _focus;
         private readonly Func<bool> _isActive;
 
-        private ScrollView _scroll;
         private VisualElement _mainArea;
-        private VisualElement _content;
+        private VisualElement _timelineRoot;
+        private VisualElement _leftColumn;
+        private VisualElement _corner;
+        private Label _cornerTimecode;
+        private VisualElement _headerViewport;
         private VisualElement _headers;
+        private VisualElement _rulerViewport;
+        private VisualElement _rulerTicks;
+        private VisualElement _rulerContent;
+        private VisualElement _viewport;
+        private VisualElement _gridBackground;
         private VisualElement _canvas;
+        private Scroller _hScroller;
+        private Scroller _vScroller;
+        private VisualElement _headerSplitter;
+        private VisualElement _emptyOverlay;
         private VisualElement _properties;
+        private VisualElement _propsSplitter;
+        private object _propertiesKey;
         private VisualElement _playheadLine;
         private VisualElement _playheadHead;
         private VisualElement _snapLine;
         private readonly Dictionary<object, VisualElement> _elements = new();
-        private float _lastTimelineViewportWidth;
+        private readonly Dictionary<HonamiTimelineMarker, VisualElement> _markerElements = new();
 
+        private float _canvasWidth;
+        private float _canvasHeight;
         private bool _draggingPlayhead;
-        private bool _draggingElement;
-        private bool _draggingTimelineMarker;
-        private object _dragTarget;
-        private HonamiTimelineLoopMarker _dragMarker;
-        private float _dragStartTime;
-        private float _dragStartMouseTime;
-        private float _dragMarkerEndTime;
+        private bool _panning;
+        private bool _applyingScroll;
+        private Vector2 _panStartMouse;
+        private Vector2 _panStartScroll;
 
         public TimelinePanelView(TimelineState state, Func<bool> isActive, Action focus, Action rebuild)
         {
             _state = state;
             _isActive = isActive;
             _focus = focus;
-            _rebuild = rebuild;
+            _rebuild = () =>
+            {
+                ReleaseStaleProperties();
+                rebuild();
+            };
 
             style.flexGrow = 1;
             style.flexDirection = FlexDirection.Column;
@@ -56,10 +74,6 @@ namespace HonamiAnimationSystem.Editor.Timeline
             RegisterCallback<KeyDownEvent>(OnKeyDown);
             RegisterCallback<AttachToPanelEvent>(OnAttach);
             RegisterCallback<DetachFromPanelEvent>(OnDetach);
-            RegisterCallback<GeometryChangedEvent>(OnGeometryChanged);
-            RegisterCallback<WheelEvent>(OnWheel, TrickleDown.TrickleDown);
-            RegisterCallback<DragUpdatedEvent>(OnDragUpdated);
-            RegisterCallback<DragPerformEvent>(OnDragPerform);
 
             _mainArea = new VisualElement
             {
@@ -74,31 +88,150 @@ namespace HonamiAnimationSystem.Editor.Timeline
             Add(_mainArea);
             Add(BuildTransportBar());
 
+            BuildSkeleton();
             Build();
         }
 
         public void Refresh()
         {
             _state.PreModifyState();
-            float currentWidth = resolvedStyle.width;
-            if (currentWidth > 1f)
-                _lastTimelineViewportWidth = currentWidth;
-
+            if (_state.Mode != TimelineMode.HonamiClipEdit)
+                _state.PruneStaleModuleSelection();
             Build();
         }
 
-        private void OnGeometryChanged(GeometryChangedEvent evt)
+        private void BuildSkeleton()
         {
-            if (Mathf.Abs(evt.newRect.width - evt.oldRect.width) > 1f)
+            _timelineRoot = new VisualElement
             {
-                _lastTimelineViewportWidth = evt.newRect.width;
-                Build();
-            }
+                style =
+                {
+                    flexGrow = 1,
+                    flexDirection = FlexDirection.Row,
+                    minWidth = 0,
+                    minHeight = 0,
+                    borderTopWidth = 2,
+                    borderTopColor = TimelineTheme.SubtleLine,
+                    backgroundColor = TimelineTheme.PanelBg
+                }
+            };
+            _mainArea.Insert(0, _timelineRoot);
+            _timelineRoot.RegisterCallback<WheelEvent>(OnWheel, TrickleDown.TrickleDown);
+            _timelineRoot.RegisterCallback<DragUpdatedEvent>(OnDragUpdated);
+            _timelineRoot.RegisterCallback<DragPerformEvent>(OnDragPerform);
+            _timelineRoot.RegisterCallback<DragLeaveEvent>(_ => ClearDropGhost());
+            _timelineRoot.RegisterCallback<DragExitedEvent>(_ => ClearDropGhost());
+
+            _leftColumn = new VisualElement
+            {
+                style =
+                {
+                    flexShrink = 0,
+                    flexDirection = FlexDirection.Column,
+                    backgroundColor = TimelineTheme.HeaderBg,
+                    borderRightWidth = 1,
+                    borderRightColor = TimelineTheme.Divider
+                }
+            };
+            _timelineRoot.Add(_leftColumn);
+
+            _corner = new VisualElement
+            {
+                style =
+                {
+                    height = TimelineTheme.RulerHeight,
+                    flexShrink = 0,
+                    backgroundColor = TimelineTheme.RulerBg,
+                    borderBottomWidth = 1,
+                    borderBottomColor = TimelineTheme.Divider,
+                    justifyContent = Justify.Center,
+                    paddingLeft = 10
+                }
+            };
+            _cornerTimecode = new Label
+            {
+                pickingMode = PickingMode.Ignore,
+                style =
+                {
+                    color = TimelineTheme.Accent,
+                    fontSize = 15,
+                    unityFontStyleAndWeight = FontStyle.Bold,
+                    unityTextAlign = TextAnchor.MiddleLeft
+                }
+            };
+            _corner.Add(_cornerTimecode);
+            _leftColumn.Add(_corner);
+
+            _headerViewport = new VisualElement { style = { flexGrow = 1, overflow = Overflow.Hidden, position = Position.Relative } };
+            _leftColumn.Add(_headerViewport);
+            _headers = new VisualElement { style = { position = Position.Absolute, left = 0, right = 0, top = 0 } };
+            _headerViewport.Add(_headers);
+
+            var rightColumn = new VisualElement { style = { flexGrow = 1, flexDirection = FlexDirection.Column, minWidth = 0, minHeight = 0 } };
+            _timelineRoot.Add(rightColumn);
+
+            _rulerViewport = new VisualElement
+            {
+                style =
+                {
+                    height = TimelineTheme.RulerHeight,
+                    flexShrink = 0,
+                    overflow = Overflow.Hidden,
+                    position = Position.Relative,
+                    backgroundColor = TimelineTheme.RulerBg,
+                    borderBottomWidth = 1,
+                    borderBottomColor = TimelineTheme.Divider
+                }
+            };
+            rightColumn.Add(_rulerViewport);
+            _rulerTicks = new VisualElement
+            {
+                pickingMode = PickingMode.Ignore,
+                style = { position = Position.Absolute, left = 0, right = 0, top = 0, bottom = 0 }
+            };
+            _rulerTicks.generateVisualContent += DrawRulerTicks;
+            _rulerViewport.Add(_rulerTicks);
+            _rulerContent = new VisualElement { pickingMode = PickingMode.Ignore, style = { position = Position.Absolute, top = 0, height = TimelineTheme.RulerHeight } };
+            _rulerViewport.Add(_rulerContent);
+            RegisterRulerEvents(_rulerViewport);
+
+            var viewportRow = new VisualElement { style = { flexGrow = 1, flexDirection = FlexDirection.Row, minHeight = 0 } };
+            rightColumn.Add(viewportRow);
+
+            _viewport = new VisualElement { style = { flexGrow = 1, overflow = Overflow.Hidden, position = Position.Relative, minWidth = 0 } };
+            viewportRow.Add(_viewport);
+            _gridBackground = new VisualElement
+            {
+                pickingMode = PickingMode.Ignore,
+                style = { position = Position.Absolute, left = 0, right = 0, top = 0, bottom = 0 }
+            };
+            _gridBackground.generateVisualContent += DrawGridBackground;
+            _viewport.Add(_gridBackground);
+            _canvas = new VisualElement { style = { position = Position.Absolute, left = 0, top = 0 } };
+            _viewport.Add(_canvas);
+            RegisterCanvasEvents(_canvas);
+            _viewport.RegisterCallback<GeometryChangedEvent>(_ => OnViewportResized());
+
+            _vScroller = new Scroller(0f, 1f, value => { if (!_applyingScroll) SetScroll(_state.ScrollPos.x, value); }, SliderDirection.Vertical)
+            {
+                style = { width = ScrollerSize, flexShrink = 0 }
+            };
+            viewportRow.Add(_vScroller);
+
+            _hScroller = new Scroller(0f, 1f, value => { if (!_applyingScroll) SetScroll(value, _state.ScrollPos.y); }, SliderDirection.Horizontal)
+            {
+                style = { height = ScrollerSize, flexShrink = 0, marginRight = ScrollerSize }
+            };
+            rightColumn.Add(_hScroller);
+
+            _headerSplitter = BuildHeaderSplitter();
+            _timelineRoot.Add(_headerSplitter);
         }
 
         private void OnAttach(AttachToPanelEvent evt)
         {
             RegisterRecording();
+            Undo.undoRedoPerformed += OnUndoRedo;
             evt.destinationPanel.visualTree.RegisterCallback<PointerMoveEvent>(OnGlobalMove, TrickleDown.TrickleDown);
             evt.destinationPanel.visualTree.RegisterCallback<PointerUpEvent>(OnGlobalUp, TrickleDown.TrickleDown);
         }
@@ -106,21 +239,42 @@ namespace HonamiAnimationSystem.Editor.Timeline
         private void OnDetach(DetachFromPanelEvent evt)
         {
             UnregisterRecording();
+            Undo.undoRedoPerformed -= OnUndoRedo;
             evt.originPanel.visualTree.UnregisterCallback<PointerMoveEvent>(OnGlobalMove, TrickleDown.TrickleDown);
             evt.originPanel.visualTree.UnregisterCallback<PointerUpEvent>(OnGlobalUp, TrickleDown.TrickleDown);
         }
+
+        private void OnUndoRedo() => _rebuild();
 
         private void StopSelection()
         {
             _state.IsBoxSelecting = false;
             _draggingPlayhead = false;
+            _panning = false;
             _state.IsDraggingPlayhead = false;
+            _state.SnapLineTime = -1f;
+            _gapClickModule = null;
+            _boxSelection?.RemoveFromHierarchy();
+            _boxSelection = null;
+            UpdatePropertiesPanel(PropertiesVisible());
             _rebuild();
         }
 
         private void OnGlobalMove(PointerMoveEvent evt)
         {
-            if (!_state.IsBoxSelecting && !_draggingPlayhead) return;
+            if (!_state.IsBoxSelecting && !_draggingPlayhead && !_panning) return;
+
+            if (_panning)
+            {
+                if ((evt.pressedButtons & 4) == 0)
+                {
+                    _panning = false;
+                    return;
+                }
+                Vector2 delta = (Vector2)evt.position - _panStartMouse;
+                SetScroll(_panStartScroll.x - delta.x, _panStartScroll.y - delta.y);
+                return;
+            }
 
             if ((evt.pressedButtons & 1) == 0)
             {
@@ -131,13 +285,17 @@ namespace HonamiAnimationSystem.Editor.Timeline
             var pos = _canvas.WorldToLocal(evt.position);
             if (_state.IsBoxSelecting)
             {
+                if (Vector2.Distance(_state.BoxSelectStartPos, pos) > DragThreshold)
+                    _gapClickModule = null;
+
                 float xMin = Mathf.Min(_state.BoxSelectStartPos.x, pos.x);
                 float yMin = Mathf.Min(_state.BoxSelectStartPos.y, pos.y);
                 float xMax = Mathf.Max(_state.BoxSelectStartPos.x, pos.x);
                 float yMax = Mathf.Max(_state.BoxSelectStartPos.y, pos.y);
                 _state.BoxSelectRect = new Rect(xMin, yMin, xMax - xMin, yMax - yMin);
-                UpdateBoxSelection();
-                _rebuild();
+                UpdateBoxSelection(evt.shiftKey || evt.ctrlKey || evt.commandKey);
+                UpdateBoxSelectionVisual();
+                RefreshSelectionVisuals();
             }
             else if (_draggingPlayhead)
             {
@@ -147,287 +305,161 @@ namespace HonamiAnimationSystem.Editor.Timeline
 
         private void OnGlobalUp(PointerUpEvent evt)
         {
-            if (_state.IsBoxSelecting || _draggingPlayhead)
+            bool hasGapClick = _gapClickModule != null && _state.IsBoxSelecting;
+            if (hasGapClick) SelectGap(_gapClickModule, _gapClickStart, _gapClickEnd);
+
+            if (_state.IsBoxSelecting || _draggingPlayhead || _panning)
                 StopSelection();
         }
 
         private void OnWheel(WheelEvent evt)
         {
-            if (!evt.altKey) return;
-            float multiplier = evt.delta.y < 0 ? 1.1f : 1f / 1.1f;
-            _state.TimeScale = Mathf.Clamp(_state.TimeScale * multiplier, 10f, 500f);
-            _state.SaveSettings();
-            _rebuild();
+            if (IsStateEmpty()) return;
+
+            Vector2 delta = evt.delta;
+            if (evt.ctrlKey || evt.commandKey || evt.altKey)
+            {
+                float anchor = _viewport.WorldToLocal(evt.mousePosition).x;
+                if (anchor < 0f || anchor > ViewportWidth())
+                    anchor = PlayheadViewportX();
+                ZoomAt(delta.y < 0f ? WheelZoomFactor : 1f / WheelZoomFactor, anchor);
+            }
+            else if (evt.shiftKey)
+            {
+                float amount = Mathf.Abs(delta.x) > Mathf.Abs(delta.y) ? delta.x : delta.y;
+                SetScroll(_state.ScrollPos.x + amount * WheelScrollStep * 2f, _state.ScrollPos.y);
+            }
+            else
+            {
+                SetScroll(_state.ScrollPos.x + delta.x * WheelScrollStep * 2f, _state.ScrollPos.y + delta.y * WheelScrollStep);
+            }
             evt.StopPropagation();
         }
 
-        private void OnDragUpdated(DragUpdatedEvent evt)
+        private float PlayheadViewportX() => Mathf.Clamp(_state.PlayheadTime * _state.TimeScale - _state.ScrollPos.x, 0f, ViewportWidth());
+
+        private void ZoomAt(float factor, float anchorViewportX)
         {
-            if (DragAndDrop.objectReferences.Length > 0 && DragAndDrop.objectReferences[0] is AnimationClip)
-            {
-                DragAndDrop.visualMode = DragAndDropVisualMode.Link;
-                evt.StopPropagation();
-            }
+            float old = _state.TimeScale;
+            float next = Mathf.Clamp(old * factor, TimelineState.MinTimeScale, TimelineState.MaxTimeScale);
+            if (Mathf.Approximately(old, next)) return;
+
+            float anchorTime = (_state.ScrollPos.x + anchorViewportX) / old;
+            _state.TimeScale = next;
+            _state.ScrollPos.x = anchorTime * next - anchorViewportX;
+            _state.SaveSettings();
+            Build();
         }
 
-        private void OnDragPerform(DragPerformEvent evt)
+        private void ZoomToRange(float start, float end)
         {
-            if (DragAndDrop.objectReferences.Length > 0 && DragAndDrop.objectReferences[0] is AnimationClip clip)
-            {
-                DragAndDrop.AcceptDrag();
-                _state.Mode = TimelineMode.HonamiClipEdit;
-                _state.ActiveClip = clip;
-                _state.PlayheadTime = 0f;
-                _state.IsPlaying = false;
-                _state.PreviewEnabled = true;
-                _rebuild();
-                evt.StopPropagation();
-            }
+            float width = ViewportWidth();
+            if (width < 10f) return;
+            float span = Mathf.Max(end - start, _state.FrameDuration * 4f);
+            _state.TimeScale = Mathf.Clamp(width * 0.9f / span, TimelineState.MinTimeScale, TimelineState.MaxTimeScale);
+            _state.ScrollPos.x = start * _state.TimeScale - width * 0.05f;
+            _state.SaveSettings();
+            Build();
         }
 
-        private void RegisterCanvasEvents(VisualElement canvas)
+        private void FitAll() => ZoomToRange(0f, _state.GetDuration());
+
+        private float ViewportWidth()
         {
-            canvas.RegisterCallback<PointerDownEvent>(evt =>
-            {
-                if (evt.button == 1)
-                {
-                    _focus();
-                    var local = canvas.WorldToLocal(evt.position);
-                    if (_state.Mode == TimelineMode.HonamiClipEdit)
-                        ShowClipEditContextMenu(local.y);
-                    else
-                        ShowAddMenu(Mathf.Clamp(TimeAtCanvasX(local.x), 0f, _state.GetDuration()));
-                    evt.StopPropagation();
-                    return;
-                }
-
-                if (evt.button != 0) return;
-                _focus();
-
-                var pos = canvas.WorldToLocal(evt.position);
-                if (!HitsAnyItem(pos))
-                {
-                    if (!evt.shiftKey && !evt.ctrlKey && !evt.commandKey)
-                        _state.ClearSelection();
-
-                    _state.IsBoxSelecting = true;
-                    _state.BoxSelectStartPos = pos;
-                    _state.BoxSelectRect = new Rect(pos.x, pos.y, 0, 0);
-                }
-                else
-                {
-                    _state.IsDraggingPlayhead = true;
-                    _draggingPlayhead = true;
-                    SetPlayheadFromLocal(pos.x, false, evt.shiftKey);
-                }
-                evt.StopPropagation();
-            });
-
-            canvas.RegisterCallback<PointerCaptureOutEvent>(_ =>
-            {
-                if (_state.IsBoxSelecting || _draggingPlayhead)
-                    StopSelection();
-            });
+            float width = _viewport.layout.width;
+            return float.IsNaN(width) || width < 1f ? 800f : width;
         }
 
-        private bool HitsAnyItem(Vector2 pos)
+        private float ViewportHeight()
         {
-            foreach (var r in _state.EventRects.Values) if (r.Contains(pos)) return true;
-            foreach (var r in _state.TimelineClipRects.Values) if (r.Contains(pos)) return true;
-            foreach (var r in _state.TimelineEventRects.Values) if (r.Contains(pos)) return true;
-            foreach (var r in _state.SeqClipRects.Values) if (r.Contains(pos)) return true;
-            foreach (var r in _state.KeyframeRects.Values) if (r.Contains(pos)) return true;
-            return false;
+            float height = _viewport.layout.height;
+            return float.IsNaN(height) || height < 1f ? 300f : height;
         }
 
-        private void UpdateBoxSelection()
+        private void OnViewportResized()
         {
-            Rect box = _state.BoxSelectRect;
-            bool append = Event.current != null && (Event.current.shift || Event.current.control || Event.current.command);
-
-            if (!append)
+            if (IsStateEmpty())
             {
-                _state.SelectedEvents.Clear();
-                _state.SelectedTimelineClips.Clear();
-                _state.SelectedTimelineEvents.Clear();
-                _state.SelectedSeqClips.Clear();
-                _state.SelectedKeyframes.Clear();
-            }
-
-            foreach (var kv in _state.EventRects)
-                if (box.Overlaps(kv.Value) && !_state.SelectedEvents.Contains(kv.Key)) _state.SelectedEvents.Add(kv.Key);
-
-            foreach (var kv in _state.TimelineClipRects)
-                if (box.Overlaps(kv.Value) && !_state.SelectedTimelineClips.Contains(kv.Key)) _state.SelectedTimelineClips.Add(kv.Key);
-
-            foreach (var kv in _state.TimelineEventRects)
-                if (box.Overlaps(kv.Value) && !_state.SelectedTimelineEvents.Contains(kv.Key)) _state.SelectedTimelineEvents.Add(kv.Key);
-
-            foreach (var kv in _state.SeqClipRects)
-                if (box.Overlaps(kv.Value) && !_state.SelectedSeqClips.Contains(kv.Key)) _state.SelectedSeqClips.Add(kv.Key);
-
-            foreach (var kv in _state.KeyframeRects)
-                if (box.Overlaps(kv.Value) && !_state.SelectedKeyframes.Contains(kv.Key)) _state.SelectedKeyframes.Add(kv.Key);
-        }
-
-        private void OnKeyDown(KeyDownEvent evt)
-        {
-            if (evt.target is VisualElement target &&
-                (target is TextField || target is FloatField || target.GetType().Name.Contains("TextInput")))
-                return;
-
-            if (evt.keyCode == KeyCode.Space)
-            {
-                TimelineState.TogglePlayback(_state);
-                _rebuild();
-                evt.StopPropagation();
+                ApplyScroll();
                 return;
             }
-
-            if (evt.keyCode == KeyCode.LeftArrow || evt.keyCode == KeyCode.RightArrow)
+            float width = ComputeTimelineWidth();
+            float height = ComputeContentHeight();
+            if (!Mathf.Approximately(width, _canvasWidth) || !Mathf.Approximately(height, _canvasHeight))
             {
-                float fps = DisplayFps();
-                float step = fps > 0 ? 1f / fps : 0.016f;
-                bool toEdge = evt.ctrlKey || evt.commandKey;
-                if (evt.keyCode == KeyCode.LeftArrow)
-                    _state.PlayheadTime = toEdge ? 0f : Mathf.Max(0f, _state.PlayheadTime - step);
-                else
-                    _state.PlayheadTime = toEdge ? _state.GetDuration() : Mathf.Min(_state.GetDuration(), _state.PlayheadTime + step);
-                _rebuild();
-                evt.StopPropagation();
+                Build();
                 return;
             }
-
-            if (evt.ctrlKey || evt.commandKey)
-            {
-                if (evt.keyCode == KeyCode.C)
-                {
-                    CopySelection();
-                    evt.StopPropagation();
-                    return;
-                }
-                if (evt.keyCode == KeyCode.V)
-                {
-                    PasteSelection();
-                    _rebuild();
-                    evt.StopPropagation();
-                    return;
-                }
-            }
-
-            if (evt.keyCode == KeyCode.Delete || evt.keyCode == KeyCode.Backspace)
-                DeleteSelection(evt);
+            ApplyScroll();
         }
 
-        private void DeleteSelection(KeyDownEvent evt)
+        private void SetScroll(float x, float y)
         {
-            bool changed = false;
-
-            if (_state.SelectedTimelineClips.Count > 0)
-            {
-                HonamiEditorController.DeleteTimelineClips(_state.ActiveTimeline, new List<HonamiTimelineClip>(_state.SelectedTimelineClips));
-                _state.SelectedTimelineClips.Clear();
-                changed = true;
-            }
-
-            if (_state.SelectedTimelineEvents.Count > 0)
-            {
-                HonamiEditorController.DeleteTimelineEvents(_state.ActiveTimeline, new List<HonamiTimelineEvent>(_state.SelectedTimelineEvents));
-                _state.SelectedTimelineEvents.Clear();
-                changed = true;
-            }
-
-            if (_state.SelectedSeqClips.Count > 0)
-            {
-                _state.PreModifyState();
-                for (int i = _state.SelectedSeqClips.Count - 1; i >= 0; i--)
-                    HonamiEditorController.DeleteSequencedClip(_state.SeqNode, _state.SelectedSeqClips[i]);
-                _state.PostModifyState();
-                _state.SelectedSeqClips.Clear();
-                changed = true;
-            }
-
-            if (_state.SelectedEvents.Count > 0)
-            {
-                _state.PreModifyState();
-                HonamiEditorController.DeleteStateEvents(_state.SelectedState, new List<HonamiEventMarker>(_state.SelectedEvents));
-                _state.PostModifyState();
-                _state.SelectedEvents.Clear();
-                changed = true;
-            }
-
-            if (_state.Mode == TimelineMode.HonamiClipEdit && _state.SelectedKeyframes.Count > 0)
-            {
-                DeleteSelectedKeyframes();
-                changed = true;
-            }
-
-            if (changed)
-            {
-                evt.StopPropagation();
-                _rebuild();
-            }
+            _state.ScrollPos = new Vector2(x, y);
+            ApplyScroll();
         }
 
-        private void CopySelection()
+        private void ApplyScroll()
         {
-            TimelineState.CopiedEvents.Clear();
-            TimelineState.CopiedEvents.AddRange(_state.SelectedEvents);
+            float maxX = Mathf.Max(0f, _canvasWidth - ViewportWidth());
+            float maxY = Mathf.Max(0f, _canvasHeight - ViewportHeight());
+            float x = Mathf.Clamp(_state.ScrollPos.x, 0f, maxX);
+            float y = Mathf.Clamp(_state.ScrollPos.y, 0f, maxY);
+            _state.ScrollPos = new Vector2(x, y);
 
-            TimelineState.CopiedTimelineClips.Clear();
-            TimelineState.CopiedTimelineClips.AddRange(_state.SelectedTimelineClips);
+            _canvas.style.left = -x;
+            _canvas.style.top = -y;
+            _rulerContent.style.left = -x;
+            _headers.style.top = -y;
 
-            TimelineState.CopiedTimelineEvents.Clear();
-            TimelineState.CopiedTimelineEvents.AddRange(_state.SelectedTimelineEvents);
+            _applyingScroll = true;
+            UpdateScroller(_hScroller, x, maxX, ViewportWidth(), _canvasWidth);
+            UpdateScroller(_vScroller, y, maxY, ViewportHeight(), _canvasHeight);
+            _applyingScroll = false;
 
-            if (_state.Mode == TimelineMode.HonamiClipEdit)
-                CopySelectedKeyframes();
+            _rulerTicks.MarkDirtyRepaint();
+            _gridBackground.MarkDirtyRepaint();
         }
 
-        private void PasteSelection()
+        // Shrinking the range clamps the slider and fires its callback, so the value is set before and after the range.
+        private static void UpdateScroller(Scroller scroller, float value, float max, float viewport, float content)
         {
-            if (_state.Mode == TimelineMode.HonamiClipEdit)
+            scroller.slider.SetValueWithoutNotify(value);
+            scroller.lowValue = 0f;
+            scroller.highValue = Mathf.Max(0.001f, max);
+            scroller.slider.pageSize = viewport;
+            scroller.Adjust(content > 0f ? Mathf.Clamp01(viewport / content) : 1f);
+            scroller.slider.SetValueWithoutNotify(value);
+            scroller.SetEnabled(max > 0.5f);
+        }
+
+        private void FollowPlayhead()
+        {
+            if (_state.IsDraggingPlayhead) return;
+            float width = ViewportWidth();
+            float x = _state.PlayheadTime * _state.TimeScale;
+            float left = _state.ScrollPos.x;
+            if (x > left + width - 24f)
+                SetScroll(x - width * 0.1f, _state.ScrollPos.y);
+            else if (x < left)
+                SetScroll(x - width * 0.9f, _state.ScrollPos.y);
+        }
+
+        private void ModifyModules(Action<IHonamiTimelineModuleContainer> change)
+        {
+            _state.PreModifyState();
+            var container = _state.ActiveContainer;
+            if (container == null) return;
+            change(container);
+            _state.PostModifyState();
+
+            // If preview is active, force a full re-sample so any modules that were
+            // just muted (or unmuted) immediately reflect their new state in the scene.
+            // Without this, RepaintViews skips the pass when the playhead hasn't moved.
+            if (_state.PreviewEnabled)
             {
-                PasteKeyframes();
-                return;
-            }
-
-            if (_state.Mode == TimelineMode.HonamiState && _state.SelectedState != null)
-            {
-                var eventsToPaste = new List<HonamiEventMarker>();
-                if (TimelineState.CopiedEvents.Count > 0)
-                {
-                    eventsToPaste.AddRange(TimelineState.CopiedEvents);
-                }
-                else if (TimelineState.CopiedTimelineEvents.Count > 0)
-                {
-                    foreach (var te in TimelineState.CopiedTimelineEvents)
-                        eventsToPaste.Add(new HonamiEventMarker { time = te.time, eventType = HonamiEventType.Global, eventName = te.eventId, globalEventId = te.eventId });
-                }
-
-                if (eventsToPaste.Count > 0)
-                {
-                    _state.PreModifyState();
-                    HonamiEditorController.PasteStateEvents(_state.SelectedState, eventsToPaste, _state.PlayheadTime);
-                    _state.PostModifyState();
-                }
-            }
-            else if (_state.Mode == TimelineMode.HonamiTimeline && _state.ActiveTimeline != null && _state.SelectedTimelineTrack != null)
-            {
-                var clipsToPaste = new List<HonamiTimelineClip>(TimelineState.CopiedTimelineClips);
-                var eventsToPaste = new List<HonamiTimelineEvent>();
-
-                if (TimelineState.CopiedTimelineEvents.Count > 0)
-                {
-                    eventsToPaste.AddRange(TimelineState.CopiedTimelineEvents);
-                }
-                else if (TimelineState.CopiedEvents.Count > 0)
-                {
-                    foreach (var se in TimelineState.CopiedEvents)
-                        eventsToPaste.Add(new HonamiTimelineEvent { time = se.time, eventId = se.eventType == HonamiEventType.Local ? se.eventName : se.globalEventId });
-                }
-
-                HonamiEditorController.PasteTimelineElements(_state.ActiveTimeline, _state.SelectedTimelineTrack, clipsToPaste, eventsToPaste, _state.PlayheadTime);
+                HonamiTimelineModuleEditorRegistry.StopAllPreviews();
+                _state.LastSampledTime = float.NaN;
             }
         }
 
@@ -442,174 +474,142 @@ namespace HonamiAnimationSystem.Editor.Timeline
 
         private bool PropertiesVisible() => HasProperties() && _state.ShowProperties;
 
-        private float ViewportWidth()
+        private float ComputeTimelineWidth()
         {
-            float width = _lastTimelineViewportWidth > 1f ? _lastTimelineViewportWidth : resolvedStyle.width;
-            if (PropertiesVisible() && width > _state.PropsWidth)
-                width -= _state.PropsWidth;
-            return width;
+            float viewport = ViewportWidth();
+            return Mathf.Max(_state.GetDuration() * _state.TimeScale + viewport * 0.5f, viewport);
         }
 
-        private float ComputeTimelineWidth(float viewportWidth)
+        private float ComputeContentHeight()
         {
-            return IsStateEmpty()
-                ? Mathf.Max(viewportWidth - _state.TrackHeaderWidth, 900f)
-                : _state.GetTimelineWidth(viewportWidth > 1f ? viewportWidth : 900f);
-        }
-
-        private void RefreshCanvasWidth()
-        {
-            float timelineWidth = ComputeTimelineWidth(ViewportWidth());
-            _content.style.width = _state.TrackHeaderWidth + timelineWidth;
-            _canvas.style.width = timelineWidth;
-
-            foreach (var child in _canvas.Children())
-            {
-                if (child is IMGUIContainer imgui)
-                    imgui.MarkDirtyRepaint();
-            }
+            float addRow = HasAddModuleRow ? AddModuleRowHeight : 0f;
+            return Mathf.Max(ViewportHeight(), _rowCount * TimelineTheme.RowHeight + addRow + 40f);
         }
 
         private void Build()
         {
-            if (_scroll != null)
-                _state.ScrollPos = _scroll.scrollOffset;
-
-            _mainArea.Clear();
+            // Save any active inline rename before clearing headers
+            CommitActiveRename(true);
             _elements.Clear();
-
-            bool hasProps = PropertiesVisible();
-            var timelineRoot = new VisualElement
-            {
-                style =
-                {
-                    flexGrow = 1,
-                    minWidth = 0,
-                    minHeight = 0,
-                    borderTopWidth = 2,
-                    borderTopColor = _isActive() ? TimelineTheme.Accent : TimelineTheme.SubtleLine
-                }
-            };
-            _mainArea.Add(timelineRoot);
-
-            _scroll = new ScrollView(ScrollViewMode.VerticalAndHorizontal);
-            _scroll.style.flexGrow = 1;
-            _scroll.style.backgroundColor = TimelineTheme.PanelBg;
-            timelineRoot.Add(_scroll);
-
-            float timelineWidth = ComputeTimelineWidth(ViewportWidth());
-            _rowCount = IsStateEmpty() ? 0 : GetRows().Count;
-            float contentHeight = Mathf.Max(280f, TimelineTheme.RulerHeight + _rowCount * TimelineTheme.RowHeight + 24f);
-
-            _content = new VisualElement
-            {
-                style =
-                {
-                    position = Position.Relative,
-                    width = _state.TrackHeaderWidth + timelineWidth,
-                    height = contentHeight,
-                    flexDirection = FlexDirection.Row
-                }
-            };
-            _scroll.Add(_content);
-            _scroll.scrollOffset = _state.ScrollPos;
-
-            if (_headers == null)
-            {
-                _headers = new VisualElement
-                {
-                    style =
-                    {
-                        position = Position.Absolute,
-                        left = 0,
-                        top = 0,
-                        width = _state.TrackHeaderWidth,
-                        backgroundColor = TimelineTheme.HeaderBg,
-                        overflow = Overflow.Hidden
-                    }
-                };
-            }
-            _headers.style.height = contentHeight;
+            _markerElements.Clear();
             _headers.Clear();
-            _content.Add(_headers);
-
-            if (_canvas == null)
-            {
-                _canvas = new VisualElement
-                {
-                    style =
-                    {
-                        position = Position.Absolute,
-                        left = _state.TrackHeaderWidth,
-                        top = 0,
-                        backgroundColor = TimelineTheme.TrackBgA,
-                        overflow = Overflow.Hidden
-                    }
-                };
-                RegisterCanvasEvents(_canvas);
-            }
-            _canvas.style.width = timelineWidth;
-            _canvas.style.height = contentHeight;
             _canvas.Clear();
-            _content.Add(_canvas);
+            _rulerContent.Clear();
+            _playheadLine = _playheadHead = _snapLine = null;
+            _dropGhost = null;
+            _bladeLine = null;
+            _boxSelection = null;
+            _emptyOverlay?.RemoveFromHierarchy();
+            _emptyOverlay = null;
 
-            _content.Add(BuildHeaderSplitter(contentHeight));
+            _timelineRoot.style.borderTopColor = _isActive() ? TimelineTheme.Accent : TimelineTheme.SubtleLine;
+            _leftColumn.style.width = _state.TrackHeaderWidth;
+            _headerSplitter.style.left = _state.TrackHeaderWidth - 2f;
 
-            if (IsStateEmpty())
+            bool empty = IsStateEmpty();
+            _rowCount = empty ? 0 : GetRows().Count;
+            _canvasWidth = empty ? ViewportWidth() : ComputeTimelineWidth();
+            _canvasHeight = empty ? ViewportHeight() : ComputeContentHeight();
+            _canvas.style.width = _canvasWidth;
+            _canvas.style.height = _canvasHeight;
+            _rulerContent.style.width = _canvasWidth;
+            _headers.style.height = _canvasHeight;
+
+            if (empty)
             {
                 DrawEmptyState();
             }
             else
             {
-                DrawTimelineOverlay(contentHeight);
-                DrawRows(timelineWidth);
+                DrawRows();
                 DrawContent();
-                DrawSnapLine(contentHeight);
-                DrawBoxSelection();
-                DrawPlayhead(contentHeight);
+                DrawRulerMarkers();
+                DrawSnapLine();
+                DrawPlayhead();
             }
 
-            if (hasProps)
+            ApplyScroll();
+            UpdatePropertiesPanel(PropertiesVisible());
+            RefreshTransport();
+            RefreshCornerTimecode();
+        }
+
+        private void RefreshCornerTimecode()
+        {
+            if (_cornerTimecode == null) return;
+            _cornerTimecode.text = IsStateEmpty() ? string.Empty : TimelineTimecode.Format(_state.PlayheadTime, _state.FrameRate, _state.EffectiveTimeFormat);
+        }
+
+        private void UpdatePropertiesPanel(bool visible)
+        {
+            if (!visible)
+            {
+                _properties?.RemoveFromHierarchy();
+                _propsSplitter?.RemoveFromHierarchy();
+                _properties = null;
+                _propsSplitter = null;
+                _propertiesKey = null;
+                return;
+            }
+
+            if (_properties == null)
             {
                 _properties = new VisualElement
                 {
                     style =
                     {
-                        width = _state.PropsWidth,
                         flexShrink = 0,
                         backgroundColor = TimelineTheme.PanelBg,
                         borderLeftWidth = 2,
                         borderLeftColor = TimelineTheme.AccentDim
                     }
                 };
+                _propsSplitter = BuildPropsSplitter();
                 _mainArea.Add(_properties);
-                _mainArea.Add(BuildPropsSplitter());
-                BuildProperties();
+                _mainArea.Add(_propsSplitter);
+                _propertiesKey = null;
             }
 
-            RefreshTransport();
+            float propsWidth = Mathf.Clamp(_state.PropsWidth > 0f ? _state.PropsWidth : TimelineTheme.PropsWidth, 180f, 700f);
+            _state.PropsWidth = propsWidth;
+            _properties.style.width = propsWidth;
+            _properties.style.minWidth = 180f;
+            _properties.style.maxWidth = 700f;
+            _properties.style.display = DisplayStyle.Flex;
+            _propsSplitter.style.right = propsWidth - 2;
+
+            object key = BoundPropertiesKey();
+            if (key != null && key.Equals(_propertiesKey) && _properties.childCount > 0) return;
+
+            try
+            {
+                BuildProperties();
+                _propertiesKey = key;
+            }
+            catch (Exception ex)
+            {
+                _propertiesKey = null;
+                Debug.LogException(ex);
+            }
         }
 
-        private VisualElement BuildHeaderSplitter(float contentHeight)
+        private VisualElement BuildHeaderSplitter()
         {
             var splitter = CreateSplitter(
                 value => _state.IsResizingTrackHeader = value,
                 () => _state.IsResizingTrackHeader,
                 onFinish: () => { _state.SaveSettings(); _rebuild(); });
-            splitter.style.left = _state.TrackHeaderWidth - 2;
-            splitter.style.height = contentHeight;
+            splitter.style.bottom = 0;
 
             splitter.RegisterCallback<PointerMoveEvent>(evt =>
             {
                 if (!_state.IsResizingTrackHeader || !splitter.HasPointerCapture(evt.pointerId)) return;
-                float newWidth = Mathf.Clamp(_content.WorldToLocal(evt.position).x, 100f, 600f);
+                float newWidth = Mathf.Clamp(_timelineRoot.WorldToLocal(evt.position).x, 120f, 600f);
                 if (Mathf.Abs(_state.TrackHeaderWidth - newWidth) > 0.5f)
                 {
                     _state.TrackHeaderWidth = newWidth;
-                    _headers.style.width = newWidth;
-                    _canvas.style.left = newWidth;
+                    _leftColumn.style.width = newWidth;
                     splitter.style.left = newWidth - 2;
-                    RefreshCanvasWidth();
                 }
                 evt.StopPropagation();
             });
@@ -621,23 +621,20 @@ namespace HonamiAnimationSystem.Editor.Timeline
             var splitter = CreateSplitter(
                 value => _state.IsResizingPropsPanel = value,
                 () => _state.IsResizingPropsPanel,
-                onFinish: () => _state.SaveSettings());
+                onFinish: () => { _state.SaveSettings(); _rebuild(); });
             splitter.style.right = _state.PropsWidth - 2;
             splitter.style.bottom = 0;
 
             splitter.RegisterCallback<PointerMoveEvent>(evt =>
             {
                 if (!_state.IsResizingPropsPanel || !splitter.HasPointerCapture(evt.pointerId)) return;
-                float parentWidth = resolvedStyle.width;
-                if (parentWidth < 1f) parentWidth = _lastTimelineViewportWidth;
-
-                float newWidth = Mathf.Clamp(parentWidth - this.WorldToLocal(evt.position).x, 100f, 600f);
+                float parentWidth = _mainArea.resolvedStyle.width;
+                float newWidth = Mathf.Clamp(parentWidth - _mainArea.WorldToLocal(evt.position).x, 180f, 700f);
                 if (Mathf.Abs(_state.PropsWidth - newWidth) > 0.5f)
                 {
                     _state.PropsWidth = newWidth;
                     _properties.style.width = newWidth;
                     splitter.style.right = newWidth - 2;
-                    RefreshCanvasWidth();
                 }
                 evt.StopPropagation();
             });
@@ -655,11 +652,7 @@ namespace HonamiAnimationSystem.Editor.Timeline
                     width = 4
                 }
             };
-
-            var cursorContainer = new IMGUIContainer(() =>
-                EditorGUIUtility.AddCursorRect(new Rect(0, 0, splitter.layout.width, splitter.layout.height), MouseCursor.SplitResizeLeftRight));
-            cursorContainer.style.flexGrow = 1;
-            splitter.Add(cursorContainer);
+            splitter.AddManipulator(new HonamiTimelineItemView.CursorManipulator(MouseCursor.SplitResizeLeftRight));
 
             splitter.RegisterCallback<PointerDownEvent>(evt =>
             {
@@ -685,4 +678,3 @@ namespace HonamiAnimationSystem.Editor.Timeline
         }
     }
 }
-#endif

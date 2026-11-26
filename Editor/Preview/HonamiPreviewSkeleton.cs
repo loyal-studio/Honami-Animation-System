@@ -1,5 +1,4 @@
-#if UNITY_EDITOR
-using System;
+﻿using System;
 using System.Collections.Generic;
 using HonamiAnimationSystem.Runtime.Common;
 using UnityEditor;
@@ -145,6 +144,122 @@ namespace HonamiAnimationSystem.Editor.Preview
                 _baseLocalRot[i] = _bones[i].localRotation;
                 _baseLocalScale[i] = _bones[i].localScale;
             }
+
+            BuildMirrorPartners(count);
+        }
+
+        // The preview skeleton is synthesized from clip curve paths, so there is no avatar to read
+        // mirror pairs from - they are matched by the usual left/right naming instead.
+        private void BuildMirrorPartners(int count)
+        {
+            _mirrorPartner = new int[count];
+            _mirrorPos = new Vector3[count];
+            _mirrorRot = new Quaternion[count];
+
+            var leftKeys = new Dictionary<string, int>(count);
+            var rightKeys = new Dictionary<string, int>(count);
+
+            for (int i = 0; i < count; i++)
+            {
+                _mirrorPartner[i] = -1;
+
+                if (!TrySplitSide(_bones[i].name, out string key, out bool isLeft)) continue;
+                var table = isLeft ? leftKeys : rightKeys;
+                table[key] = i;
+            }
+
+            foreach (var pair in leftKeys)
+            {
+                if (!rightKeys.TryGetValue(pair.Key, out int right)) continue;
+                _mirrorPartner[pair.Value] = right;
+                _mirrorPartner[right] = pair.Value;
+            }
+        }
+
+        // Rigs name sides in several ways, and the token is not always at an end of the name
+        // ("mixamorig:LeftUpLeg"). A match counts only at a word boundary or when it is capitalised,
+        // so "Cleft" and "Bright_Bone" are not mistaken for sided bones.
+        private static bool TrySplitSide(string name, out string key, out bool isLeft)
+        {
+            key = null;
+            isLeft = false;
+            if (string.IsNullOrEmpty(name)) return false;
+
+            if (TryFindSideToken(name, "right", out key)) { isLeft = false; return true; }
+            if (TryFindSideToken(name, "left", out key)) { isLeft = true; return true; }
+
+            foreach (string suffix in SideSuffixes)
+            {
+                if (name.Length <= suffix.Length || !name.EndsWith(suffix, StringComparison.Ordinal)) continue;
+                key = name.Substring(0, name.Length - suffix.Length);
+                isLeft = suffix[^1] is 'L' or 'l';
+                return true;
+            }
+
+            foreach (string prefix in SidePrefixes)
+            {
+                if (name.Length <= prefix.Length || !name.StartsWith(prefix, StringComparison.Ordinal)) continue;
+                key = name.Substring(prefix.Length);
+                isLeft = prefix[0] is 'L' or 'l';
+                return true;
+            }
+
+            return false;
+        }
+
+        private static bool TryFindSideToken(string name, string token, out string key)
+        {
+            key = null;
+
+            for (int start = 0; start <= name.Length - token.Length; start++)
+            {
+                int index = name.IndexOf(token, start, StringComparison.OrdinalIgnoreCase);
+                if (index < 0) return false;
+
+                bool atBoundary = index == 0 || !char.IsLetter(name[index - 1]);
+                bool capitalised = char.IsUpper(name[index]);
+
+                if (atBoundary || capitalised)
+                {
+                    // The side token is replaced rather than trimmed, so the two counterparts of a
+                    // pair collapse onto the same key wherever the token sits in the name.
+                    key = name.Substring(0, index) + '\u0001' + name.Substring(index + token.Length);
+                    return true;
+                }
+
+                start = index;
+            }
+
+            return false;
+        }
+
+        private static readonly string[] SideSuffixes = { "_L", "_R", ".L", ".R", "_l", "_r", ".l", ".r" };
+        private static readonly string[] SidePrefixes = { "L_", "R_", "l_", "r_" };
+
+        /// <summary>
+        /// Mirrors the pose currently on the skeleton: paired bones swap, and every bone is flipped
+        /// across the YZ plane. Matches what the runtime mirror playable produces.
+        /// </summary>
+        private void ApplyMirror()
+        {
+            int count = _bones.Length;
+            if (_mirrorPartner.Length != count) return;
+
+            for (int i = 0; i < count; i++)
+            {
+                _mirrorPos[i] = _bones[i].localPosition;
+                _mirrorRot[i] = _bones[i].localRotation;
+            }
+
+            for (int i = 0; i < count; i++)
+            {
+                int source = _mirrorPartner[i] >= 0 ? _mirrorPartner[i] : i;
+                Vector3 position = _mirrorPos[source];
+                Quaternion rotation = _mirrorRot[source];
+
+                _bones[i].localPosition = new Vector3(-position.x, position.y, position.z);
+                _bones[i].localRotation = new Quaternion(rotation.x, -rotation.y, -rotation.z, rotation.w);
+            }
         }
 
         public void SampleSingle(AnimationClip clip, float normalizedTime, bool loop, bool reversed)
@@ -171,24 +286,87 @@ namespace HonamiAnimationSystem.Editor.Preview
             weights.Clear();
             HonamiBlendWeightUtility.CalculateWeights(motions, parameterValue, weights, _sorted.AsSpan(0, motionCount));
 
+            float avgDur = HonamiBlendTreeEvaluator.GetDurationFromMotions(AsList(motions), parameterValue);
+
+            EnsureMotionBuffers(motionCount);
+            for (int m = 0; m < motionCount; m++)
+            {
+                _clipBuffer[m] = motions[m].clip;
+                _speedBuffer[m] = motions[m].speed;
+                _mirrorBuffer[m] = motions[m].mirror;
+            }
+
+            AccumulateWeightedPose(weights, motionCount, avgDur, normalizedTime, reversed);
+        }
+
+        /// <summary>
+        /// Samples a blend space of any dimension at the given axis values.
+        /// </summary>
+        public void SampleBlendSpace(
+            IReadOnlyList<HonamiBlendSpaceMotion> motions,
+            int axisCount,
+            HonamiBlendSpaceType spaceType,
+            ReadOnlySpan<float> sample,
+            float normalizedTime,
+            bool loop,
+            bool reversed)
+        {
+            if (_root == null || motions == null || motions.Count == 0) return;
+
+            int motionCount = motions.Count;
+            if (_weights.Length < motionCount)
+            {
+                _weights = new float[motionCount];
+                _sorted = new (float, int)[motionCount];
+            }
+
+            var weights = _weights.AsSpan(0, motionCount);
+            weights.Clear();
+            HonamiBlendSpaceSolver.CalculateWeights(motions, axisCount, spaceType, sample, weights);
+
+            float avgDur = HonamiBlendSpaceSolver.GetBlendedDuration(motions, weights);
+
+            EnsureMotionBuffers(motionCount);
+            for (int m = 0; m < motionCount; m++)
+            {
+                _clipBuffer[m] = motions[m].clip;
+                _speedBuffer[m] = motions[m].speed;
+                _mirrorBuffer[m] = motions[m].mirror;
+            }
+
+            AccumulateWeightedPose(weights, motionCount, avgDur, normalizedTime, reversed);
+        }
+
+        private void EnsureMotionBuffers(int motionCount)
+        {
+            if (_clipBuffer.Length >= motionCount) return;
+            _clipBuffer = new AnimationClip[motionCount];
+            _speedBuffer = new float[motionCount];
+            _mirrorBuffer = new bool[motionCount];
+        }
+
+        // Shared by both blend kinds: sample every weighted clip at the blended duration and
+        // accumulate the result into one pose.
+        private void AccumulateWeightedPose(ReadOnlySpan<float> weights, int motionCount, float avgDur, float normalizedTime, bool reversed)
+        {
             int boneCount = _bones.Length;
             Array.Clear(_blendPos, 0, boneCount);
             Array.Clear(_blendScale, 0, boneCount);
             Array.Clear(_hasRot, 0, boneCount);
 
-            float avgDur = HonamiBlendTreeEvaluator.GetDurationFromMotions(AsList(motions), parameterValue);
             float total = 0f;
 
             for (int m = 0; m < motionCount; m++)
             {
-                var motion = motions[m];
+                AnimationClip clip = _clipBuffer[m];
                 float weight = weights[m];
-                if (motion.clip == null || weight <= 0.0001f) continue;
+                if (clip == null || weight <= 0.0001f) continue;
 
-                float clipLength = motion.clip.length;
+                float clipLength = clip.length;
+                float motionSpeed = _speedBuffer[m];
                 float speed = avgDur > 0.0001f && clipLength > 0f
                     ? clipLength / avgDur
-                    : (motion.speed != 0f ? Mathf.Abs(motion.speed) : 1f);
+                    : (motionSpeed != 0f ? Mathf.Abs(motionSpeed) : 1f);
 
                 float sampleTime = normalizedTime * avgDur * speed;
                 if (reversed) sampleTime = clipLength - sampleTime;
@@ -197,7 +375,8 @@ namespace HonamiAnimationSystem.Editor.Preview
                     : 0f;
 
                 ResetToBase();
-                motion.clip.SampleAnimation(_root, sampleTime);
+                clip.SampleAnimation(_root, sampleTime);
+                if (_mirrorBuffer[m]) ApplyMirror();
 
                 float next = total + weight;
                 float rotationBlend = next > 0f ? weight / next : 1f;
@@ -323,6 +502,13 @@ namespace HonamiAnimationSystem.Editor.Preview
             return hash;
         }
 
+        private AnimationClip[] _clipBuffer = Array.Empty<AnimationClip>();
+        private float[] _speedBuffer = Array.Empty<float>();
+        private bool[] _mirrorBuffer = Array.Empty<bool>();
+        private int[] _mirrorPartner = Array.Empty<int>();
+        private Vector3[] _mirrorPos = Array.Empty<Vector3>();
+        private Quaternion[] _mirrorRot = Array.Empty<Quaternion>();
+
         private static readonly List<HonamiBlendTreeMotion> MotionListBuffer = new();
         private static List<HonamiBlendTreeMotion> AsList(IReadOnlyList<HonamiBlendTreeMotion> motions)
         {
@@ -346,4 +532,3 @@ namespace HonamiAnimationSystem.Editor.Preview
         }
     }
 }
-#endif

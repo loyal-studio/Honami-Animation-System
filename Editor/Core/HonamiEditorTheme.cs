@@ -1,4 +1,3 @@
-#if UNITY_EDITOR
 using UnityEngine;
 
 namespace HonamiAnimationSystem.Editor
@@ -37,4 +36,3 @@ namespace HonamiAnimationSystem.Editor
             new(color.r * factor, color.g * factor, color.b * factor, color.a);
     }
 }
-#endif

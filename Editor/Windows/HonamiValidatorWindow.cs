@@ -1,4 +1,4 @@
-using UnityEngine;
+﻿using UnityEngine;
 using UnityEditor;
 using System.Collections.Generic;
 using System.IO;
@@ -125,7 +125,7 @@ namespace HonamiAnimationSystem.Editor
 
             if (dirty)
             {
-                AssetDatabase.SaveAssets();
+                HonamiEditorController.SaveDirtyHonamiAssets();
                 FlushMissingScriptCleanup();
                 Log("\nDone. Fixes were applied and saved successfully.");
                 Debug.Log($"[Honami Validator] Validated controller '{_controller.name}', applied and saved fixes.");
@@ -163,11 +163,9 @@ namespace HonamiAnimationSystem.Editor
                 }
             }
 
-            issueCount += ProcessOverrideMigrations(dryRun);
-
             if (!dryRun && issueCount > 0)
             {
-                AssetDatabase.SaveAssets();
+                HonamiEditorController.SaveDirtyHonamiAssets();
                 FlushMissingScriptCleanup();
             }
 
@@ -180,29 +178,6 @@ namespace HonamiAnimationSystem.Editor
             {
                 Log($"\n[Summary] Checked {count} controllers. All valid, no issues found.");
             }
-        }
-
-        private int ProcessOverrideMigrations(bool dryRun)
-        {
-            int issues = 0;
-            foreach (string guid in AssetDatabase.FindAssets("t:HonamiOverrideController"))
-            {
-                var ov = AssetDatabase.LoadAssetAtPath<HonamiOverrideController>(AssetDatabase.GUIDToAssetPath(guid));
-                if (ov == null || ov.parentController == null || !ov.NeedsMigration) continue;
-
-                issues++;
-                if (dryRun)
-                {
-                    Log($"\n[{ov.name}] [Issue] Legacy override schema — needs migration to the per-field format.");
-                }
-                else
-                {
-                    HonamiOverrideAuthoring.MigrateLegacy(ov);
-                    Log($"\n[{ov.name}] [Fix] Migrated legacy overrides to the per-field format.");
-                }
-            }
-
-            return issues;
         }
 
         private bool ValidateController(HonamiController ctrl, bool dryRun)
@@ -567,14 +542,6 @@ namespace HonamiAnimationSystem.Editor
                 if (overrideController == null) continue;
 
                 AddStateListReferences(overrideController.additionalStates, referenced);
-
-                if (overrideController.nodeOverrides != null)
-                {
-                    foreach (var nodeOverride in overrideController.nodeOverrides)
-                    {
-                        if (nodeOverride.overrideNode != null) referenced.Add(nodeOverride.overrideNode);
-                    }
-                }
 
                 if (overrideController.overrides == null) continue;
                 foreach (var entry in overrideController.overrides)

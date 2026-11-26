@@ -3,50 +3,151 @@ using UnityEngine.Playables;
 using UnityEngine.Animations;
 
 using System.Collections.Generic;
-using HonamiAnimationSystem.Runtime.Events;
+using HonamiAnimationSystem.Runtime.Timeline;
 
 namespace HonamiAnimationSystem.Runtime.Core
 {
     public static class HonamiEventEngine
     {
-        public static void EvaluateEvents(HonamiAnimator anim)
-        {
-            if (anim.controller == null) return;
+        private const int MaxCatchUpLoops = 3;
 
-            for (int layer = 0; layer < anim._layerMixers.Count; layer++)
+        public static void EvaluateStateModules(HonamiAnimator anim)
+        {
+            if (anim.controller == null || anim._layerStates == null) return;
+
+            EnsureModuleStorage(anim);
+
+            int layerCount = Mathf.Min(anim._layerMixers.Count, anim._layerStates.Length);
+            for (int layer = 0; layer < layerCount; layer++)
             {
                 if (anim._layerStates[layer].IsLayerPaused) continue;
 
                 var layerMixer = anim._layerMixers[layer];
-                int portCount = layerMixer.GetInputCount();
+                int portIdx = anim._layerStates[layer].CurrentStateIndex;
+                int stateIdx = -1;
+                bool skipFrame = false;
 
-                for (int portIdx = 0; portIdx < portCount; portIdx++)
+                if (portIdx >= 0 && portIdx < layerMixer.GetInputCount() && !anim._portStates[layer][portIdx].StateExitedFired)
                 {
-                    if (layerMixer.GetInputWeight(portIdx) > 0.0001f)
+                    int candidate = portIdx == anim.TransientPortIndex ? anim._layerStates[layer].TransientStateIndex : portIdx;
+                    if (candidate >= 0 && candidate < anim._activeStatesCount)
                     {
-                        if (anim._pausedStateIndices[layer].Contains(portIdx)) continue;
-                        if (anim._portStates[layer][portIdx].StateExitedFired) continue;
-
-                        if (portIdx != anim._layerStates[layer].CurrentStateIndex) continue;
-
-                        int stateIdx = (portIdx == anim.TransientPortIndex) ? anim._layerStates[layer].TransientStateIndex : portIdx;
-                        if (stateIdx < 0 || stateIdx >= anim._activeStatesCount) continue;
-
-                        var state = anim._runtimeStates[stateIdx];
-                        bool hasEvents = state.events != null && state.events.Count > 0;
-                        bool needsFinishCheck = !state.loop;
-                        if (!hasEvents && !needsFinishCheck) continue;
-
-                        var playable = layerMixer.GetInput(portIdx);
-                        if (!playable.IsValid()) continue;
-
-                        EvaluateEventsForState(anim, layer, portIdx, state, stateIdx, playable);
+                        stateIdx = candidate;
+                        skipFrame = anim._pausedStateIndices[layer].Contains(portIdx) || layerMixer.GetInputWeight(portIdx) <= 0.0001f;
                     }
                 }
+
+                if (anim._activeModuleState[layer] >= 0 && anim._activeModuleState[layer] != stateIdx)
+                    StopLayerModules(anim, layer);
+
+                if (stateIdx < 0 || skipFrame) continue;
+
+                var state = anim._runtimeStates[stateIdx];
+                bool hasModules = state.Modules != null && state.Modules.Count > 0;
+                if (!hasModules && state.loop) continue;
+
+                var playable = layerMixer.GetInput(portIdx);
+                if (!playable.IsValid()) continue;
+
+                EvaluateStateTimeline(anim, layer, portIdx, state, stateIdx, playable, hasModules);
             }
         }
 
-        private static void EvaluateEventsForState(HonamiAnimator anim, int layer, int portIdx, HonamiState state, int stateIdx, Playable playable)
+        // Forces every state's modules to be rebuilt on its next evaluation without re-entering the state,
+        // so events that already fired are not fired again.
+        public static void InvalidateStateModules(HonamiAnimator anim)
+        {
+            var sets = anim._stateModuleSets;
+            if (sets == null) return;
+            for (int i = 0; i < sets.Length; i++)
+            {
+                if (sets[i] != null)
+                    sets[i].IsStale = true;
+            }
+        }
+
+        public static void StopAllStateModules(HonamiAnimator anim)
+        {
+            if (anim._activeModuleState == null) return;
+            for (int layer = 0; layer < anim._activeModuleState.Length; layer++)
+                StopLayerModules(anim, layer);
+        }
+
+        private static void EnsureModuleStorage(HonamiAnimator anim)
+        {
+            int layerCount = anim._layerStates.Length;
+            if (anim._moduleStorageStates == anim._runtimeStates && anim._stateModuleSets != null
+                && anim._activeModuleState != null && anim._activeModuleState.Length == layerCount)
+                return;
+
+            StopAllStateModules(anim);
+            if (anim._stateModuleSets != null)
+            {
+                for (int i = 0; i < anim._stateModuleSets.Length; i++)
+                    anim._stateModuleSets[i]?.Dispose();
+            }
+
+            int stateCount = anim._activeStatesCount;
+            anim._moduleStorageStates = anim._runtimeStates;
+            anim._stateModuleSets = new HonamiTimelineModuleSet[stateCount];
+            anim._activeModuleState = new int[layerCount];
+            for (int layer = 0; layer < layerCount; layer++)
+                anim._activeModuleState[layer] = -1;
+        }
+
+        private static void StopLayerModules(HonamiAnimator anim, int layer)
+        {
+            int stateIdx = anim._activeModuleState[layer];
+            anim._activeModuleState[layer] = -1;
+            if (stateIdx < 0 || stateIdx >= anim._stateModuleSets.Length) return;
+
+            anim._stateModuleSets[stateIdx]?.StopAll();
+        }
+
+        private static HonamiTimelineModuleSet GetStateModules(HonamiAnimator anim, HonamiState state, int stateIdx)
+        {
+            var modules = state.Modules;
+            var set = anim._stateModuleSets[stateIdx];
+            if (set != null && !set.IsStale && set.Runtimes.Length == modules.Count && set.Revision == state.ModuleRevision)
+                return set;
+
+            set = BuildStateModules(anim, state);
+            anim._stateModuleSets[stateIdx] = set;
+            return set;
+        }
+
+        private static HonamiTimelineModuleSet BuildStateModules(HonamiAnimator anim, HonamiState state)
+        {
+            var modules = state.Modules;
+            var set = new HonamiTimelineModuleSet(modules, state.node, state.ModuleRevision);
+            for (int i = 0; i < modules.Count; i++)
+            {
+                var module = modules[i];
+                if (module == null)
+                {
+                    Debug.LogError($"[Honami] Timeline module at index {i} in state '{state.stateName}' on '{anim.name}' could not be deserialized (null). This usually indicates the module class was stripped by Unity Linker during player build. Ensure the module class has [UnityEngine.Scripting.Preserve].", anim);
+                    continue;
+                }
+
+                if (!module.SupportsHost(HonamiTimelineModuleHost.State)) continue;
+
+                string where = $"state '{state.stateName}' on '{anim.name}'";
+                if (set.IsMissingParent(i))
+                {
+                    HonamiTimelineModuleBinding.ReportProblem(module, "its parent clip or item is gone", where, anim);
+                    continue;
+                }
+
+                var binding = HonamiTimelineModuleBinding.Resolve(anim.gameObject, module.bindingKey, module.BindingType);
+                HonamiTimelineModuleBinding.ReportProblem(module,
+                    module.GetBindingProblem(HonamiTimelineModuleHost.State, binding, anim.gameObject), where, anim);
+                var context = new HonamiTimelineModuleContext(HonamiTimelineModuleHost.State, anim.gameObject, binding, null, anim, state);
+                set.Runtimes[i] = module.CreateRuntime(in context);
+            }
+            return set;
+        }
+
+        private static void EvaluateStateTimeline(HonamiAnimator anim, int layer, int portIdx, HonamiState state, int stateIdx, Playable playable, bool hasModules)
         {
             float unscaledDuration = HonamiStateEvaluator.GetUnscaledStateDuration(anim.controller, state, stateIdx, anim.GetNodeRuntime(stateIdx), GetStateBlendParam(anim, stateIdx));
             if (unscaledDuration <= 0f) return;
@@ -55,50 +156,86 @@ namespace HonamiAnimationSystem.Runtime.Core
             double lastRawTime = anim._portStates[layer][portIdx].LastFrameRawTime;
             anim._portStates[layer][portIdx].LastFrameRawTime = rawTime;
 
-            if (lastRawTime < 0) lastRawTime = rawTime;
-
-            if (state.loop)
+            if (hasModules)
             {
-                EvaluateLoopingStateEvents(anim, layer, portIdx, state, unscaledDuration, rawTime, lastRawTime);
-            }
-            else
-            {
-                EvaluateSingleRunStateEvents(anim, layer, portIdx, state, stateIdx, unscaledDuration, rawTime);
-            }
-        }
+                bool entering = double.IsNaN(lastRawTime) || anim._activeModuleState[layer] != stateIdx;
+                var previous = anim._stateModuleSets[stateIdx];
+                var set = GetStateModules(anim, state, stateIdx);
 
-        private static void EvaluateLoopingStateEvents(HonamiAnimator anim, int layer, int portIdx, HonamiState state, float unscaledDuration, double rawTime, double lastRawTime)
-        {
-            int eventCount = state.events?.Count ?? 0;
-            if (eventCount == 0) return;
-
-            int lastLoop = (int)System.Math.Floor(lastRawTime / unscaledDuration);
-            int currentLoop = (int)System.Math.Floor(rawTime / unscaledDuration);
-
-            if (currentLoop != lastLoop)
-            {
-                int missed = System.Math.Min(System.Math.Abs(currentLoop - lastLoop), 3);
-                for (int i = 0; i < missed; i++)
+                if (entering || set != previous)
                 {
-                    for (int ei = 0; ei < eventCount; ei++)
-                        FireEvent(anim, state.events[ei]);
+                    if (anim._activeModuleState[layer] == stateIdx)
+                        previous?.StopAll();
+                    if (set != previous)
+                        previous?.Dispose();
+                    anim._activeModuleState[layer] = stateIdx;
                 }
-                anim._firedEventsPerPort[layer][portIdx].Clear();
+
+                var nodeRuntime = anim.GetNodeRuntime(stateIdx);
+                if (state.loop)
+                    EvaluateLoopingModules(state, set, nodeRuntime, unscaledDuration, rawTime, entering ? double.NaN : lastRawTime);
+                else
+                    EvaluateSingleRunModules(state, set, nodeRuntime, unscaledDuration, rawTime, entering ? double.NaN : lastRawTime);
             }
 
-            float loopedTime = (float)(rawTime % unscaledDuration);
-            if (loopedTime < 0) loopedTime += unscaledDuration;
-
-            FireDueEvents(anim, layer, portIdx, state, loopedTime, eventCount);
+            if (!state.loop)
+                CheckStateFinished(anim, layer, portIdx, state, stateIdx, unscaledDuration, rawTime);
         }
 
-        private static void EvaluateSingleRunStateEvents(HonamiAnimator anim, int layer, int portIdx, HonamiState state, int stateIdx, float unscaledDuration, double rawTime)
+        private static void EvaluateLoopingModules(HonamiState state, HonamiTimelineModuleSet set, HonamiNodeRuntime nodeRuntime, float duration, double rawTime, double lastRawTime)
         {
-            float clampedTime = Mathf.Clamp((float)rawTime, 0f, unscaledDuration);
-            int eventCount = state.events?.Count ?? 0;
+            float looped = Repeat(rawTime, duration);
+            bool reversed = state.isReversed;
+            float restart = reversed ? float.PositiveInfinity : float.NegativeInfinity;
+            float end = reversed ? 0f : duration;
 
-            FireDueEvents(anim, layer, portIdx, state, clampedTime, eventCount);
+            if (double.IsNaN(lastRawTime))
+            {
+                RunModules(state, set, nodeRuntime, restart, looped);
+                return;
+            }
 
+            long lastLoop = (long)System.Math.Floor(lastRawTime / duration);
+            long currentLoop = (long)System.Math.Floor(rawTime / duration);
+            float lastLooped = Repeat(lastRawTime, duration);
+
+            if (lastLoop == currentLoop)
+            {
+                RunModules(state, set, nodeRuntime, lastLooped, looped);
+                return;
+            }
+
+            long wraps = System.Math.Min(System.Math.Abs(currentLoop - lastLoop), MaxCatchUpLoops);
+            RunModules(state, set, nodeRuntime, lastLooped, end);
+            for (long i = 1; i < wraps; i++)
+                RunModules(state, set, nodeRuntime, restart, end);
+            RunModules(state, set, nodeRuntime, restart, looped);
+        }
+
+        private static void EvaluateSingleRunModules(HonamiState state, HonamiTimelineModuleSet set, HonamiNodeRuntime nodeRuntime, float duration, double rawTime, double lastRawTime)
+        {
+            float time = Mathf.Clamp((float)rawTime, 0f, duration);
+            float previous = double.IsNaN(lastRawTime)
+                ? (state.isReversed ? float.PositiveInfinity : float.NegativeInfinity)
+                : Mathf.Clamp((float)lastRawTime, 0f, duration);
+            RunModules(state, set, nodeRuntime, previous, time);
+        }
+
+        private static void RunModules(HonamiState state, HonamiTimelineModuleSet set, HonamiNodeRuntime nodeRuntime, float previousTime, float time)
+        {
+            var frame = new HonamiTimelineFrame(previousTime, time, false);
+            set.Advance(in frame, state.node, nodeRuntime);
+        }
+
+        private static float Repeat(double time, float duration)
+        {
+            double looped = time % duration;
+            if (looped < 0) looped += duration;
+            return (float)looped;
+        }
+
+        private static void CheckStateFinished(HonamiAnimator anim, int layer, int portIdx, HonamiState state, int stateIdx, float unscaledDuration, double rawTime)
+        {
             bool isFinished = state.isReversed ? (rawTime <= 0.0) : (rawTime >= (double)unscaledDuration);
 
             if (!anim._portStates[layer][portIdx].StateFinishedFired && isFinished)
@@ -108,24 +245,6 @@ namespace HonamiAnimationSystem.Runtime.Core
                 anim.TriggerStateFinished(state.stateName);
                 anim.ReleaseFinishedStateIfNeeded(layer, portIdx, stateIdx);
             }
-        }
-
-        private static void FireDueEvents(HonamiAnimator anim, int layer, int portIdx, HonamiState state, float sampleTime, int eventCount)
-        {
-            for (int ei = 0; ei < eventCount; ei++)
-            {
-                var evt = state.events[ei];
-                bool shouldFire = state.isReversed ? (sampleTime <= evt.time) : (sampleTime >= evt.time);
-                if (!shouldFire || anim._firedEventsPerPort[layer][portIdx].Contains(evt)) continue;
-
-                FireEvent(anim, evt);
-                anim._firedEventsPerPort[layer][portIdx].Add(evt);
-            }
-        }
-
-        private static void FireEvent(HonamiAnimator anim, HonamiEventMarker evt)
-        {
-            HonamiEventEvaluator.FireEvent(evt, anim._localEventReceiver);
         }
 
         public static bool EvaluateConditionTentative(HonamiAnimator anim, HonamiCondition cond, List<int> triggersTentative)

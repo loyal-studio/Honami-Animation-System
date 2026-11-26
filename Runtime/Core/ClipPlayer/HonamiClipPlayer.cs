@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Animations;
@@ -11,8 +11,6 @@ namespace HonamiAnimationSystem.Runtime.Core
     {
         [Header("Clips")]
         [SerializeField] private List<HonamiClipEntry> clips = new List<HonamiClipEntry>();
-
-        [SerializeField, HideInInspector] private string defaultClip;
 
         [SerializeField, Tooltip("Play the default clip as soon as the player starts.")]
         private bool playAutomatically = true;
@@ -59,76 +57,25 @@ namespace HonamiAnimationSystem.Runtime.Core
             }
         }
 
-        protected override void Awake()
+        protected override void ResetPlaybackState()
         {
-            base.Awake();
-            BuildGraph();
-            RegisterLinkedActions();
-        }
-
-        protected override void OnEnable()
-        {
-            base.OnEnable();
-
-            if (!HasPlayableGraph) BuildGraph();
-            if (!HasPlayableGraph) return;
-
-            RegisterLinkedActions();
-
-            if (startup == HonamiAnimationStartup.Enable && !_keepPoseOnDisable)
-            {
-                ResetAllStates();
-                PlayDefaultClip();
-                ApplyWeights();
-                _playableGraph.Evaluate(0f);
-                RestoreInitialPoseIfIdle();
-                ApplyGlobalWeightBlend();
-            }
-
-            _keepPoseOnDisable = false;
-            _playableGraph.Play();
-        }
-
-        private void Start()
-        {
-            if (startup != HonamiAnimationStartup.Start) return;
-
-            if (!HasPlayableGraph) BuildGraph();
-            if (!HasPlayableGraph) return;
-
-            RegisterLinkedActions();
-            PlayDefaultClip();
+            ResetAllStates();
             ApplyWeights();
-            _playableGraph.Evaluate(0f);
-            RestoreInitialPoseIfIdle();
-            ApplyGlobalWeightBlend();
-            _playableGraph.Play();
         }
 
-        protected override void OnDisable()
-        {
-            if (!_keepPoseOnDisable)
-            {
-                ResetAllStates();
-                ApplyWeights();
-                if (HasPlayableGraph)
-                {
-                    _playableGraph.Evaluate(0f);
-                    RestoreInitialPoseIfIdle();
-                    _playableGraph.Stop();
-                }
-            }
+        protected override void PlayStartupContent() => PlayDefaultClip();
 
-            if (_playableGraph.IsValid()) _playableGraph.Destroy();
+        protected override void OnBeforeStartupEvaluate() => ApplyWeights();
 
-            base.OnDisable();
-        }
+        protected override bool SupportsBatchedEvaluation => true;
+
+        protected override bool SupportsClipTrackLayering => true;
 
         public override void Tick(double deltaTime)
         {
             if (_isPaused || !HasPlayableGraph) return;
 
-            _cachedDeltaTime = deltaTime * timeScale;
+            _cachedDeltaTime = deltaTime * EffectiveTimeScale;
             float scaled = (float)_cachedDeltaTime;
 
             AdvanceStates(scaled);
@@ -138,11 +85,7 @@ namespace HonamiAnimationSystem.Runtime.Core
 
             UpdatePendingActions((float)deltaTime);
 
-            PrepareRigs();
-            _playableGraph.Evaluate(scaled);
-            RestoreInitialPoseIfIdle();
-            ProcessLegacyRigs();
-            ApplyGlobalWeightBlend();
+            EvaluateGraph(scaled);
         }
 
         public bool PlayClip(string name, float fadeLength = 0f, bool forceRestart = false)
@@ -319,9 +262,11 @@ namespace HonamiAnimationSystem.Runtime.Core
             return true;
         }
 
+        protected override string GraphName => gameObject.name + "_HonamiClipGraph";
+
         protected override bool IsGraphIdle() => !_anyWeightApplied;
 
-        private void BuildGraph()
+        protected override void BuildGraph()
         {
             if (_playableGraph.IsValid()) _playableGraph.Destroy();
             _nameToIndex.Clear();
@@ -338,15 +283,10 @@ namespace HonamiAnimationSystem.Runtime.Core
 
             if (count == 0) return;
 
-            if (_animator == null) TryGetComponent<Animator>(out _animator);
-            if (_animator == null) return;
+            PlayableGraph graph = EnsureGraphCreated();
+            if (!graph.IsValid()) return;
 
-            _playableGraph = PlayableGraph.Create(gameObject.name + "_HonamiClipGraph");
-            _playableGraph.SetTimeUpdateMode(DirectorUpdateMode.Manual);
-            _playableOutput = AnimationPlayableOutput.Create(_playableGraph, "AnimationOutput", _animator);
-            _playableOutput.SetWeight(GlobalWeightMode == HonamiGlobalWeightMode.Bind ? GlobalWeight : 1f);
-
-            _mixer = AnimationMixerPlayable.Create(_playableGraph, count);
+            _mixer = AnimationMixerPlayable.Create(graph, count);
             _playableOutput.SetSourcePlayable(_mixer);
 
             int slot = 0;
@@ -396,13 +336,10 @@ namespace HonamiAnimationSystem.Runtime.Core
                 return;
             }
 
-            // Legacy scenes still carry the old name field; OnValidate only migrates them in the editor.
-            if (!string.IsNullOrEmpty(defaultClip) && PlayClip(defaultClip)) return;
-
             PlayClip(_states[0].Name);
         }
 
-        private void RegisterLinkedActions()
+        protected override void RegisterLinkedActions()
         {
             if (clips == null) return;
 
@@ -421,9 +358,13 @@ namespace HonamiAnimationSystem.Runtime.Core
 
         private void AdvanceStates(float deltaTime)
         {
-            for (int i = 0; i < _states.Length; i++)
+            // FinishState raises OnClipFinished, and a handler is free to AddClip/RemoveClip/Rebuild,
+            // which swaps _states for a new array. Walk the array this frame started with.
+            HonamiClipState[] states = _states;
+
+            for (int i = 0; i < states.Length; i++)
             {
-                var state = _states[i];
+                var state = states[i];
                 if (!state.Enabled || state.Finished) continue;
 
                 float step = deltaTime * state.Speed * (state.Forward ? 1f : -1f);
@@ -536,12 +477,16 @@ namespace HonamiAnimationSystem.Runtime.Core
         {
             if (!_mixer.IsValid()) return;
 
+            // A rebuild triggered from a clip callback resizes _states between allocations.
+            if (_resolvedWeights.Length != _states.Length) _resolvedWeights = new float[_states.Length];
+
             for (int i = 0; i < _resolvedWeights.Length; i++) _resolvedWeights[i] = 0f;
 
             ResolveLayeredWeights();
 
             _anyWeightApplied = false;
-            for (int i = 0; i < _states.Length; i++)
+            int portCount = Mathf.Min(_states.Length, _mixer.GetInputCount());
+            for (int i = 0; i < portCount; i++)
             {
                 float weight = _resolvedWeights[i];
                 _mixer.SetInputWeight(i, weight);
@@ -603,24 +548,6 @@ namespace HonamiAnimationSystem.Runtime.Core
                 if (entry == null) continue;
                 if (string.IsNullOrEmpty(entry.name) && entry.clip != null) entry.name = entry.clip.name;
                 if (entry.layer < 0) entry.layer = 0;
-            }
-
-            MigrateDefaultClipName();
-        }
-
-        private void MigrateDefaultClipName()
-        {
-            if (string.IsNullOrEmpty(defaultClip)) return;
-
-            int hash = StringToHash(defaultClip);
-            for (int i = 0; i < clips.Count; i++)
-            {
-                var entry = clips[i];
-                if (entry == null || StringToHash(entry.ResolveName()) != hash) continue;
-
-                entry.isDefault = true;
-                defaultClip = null;
-                return;
             }
         }
 #endif

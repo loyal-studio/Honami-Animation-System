@@ -196,11 +196,10 @@ namespace HonamiAnimationSystem.Editor
                     var newMask = CreateInstance<HonamiAvatarMask>();
                     newMask.avatar = newAvatar;
                     AssetDatabase.CreateAsset(newMask, targetPath);
-                    AssetDatabase.SaveAssets();
 
                     newMask.SyncWithAvatar();
                     EditorUtility.SetDirty(newMask);
-                    AssetDatabase.SaveAssets();
+                    AssetDatabase.SaveAssetIfDirty(newMask);
 
                     LoadMask(newMask);
                     SetStatus($"Auto-created mask at {targetPath}");
@@ -362,11 +361,9 @@ namespace HonamiAnimationSystem.Editor
             row.style.backgroundColor = displayIndex % 2 == 0 ? new Color(0.18f, 0.19f, 0.21f) : new Color(0.15f, 0.16f, 0.18f);
             row.style.borderBottomColor = new Color(0.12f, 0.12f, 0.13f);
             row.style.borderBottomWidth = 1;
-            row.style.paddingTop = row.style.paddingBottom = 7;
-            row.style.paddingLeft = row.style.paddingRight = 8;
+            row.Padding(7, 8);
             row.style.marginBottom = 2;
-            row.style.borderTopLeftRadius = row.style.borderTopRightRadius =
-            row.style.borderBottomLeftRadius = row.style.borderBottomRightRadius = 4;
+            row.Radius(4);
             row.style.opacity = active ? 1f : 0.45f;
 
             var indent = new VisualElement();
@@ -377,10 +374,8 @@ namespace HonamiAnimationSystem.Editor
             expandBtn.style.width = 16;
             expandBtn.style.height = 16;
             expandBtn.style.backgroundColor = Color.clear;
-            expandBtn.style.borderTopWidth = expandBtn.style.borderBottomWidth =
-            expandBtn.style.borderLeftWidth = expandBtn.style.borderRightWidth = 0;
-            expandBtn.style.paddingLeft = expandBtn.style.paddingRight = 0;
-            expandBtn.style.paddingTop = expandBtn.style.paddingBottom = 0;
+            expandBtn.BorderWidth(0);
+            expandBtn.Padding(0);
             expandBtn.style.fontSize = 10;
             expandBtn.name = "expandBtn";
             if (node.children.Count > 0)
@@ -427,8 +422,7 @@ namespace HonamiAnimationSystem.Editor
             trackContainer.style.flexGrow = 1;
             trackContainer.style.height = 20;
             trackContainer.style.backgroundColor = ColTrack;
-            trackContainer.style.borderTopLeftRadius = trackContainer.style.borderTopRightRadius =
-            trackContainer.style.borderBottomLeftRadius = trackContainer.style.borderBottomRightRadius = 10;
+            trackContainer.Radius(10);
             trackContainer.style.marginLeft = 8;
             trackContainer.style.marginRight = 8;
             trackContainer.style.overflow = Overflow.Hidden;
@@ -438,8 +432,7 @@ namespace HonamiAnimationSystem.Editor
             fill.style.height = 20;
             fill.style.backgroundColor = WeightToColor(bw.weight);
             fill.style.width = Length.Percent(bw.weight * 100f);
-            fill.style.borderTopLeftRadius = fill.style.borderTopRightRadius =
-            fill.style.borderBottomLeftRadius = fill.style.borderBottomRightRadius = 10;
+            fill.Radius(10);
 
             var shine = new VisualElement();
             shine.style.position = Position.Absolute;
@@ -508,13 +501,11 @@ namespace HonamiAnimationSystem.Editor
                 allBtn.style.width = 32;
                 allBtn.style.height = 18;
                 allBtn.style.fontSize = 9;
-                allBtn.style.paddingLeft = allBtn.style.paddingRight = 2;
-                allBtn.style.paddingTop = allBtn.style.paddingBottom = 0;
+                allBtn.Padding(0, 2);
                 allBtn.style.marginLeft = 3;
                 allBtn.style.backgroundColor = new Color(0.24f, 0.25f, 0.26f);
                 allBtn.style.color = Color.white;
-                allBtn.style.borderTopLeftRadius = allBtn.style.borderTopRightRadius =
-                allBtn.style.borderBottomLeftRadius = allBtn.style.borderBottomRightRadius = 4;
+                allBtn.Radius(4);
                 allBtn.RegisterCallback<ClickEvent>(evt =>
                 {
                     if (evt.shiftKey)
@@ -536,13 +527,11 @@ namespace HonamiAnimationSystem.Editor
                 noneBtn.style.width = 36;
                 noneBtn.style.height = 18;
                 noneBtn.style.fontSize = 9;
-                noneBtn.style.paddingLeft = noneBtn.style.paddingRight = 2;
-                noneBtn.style.paddingTop = noneBtn.style.paddingBottom = 0;
+                noneBtn.Padding(0, 2);
                 noneBtn.style.marginLeft = 2;
                 noneBtn.style.backgroundColor = new Color(0.24f, 0.25f, 0.26f);
                 noneBtn.style.color = Color.white;
-                noneBtn.style.borderTopLeftRadius = noneBtn.style.borderTopRightRadius =
-                noneBtn.style.borderBottomLeftRadius = noneBtn.style.borderBottomRightRadius = 4;
+                noneBtn.Radius(4);
                 noneBtn.RegisterCallback<ClickEvent>(evt =>
                 {
                     if (evt.shiftKey)
@@ -742,7 +731,7 @@ namespace HonamiAnimationSystem.Editor
             if (string.IsNullOrEmpty(path)) return;
             var asset = CreateInstance<HonamiAvatarMask>();
             AssetDatabase.CreateAsset(asset, path);
-            AssetDatabase.SaveAssets();
+            AssetDatabase.SaveAssetIfDirty(asset);
             LoadMask(asset);
         }
 
@@ -750,7 +739,7 @@ namespace HonamiAnimationSystem.Editor
         {
             if (_mask == null) return;
             EditorUtility.SetDirty(_mask);
-            AssetDatabase.SaveAssets();
+            AssetDatabase.SaveAssetIfDirty(_mask);
             SetStatus("Saved.");
         }
 

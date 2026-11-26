@@ -21,15 +21,10 @@ namespace HonamiAnimationSystem.Editor.Inspectors
         private bool _axesFoldout = true;
         private bool _modeFoldout = true;
 
-        private static readonly Color _accentColor = new Color(0.2f, 1f, 0.6f);
-        private static readonly Color _warningColor = new Color(1f, 0.7f, 0.2f);
+       private static readonly Color _accentColor = HonamiInspectorGUI.Highlight;
 
-        private static GUIStyle _headerStyle;
-        private static GUIStyle _subStyle;
-        private static GUIStyle _foldoutStyle;
         private static GUIStyle _infoStyle;
         private static GUIStyle _dimStyle;
-        private static GUIStyle _debugHeaderStyle;
         private static GUIStyle _valStyle;
 
         private void OnEnable()
@@ -49,7 +44,7 @@ namespace HonamiAnimationSystem.Editor.Inspectors
         {
             serializedObject.Update();
 
-            DrawHeader();
+           HonamiInspectorGUI.Title("HONAMI SCALE FIXER", "Eliminates Scale Jitter from FBX / Retargeted Animations", _accentColor);
             EditorGUILayout.Space(4);
 
             DrawGlobalWeight();
@@ -72,27 +67,6 @@ namespace HonamiAnimationSystem.Editor.Inspectors
             serializedObject.ApplyModifiedProperties();
         }
 
-        private new void DrawHeader()
-        {
-            _headerStyle ??= new GUIStyle(EditorStyles.boldLabel)
-            {
-                fontSize = 15,
-                alignment = TextAnchor.MiddleCenter,
-                normal = { textColor = _accentColor }
-            };
-            _subStyle ??= new GUIStyle(EditorStyles.centeredGreyMiniLabel)
-            {
-                fontSize = 10,
-                alignment = TextAnchor.MiddleCenter
-            };
-
-            EditorGUILayout.Space(8);
-            GUILayout.Label("HONAMI SCALE FIXER", _headerStyle);
-            GUILayout.Label("Eliminates Scale Jitter from FBX / Retargeted Animations", _subStyle);
-
-            Rect line = EditorGUILayout.GetControlRect(false, 2);
-            EditorGUI.DrawRect(line, new Color(_accentColor.r, _accentColor.g, _accentColor.b, 0.5f));
-        }
 
         private void DrawGlobalWeight()
         {
@@ -103,7 +77,7 @@ namespace HonamiAnimationSystem.Editor.Inspectors
 
         private void DrawTargetSection()
         {
-            _targetFoldout = DrawFoldoutHeader("  Target Bone", _targetFoldout, _accentColor);
+            _targetFoldout = HonamiInspectorGUI.FoldoutHeader("  Target Bone", _targetFoldout, _accentColor);
             if (!_targetFoldout) return;
 
             EditorGUILayout.BeginVertical(EditorStyles.helpBox);
@@ -133,7 +107,7 @@ namespace HonamiAnimationSystem.Editor.Inspectors
                 if (Application.isPlaying)
                 {
                     _infoStyle ??= new GUIStyle(EditorStyles.miniLabel) { normal = { textColor = _accentColor } };
-                    GUILayout.Label(rig.bone != null ? rig.bone.localScale.ToString("F4") : "—", _infoStyle);
+                    GUILayout.Label(rig.bone != null ? rig.bone.localScale.ToString("F4") : "-", _infoStyle);
                 }
                 else
                 {
@@ -155,7 +129,7 @@ namespace HonamiAnimationSystem.Editor.Inspectors
 
         private void DrawAxesSection()
         {
-            _axesFoldout = DrawFoldoutHeader("  Axes Mask", _axesFoldout, new Color(0.8f, 0.5f, 1f));
+            _axesFoldout = HonamiInspectorGUI.FoldoutHeader("  Axes Mask", _axesFoldout, new Color(0.8f, 0.5f, 1f));
             if (!_axesFoldout) return;
 
             EditorGUILayout.BeginVertical(EditorStyles.helpBox);
@@ -174,7 +148,7 @@ namespace HonamiAnimationSystem.Editor.Inspectors
 
         private void DrawModeSection()
         {
-            _modeFoldout = DrawFoldoutHeader("  Fix Mode", _modeFoldout, new Color(1f, 0.75f, 0.3f));
+            _modeFoldout = HonamiInspectorGUI.FoldoutHeader("  Fix Mode", _modeFoldout, new Color(1f, 0.75f, 0.3f));
             if (!_modeFoldout) return;
 
             EditorGUILayout.BeginVertical(EditorStyles.helpBox);
@@ -199,8 +173,7 @@ namespace HonamiAnimationSystem.Editor.Inspectors
 
             EditorGUILayout.BeginVertical(EditorStyles.helpBox);
 
-            _debugHeaderStyle ??= new GUIStyle(EditorStyles.boldLabel) { normal = { textColor = _warningColor } };
-            GUILayout.Label("  Runtime Scale", _debugHeaderStyle);
+           HonamiInspectorGUI.SubHeader("  Runtime Scale", HonamiInspectorGUI.Warning);
             EditorGUILayout.Space(2);
 
             Vector3 current = rig.bone.localScale;
@@ -221,12 +194,5 @@ namespace HonamiAnimationSystem.Editor.Inspectors
             GUI.backgroundColor = prev;
         }
 
-        private static bool DrawFoldoutHeader(string title, bool state, Color color)
-        {
-            _foldoutStyle ??= new GUIStyle(EditorStyles.foldout) { fontStyle = FontStyle.Bold };
-            _foldoutStyle.normal.textColor = color;
-            _foldoutStyle.onNormal.textColor = color;
-            return EditorGUILayout.Foldout(state, title, true, _foldoutStyle);
-        }
     }
 }

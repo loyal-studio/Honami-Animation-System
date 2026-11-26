@@ -64,18 +64,17 @@ namespace HonamiAnimationSystem.Runtime.Core
 
             for (int i = 0; i < _initialPose.Length; i++)
             {
-                HonamiTransformPose pose = _initialPose[i];
+                ref readonly HonamiTransformPose pose = ref _initialPose[i];
                 if (pose.Transform == null) continue;
 
-                pose.Transform.localPosition = pose.LocalPosition;
-                pose.Transform.localRotation = pose.LocalRotation;
+                pose.Transform.SetLocalPositionAndRotation(pose.LocalPosition, pose.LocalRotation);
                 pose.Transform.localScale = pose.LocalScale;
             }
         }
 
         protected void RestoreInitialPoseIfIdle()
         {
-            if (!restoreInitialPoseWhenIdle || !_hasInitialPose || !IsGraphIdle()) return;
+            if (!restoreInitialPoseWhenIdle || !_hasInitialPose || _clipTracksWeighted || !IsGraphIdle()) return;
             RestoreInitialPose();
         }
 
@@ -90,12 +89,15 @@ namespace HonamiAnimationSystem.Runtime.Core
             float toRest = 1f - GlobalWeight;
             for (int i = 0; i < poses.Length; i++)
             {
-                HonamiTransformPose pose = poses[i];
-                if (pose.Transform == null) continue;
+                ref readonly HonamiTransformPose pose = ref poses[i];
+                Transform t = pose.Transform;
+                if (t == null) continue;
 
-                pose.Transform.localPosition = Vector3.Lerp(pose.Transform.localPosition, pose.LocalPosition, toRest);
-                pose.Transform.localRotation = Quaternion.Slerp(pose.Transform.localRotation, pose.LocalRotation, toRest);
-                pose.Transform.localScale = Vector3.Lerp(pose.Transform.localScale, pose.LocalScale, toRest);
+                t.GetLocalPositionAndRotation(out Vector3 currentPosition, out Quaternion currentRotation);
+                t.SetLocalPositionAndRotation(
+                    Vector3.Lerp(currentPosition, pose.LocalPosition, toRest),
+                    Quaternion.Slerp(currentRotation, pose.LocalRotation, toRest));
+                t.localScale = Vector3.Lerp(t.localScale, pose.LocalScale, toRest);
             }
         }
 

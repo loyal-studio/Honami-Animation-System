@@ -3,87 +3,85 @@ using UnityEditor;
 using UnityEngine;
 using UnityEngine.UIElements;
 using UnityEditor.UIElements;
+using HonamiAnimationSystem.Runtime.Core;
 
 namespace HonamiAnimationSystem.Editor.Handlers
 {
-    public sealed class HonamiAnimatorGraphHandler : IHonamiGraphModeHandler
+    public sealed class HonamiAnimatorGraphHandler : HonamiGraphModeHandlerBase
     {
-        private HonamiGraphWindow _window;
-        private Runtime.Core.HonamiAnimator _lastRuntimeAnimator;
+        private HonamiAnimator _lastRuntimeAnimator;
         private HonamiGraphView _graphView;
         private HonamiLeftPanel _leftPanel;
         private readonly System.Collections.Generic.List<HonamiTransitionMultiInspector.Entry> _multiTransitions = new();
 
-        public string ModeId => "Animator";
+        public override string ModeId => "Animator";
 
-        public void Initialize(HonamiGraphWindow window)
+        protected override void OnInitialize()
         {
-            _window = window;
 
             _graphView = new HonamiGraphView { name = "Honami Animator Graph" };
             _graphView.style.flexGrow = 1;
-            _graphView.Init(_window);
+            _graphView.Init(Window);
             WireGraphViewEvents();
 
-            _leftPanel = new HonamiLeftPanel(_window);
+            _leftPanel = new HonamiLeftPanel(Window);
             _leftPanel.Root.style.flexGrow = 1;
         }
 
-        public VisualElement GetMainView() => _graphView;
-        public VisualElement GetLeftPanelView() => _leftPanel.Root;
+        public override VisualElement GetMainView() => _graphView;
+        public override VisualElement GetLeftPanelView() => _leftPanel.Root;
 
-        public void OnEnable()
+        public override void OnEnable()
         {
-            if (_window.RuntimeController == null)
+            if (Window.RuntimeController == null)
             {
                 string last = EditorPrefs.GetString("Honami_LastOpenedControllerPath", "");
                 if (!string.IsNullOrEmpty(last))
-                    _window.SetController(AssetDatabase.LoadAssetAtPath<Runtime.Core.HonamiRuntimeController>(last));
+                    Window.SetController(AssetDatabase.LoadAssetAtPath<HonamiRuntimeController>(last));
             }
             else
             {
-                _window.SetController(_window.RuntimeController);
+                Window.SetController(Window.RuntimeController);
             }
             ApplySettings();
         }
 
-        public void OnDisable() { }
 
-        public void Update()
+        public override void Update()
         {
             if (!UnityEngine.Application.isPlaying) return;
 
-            if (_window.Controller == null) return;
+            if (Window.Controller == null) return;
 
-            if (!_window.IsLocked)
+            if (!Window.IsLocked)
             {
                 var found = ResolveSelectedAnimator();
-                if (IsCompatible(found)) _window.RuntimeAnimator = found;
+                if (IsCompatible(found)) Window.RuntimeAnimator = found;
             }
 
-            if (!IsCompatible(_window.RuntimeAnimator) || !_window.RuntimeAnimator.gameObject.activeInHierarchy)
+            if (!IsCompatible(Window.RuntimeAnimator) || !Window.RuntimeAnimator.gameObject.activeInHierarchy)
             {
-                _window.RuntimeAnimator = null;
-                if (Time.realtimeSinceStartup > _window.NextAnimatorSearchTime)
+                Window.RuntimeAnimator = null;
+                if (Time.realtimeSinceStartup > Window.NextAnimatorSearchTime)
                 {
-                    _window.NextAnimatorSearchTime = Time.realtimeSinceStartup + 1.2f;
-                    _window.RuntimeAnimator = Object.FindObjectsByType<Runtime.Core.HonamiAnimator>(FindObjectsSortMode.None)
+                    Window.NextAnimatorSearchTime = Time.realtimeSinceStartup + 1.2f;
+                    Window.RuntimeAnimator = Object.FindObjectsByType<HonamiAnimator>(FindObjectsSortMode.None)
                         .FirstOrDefault(a => a.gameObject.activeInHierarchy && IsCompatible(a));
                 }
             }
 
-            if (_lastRuntimeAnimator != _window.RuntimeAnimator)
+            if (_lastRuntimeAnimator != Window.RuntimeAnimator)
             {
-                _lastRuntimeAnimator = _window.RuntimeAnimator;
+                _lastRuntimeAnimator = Window.RuntimeAnimator;
                 RebuildLeftPanel();
             }
 
             if (_graphView != null)
             {
-                if (_window.RuntimeAnimator != null)
+                if (Window.RuntimeAnimator != null)
                 {
-                    _graphView.UpdateRuntimeVisualization(_window.RuntimeAnimator);
-                    if (EditorWindow.focusedWindow == _window || EditorWindow.mouseOverWindow == _window) _window.Repaint();
+                    _graphView.UpdateRuntimeVisualization(Window.RuntimeAnimator);
+                    if (EditorWindow.focusedWindow == Window || EditorWindow.mouseOverWindow == Window) Window.Repaint();
                 }
                 else
                 {
@@ -92,64 +90,64 @@ namespace HonamiAnimationSystem.Editor.Handlers
             }
         }
 
-        public void SwitchToMode()
+        public override void SwitchToMode()
         {
-            _window.SupportLeftPanel(true);
-            _window.SupportRightPanel(true);
+            Window.SupportLeftPanel(true);
+            Window.SupportRightPanel(true);
 
-            if (_window.TitleLabel != null)
+            if (Window.TitleLabel != null)
             {
-                _window.TitleLabel.text = _window.RuntimeController != null ? _window.RuntimeController.name : "No Controller Selected";
+                Window.TitleLabel.text = Window.RuntimeController != null ? Window.RuntimeController.name : "No Controller Selected";
 
-                if (_window.OverrideBadge != null)
-                    _window.OverrideBadge.style.display = (_window.RuntimeController != null && _window.RuntimeController.IsOverride) ? DisplayStyle.Flex : DisplayStyle.None;
+                if (Window.OverrideBadge != null)
+                    Window.OverrideBadge.style.display = (Window.RuntimeController != null && Window.RuntimeController.IsOverride) ? DisplayStyle.Flex : DisplayStyle.None;
             }
 
-            if (_window.LinkedBadge != null) _window.LinkedBadge.style.display = DisplayStyle.None;
-            if (_window.Toolbar != null) _window.Toolbar.style.display = DisplayStyle.Flex;
+            if (Window.LinkedBadge != null) Window.LinkedBadge.style.display = DisplayStyle.None;
+            if (Window.Toolbar != null) Window.Toolbar.style.display = DisplayStyle.Flex;
 
-            if (_window.RuntimeController != null)
+            if (Window.RuntimeController != null)
             {
-                string path = AssetDatabase.GetAssetPath(_window.RuntimeController);
+                string path = AssetDatabase.GetAssetPath(Window.RuntimeController);
                 if (!string.IsNullOrEmpty(path)) EditorPrefs.SetString("Honami_LastOpenedControllerPath", path);
             }
 
-            if (_window.Toolbar != null)
+            if (Window.Toolbar != null)
             {
-                var cf = _window.Toolbar.Q<ObjectField>();
-                cf?.SetValueWithoutNotify(_window.RuntimeController);
+                var cf = Window.Toolbar.Q<ObjectField>();
+                cf?.SetValueWithoutNotify(Window.RuntimeController);
             }
 
-            _window.SaveSelection();
-            if (_window.RuntimeController is Runtime.Core.HonamiOverrideController overrideToResync && overrideToResync.parentController != null)
+            Window.SaveSelection();
+            if (Window.RuntimeController is HonamiOverrideController overrideToResync && overrideToResync.parentController != null)
             {
                 HonamiAnimationSystem.Editor.Core.HonamiOverrideAuthoring.ResyncFromParent(overrideToResync);
             }
-            if (_window.RuntimeController != null) _graphView.PopulateView(_window.RuntimeController, _window.CurrentLayerIndex);
+            if (Window.RuntimeController != null) _graphView.PopulateView(Window.RuntimeController, Window.CurrentLayerIndex);
 
             _leftPanel?.Rebuild();
-            _window.RestoreSelection();
-            _window.BuildRightPanel();
-            _window.UpdateEmptyState();
+            Window.RestoreSelection();
+            Window.BuildRightPanel();
+            Window.UpdateEmptyState();
         }
 
-        public void BuildRightPanel(VisualElement rightContent)
+        public override void BuildRightPanel(VisualElement rightContent)
         {
             rightContent.Clear();
             rightContent.Unbind();
 
-            if (_window.SelectedSubNode != null && _window.SerializedSubNode?.targetObject != null)
+            if (Window.SelectedSubNode != null && Window.SerializedSubNode?.targetObject != null)
             {
                 var pad = HonamiEditorLayout.PaddedInspectorRoot();
 
-                pad.Add(HonamiGraphStyles.Title(_window.SelectedSubNode.GetType().Name.Replace("Honami", "")));
+                pad.Add(HonamiGraphStyles.Title(Window.SelectedSubNode.GetType().Name.Replace("Honami", "")));
                 pad.Add(HonamiGraphStyles.MiniLabel("Sub-Node Configuration", HonamiGraphStyles.SubTitleClr));
 
-                var subOverride = _window.RuntimeController as Runtime.Core.HonamiOverrideController;
-                Runtime.Core.HonamiOverrideEntry subEntry = null;
+                var subOverride = Window.RuntimeController as HonamiOverrideController;
+                HonamiOverrideEntry subEntry = null;
                 bool subIsOverride = subOverride != null &&
-                    HonamiAnimationSystem.Editor.Core.HonamiOverrideAuthoring.FindSubNodeOwner(subOverride, _window.SelectedSubNode, out subEntry);
-                var capturedSubNode = _window.SelectedSubNode;
+                    HonamiAnimationSystem.Editor.Core.HonamiOverrideAuthoring.FindSubNodeOwner(subOverride, Window.SelectedSubNode, out subEntry);
+                var capturedSubNode = Window.SelectedSubNode;
                 string capturedSubId = capturedSubNode != null ? capturedSubNode.OverrideId : null;
 
                 if (subIsOverride)
@@ -162,49 +160,49 @@ namespace HonamiAnimationSystem.Editor.Handlers
                     revertSub.clicked += () =>
                     {
                         HonamiAnimationSystem.Editor.Core.HonamiOverrideAuthoring.RevertSubNode(subOverride, subEntry, capturedSubId);
-                        _graphView.PopulateView(_window.RuntimeController, _window.CurrentLayerIndex);
-                        _window.SelectedSubNode = null;
-                        _window.BuildRightPanel();
+                        _graphView.PopulateView(Window.RuntimeController, Window.CurrentLayerIndex);
+                        Window.ClearSelectedSubNode();
+                        Window.BuildRightPanel();
                     };
                     ovRow.Add(revertSub);
                     pad.Add(ovRow);
                 }
 
                 var box = HonamiGraphStyles.Box();
-                var inspector = new InspectorElement(_window.SerializedSubNode);
+                var inspector = new InspectorElement(Window.SerializedSubNode);
                 inspector.style.paddingTop = 4;
                 box.Add(inspector);
                 pad.Add(box);
 
                 if (subIsOverride)
                 {
-                    pad.TrackSerializedObjectValue(_window.SerializedSubNode, _ =>
+                    pad.TrackSerializedObjectValue(Window.SerializedSubNode, _ =>
                         HonamiAnimationSystem.Editor.Core.HonamiOverrideAuthoring.RefreshSubNodeModified(subOverride, subEntry, capturedSubNode));
                 }
 
                 Button removeBtn = new Button(() =>
                 {
-                    if (EditorUtility.DisplayDialog("Remove Sub-Node", $"Are you sure you want to remove '{_window.SelectedSubNode.name}'?", "Remove", "Cancel"))
+                    if (EditorUtility.DisplayDialog("Remove Sub-Node", $"Are you sure you want to remove '{Window.SelectedSubNode.name}'?", "Remove", "Cancel"))
                     {
                         if (subIsOverride)
                         {
                             HonamiAnimationSystem.Editor.Core.HonamiOverrideAuthoring.RemoveSubNodeFromOverride(subOverride, subEntry, capturedSubId);
-                            _graphView.PopulateView(_window.RuntimeController, _window.CurrentLayerIndex);
-                            _window.SelectedSubNode = null;
-                            _window.BuildRightPanel();
+                            _graphView.PopulateView(Window.RuntimeController, Window.CurrentLayerIndex);
+                            Window.ClearSelectedSubNode();
+                            Window.BuildRightPanel();
                             return;
                         }
 
-                        Undo.RecordObject(_window.SelectedNode.State, "Remove Sub-Node");
-                        var list = _window.SelectedNode.State.subNodes;
-                        if (list.Contains(_window.SelectedSubNode))
+                        Undo.RecordObject(Window.SelectedNode.State, "Remove Sub-Node");
+                        var list = Window.SelectedNode.State.subNodes;
+                        if (list.Contains(Window.SelectedSubNode))
                         {
-                            list.Remove(_window.SelectedSubNode);
-                            Undo.DestroyObjectImmediate(_window.SelectedSubNode);
-                            EditorUtility.SetDirty(_window.SelectedNode.State);
-                            _window.SelectedSubNode = null;
-                            _window.SelectedNode.RefreshView(false);
-                            _window.BuildRightPanel();
+                            list.Remove(Window.SelectedSubNode);
+                            Undo.DestroyObjectImmediate(Window.SelectedSubNode);
+                            EditorUtility.SetDirty(Window.SelectedNode.State);
+                            Window.ClearSelectedSubNode();
+                            Window.SelectedNode.RefreshView(false);
+                            Window.BuildRightPanel();
                         }
                     }
                 })
@@ -212,34 +210,33 @@ namespace HonamiAnimationSystem.Editor.Handlers
                 removeBtn.style.marginTop = 8;
                 removeBtn.style.height = 24;
                 removeBtn.style.backgroundColor = new Color(0.8f, 0.2f, 0.2f, 0.15f);
-                removeBtn.style.borderLeftWidth = removeBtn.style.borderRightWidth =
-                removeBtn.style.borderTopWidth = removeBtn.style.borderBottomWidth = 0;
+                removeBtn.BorderWidth(0);
                 removeBtn.style.color = new Color(1f, 0.4f, 0.4f);
                 pad.Add(removeBtn);
 
                 rightContent.Add(pad);
             }
-            else if (_window.SelectedNode?.State != null && _window.SerializedState?.targetObject != null)
+            else if (Window.SelectedNode?.State != null && Window.SerializedState?.targetObject != null)
             {
                 var inspector = HonamiStateInspector.Build(
-                    _window.SelectedNode.State,
-                    _window.SerializedState,
-                    _window.Controller,
-                    _window.CurrentLayerIndex,
-                    _window.SelectedNode,
+                    Window.SelectedNode.State,
+                    Window.SerializedState,
+                    Window.Controller,
+                    Window.CurrentLayerIndex,
+                    Window.SelectedNode,
                     _graphView,
-                    onRebuildRequired: () => _window.BuildRightPanel());
+                    onRebuildRequired: () => Window.BuildRightPanel());
 
                 rightContent.Add(inspector);
             }
-            else if (_window.SelectedNode?.State != null && _window.SelectedNode.State.isVirtualInheritedState)
+            else if (Window.SelectedNode?.State != null && Window.SelectedNode.State.isVirtualInheritedState)
             {
                 var pad = HonamiEditorLayout.PaddedInspectorRoot();
-                pad.Add(HonamiGraphStyles.Title(_window.SelectedNode.State.stateName));
+                pad.Add(HonamiGraphStyles.Title(Window.SelectedNode.State.stateName));
                 pad.Add(HonamiGraphStyles.MiniLabel("Inherited State", new Color(0.7f, 0.7f, 0.7f)));
 
                 var box = HonamiGraphStyles.Box();
-                var source = _window.SelectedNode.State.inheritedSourceState;
+                var source = Window.SelectedNode.State.inheritedSourceState;
                 box.Add(new HelpBox(
                     source != null
                         ? $"This state is inherited from '{source.stateName}'. Create an override to edit this layer's state or transitions."
@@ -249,8 +246,8 @@ namespace HonamiAnimationSystem.Editor.Handlers
 
                 Button overrideBtn = new Button(() =>
                 {
-                    _graphView.CreateInheritedStateOverride(_window.SelectedNode);
-                    _window.BuildRightPanel();
+                    _graphView.CreateInheritedStateOverride(Window.SelectedNode);
+                    Window.BuildRightPanel();
                 })
                 { text = "Create Override" };
                 overrideBtn.style.height = 26;
@@ -263,15 +260,15 @@ namespace HonamiAnimationSystem.Editor.Handlers
             {
                 rightContent.Add(HonamiTransitionMultiInspector.Build(_multiTransitions));
             }
-            else if (_window.SelectedTransition != null && _window.SelectedTransitionOwner != null &&
-                     _window.SerializedState?.targetObject != null)
+            else if (Window.SelectedTransition != null && Window.SelectedTransitionOwner != null &&
+                    Window.SerializedState?.targetObject != null)
             {
                 var inspector = HonamiTransitionInspector.Build(
-                    _window.SelectedTransition,
-                    _window.SelectedTransitionIndex,
-                    _window.SelectedTransitionOwner,
-                    _window.SerializedState,
-                    _window.Controller,
+                    Window.SelectedTransition,
+                    Window.SelectedTransitionIndex,
+                    Window.SelectedTransitionOwner,
+                    Window.SerializedState,
+                    Window.Controller,
                     _graphView);
 
                 rightContent.Add(inspector);
@@ -289,12 +286,12 @@ namespace HonamiAnimationSystem.Editor.Handlers
             }
         }
 
-        public void RebuildLeftPanel()
+        public override void RebuildLeftPanel()
         {
             _leftPanel?.Rebuild();
         }
 
-        private static int FindTransitionIndex(System.Collections.Generic.IReadOnlyList<Runtime.Core.HonamiTransition> transitions, Runtime.Core.HonamiTransition target)
+        private static int FindTransitionIndex(System.Collections.Generic.IReadOnlyList<HonamiTransition> transitions, HonamiTransition target)
         {
             if (transitions == null || target == null) return -1;
 
@@ -320,8 +317,8 @@ namespace HonamiAnimationSystem.Editor.Handlers
             {
                 if (entry.Owner == null) return false;
 
-                var transitions = _window.RuntimeController != null
-                    ? _window.RuntimeController.GetTransitions(entry.Owner)
+                var transitions = Window.RuntimeController != null
+                    ? Window.RuntimeController.GetTransitions(entry.Owner)
                     : entry.Owner.transitions;
                 if (transitions == null) return false;
 
@@ -330,61 +327,61 @@ namespace HonamiAnimationSystem.Editor.Handlers
             return true;
         }
 
-        public void OnSelectionChange()
+        public override void OnSelectionChange()
         {
-            if (_window.IsLocked) return;
+            if (Window.IsLocked) return;
 
             var anim = ResolveSelectedAnimator();
             if (anim != null)
             {
-                if (_window.RuntimeController != anim.CurrentController) _window.SetController(anim.CurrentController);
+                if (Window.RuntimeController != anim.CurrentController) Window.SetController(anim.CurrentController);
                 return;
             }
 
-            if (Selection.activeObject is Runtime.Core.HonamiRuntimeController ca)
+            if (Selection.activeObject is HonamiRuntimeController ca)
             {
-                if (_window.RuntimeController != ca) _window.SetController(ca);
+                if (Window.RuntimeController != ca) Window.SetController(ca);
             }
         }
 
-        private static Runtime.Core.HonamiAnimator ResolveSelectedAnimator()
+        private static HonamiAnimator ResolveSelectedAnimator()
         {
             var go = Selection.activeGameObject;
-            return go != null ? go.GetComponentInParent<Runtime.Core.HonamiAnimator>(true) : null;
+            return go != null ? go.GetComponentInParent<HonamiAnimator>(true) : null;
         }
 
-        private bool IsCompatible(Runtime.Core.HonamiAnimator anim)
+        private bool IsCompatible(HonamiAnimator anim)
         {
             if (anim == null) return false;
 
             var current = anim.CurrentController;
             if (current == null) return false;
-            if (current == _window.RuntimeController) return true;
+            if (current == Window.RuntimeController) return true;
 
-            return _window.Controller != null && current.BaseController == _window.Controller;
+            return Window.Controller != null && current.BaseController == Window.Controller;
         }
 
-        public void OnUndoRedo()
+        public override void OnUndoRedo()
         {
-            _window.SaveSelection();
-            if (_window.SerializedController != null && _window.SerializedController.targetObject != null)
-                _window.SerializedController.Update();
-            if (_window.SerializedState != null && _window.SerializedState.targetObject != null)
-                _window.SerializedState.Update();
-            _graphView?.PopulateView(_window.RuntimeController, _window.CurrentLayerIndex);
+            Window.SaveSelection();
+            if (Window.SerializedController != null && Window.SerializedController.targetObject != null)
+                Window.SerializedController.Update();
+            if (Window.SerializedState != null && Window.SerializedState.targetObject != null)
+                Window.SerializedState.Update();
+            _graphView?.PopulateView(Window.RuntimeController, Window.CurrentLayerIndex);
             _leftPanel?.Rebuild();
-            _window.RestoreSelection();
-            _window.BuildRightPanel();
+            Window.RestoreSelection();
+            Window.BuildRightPanel();
         }
 
-        public void FrameAll() => _graphView?.FrameAll();
-        public bool HasContent() => _window.RuntimeController != null;
+        public override void FrameAll() => _graphView?.FrameAll();
+        public override bool HasContent() => Window.RuntimeController != null;
 
-        public void ApplySettings()
+        public override void ApplySettings()
         {
-            if (_lastRuntimeAnimator != _window.RuntimeAnimator)
+            if (_lastRuntimeAnimator != Window.RuntimeAnimator)
             {
-                _lastRuntimeAnimator = _window.RuntimeAnimator;
+                _lastRuntimeAnimator = Window.RuntimeAnimator;
                 RebuildLeftPanel();
             }
 
@@ -402,36 +399,25 @@ namespace HonamiAnimationSystem.Editor.Handlers
             _graphView.OnNodeSelected += node =>
             {
                 _multiTransitions.Clear();
-                _window.SelectedNode = node;
-                _window.SelectedNodeGuid = node?.StateGuid;
-                _window.SelectedTransition = null;
-                _window.SelectedTransitionGuid = null;
-                _window.SelectedTransitionOwner = null;
-                _window.SelectedSubNode = null;
-                _window.SerializedSubNode = null;
-                _window.SerializedState = node?.State != null && !node.State.isVirtualInheritedState ? new SerializedObject(node.State) : null;
+                Window.SelectNode(node);
 
-                if (_window.Controller != null && node?.State != null &&
-                    (node.State.node is Runtime.Core.HonamiAnimationNode ||
-                     node.State.node is Runtime.Core.HonamiBlendTreeNode ||
-                     node.State.node is Runtime.Core.HonamiRandomAnimationNode ||
-                     node.State.node is Runtime.Core.HonamiSequencerNode) &&
+                if (Window.Controller != null && node?.State != null &&
+                    (node.State.node is HonamiAnimationNode ||
+                    node.State.node is HonamiBlendTreeNode ||
+                    node.State.node is HonamiRandomAnimationNode ||
+                    node.State.node is HonamiSequencerNode) &&
                     EditorWindow.HasOpenInstances<HonamiAnimationSystem.Editor.Timeline.HonamiTimelineWindow>())
                 {
-                    HonamiAnimationSystem.Editor.Timeline.HonamiTimelineWindow.InspectState(_window.RuntimeController, node.State.guid);
+                    HonamiAnimationSystem.Editor.Timeline.HonamiTimelineWindow.InspectState(Window.RuntimeController, node.State.guid);
                 }
-                _window.BuildRightPanel();
+                Window.BuildRightPanel();
             };
 
             _graphView.OnSubNodeSelected += (node, subNode) =>
             {
                 _multiTransitions.Clear();
-                _window.SelectedNode = node;
-                _window.SelectedNodeGuid = node?.StateGuid;
-                _window.SelectedTransition = null;
-                _window.SelectedTransitionGuid = null;
 
-                if (_window.RuntimeController is Runtime.Core.HonamiOverrideController subOverride &&
+                if (Window.RuntimeController is HonamiOverrideController subOverride &&
                     node?.State != null && !subOverride.IsOwnedState(node.State) && subNode != null)
                 {
                     int idx = node.State.subNodes != null ? node.State.subNodes.IndexOf(subNode) : -1;
@@ -442,72 +428,53 @@ namespace HonamiAnimationSystem.Editor.Handlers
                     }
                 }
 
-                _window.SelectedSubNode = subNode;
-                _window.SerializedSubNode = subNode != null ? new SerializedObject(subNode) : null;
-                _window.SerializedState = node?.State != null ? new SerializedObject(node.State) : null;
-                _window.BuildRightPanel();
+                Window.SelectSubNode(node, subNode);
+                Window.BuildRightPanel();
             };
 
             _graphView.OnEdgeSelected += (edge, transition) =>
             {
                 _multiTransitions.Clear();
-                _window.SelectedNode = null;
-                _window.SelectedNodeGuid = null;
-                _window.SelectedTransition = transition;
-                _window.SelectedTransitionGuid = transition?.targetStateGuid;
-                _window.SelectedTransitionIndex = -1;
-                _window.SelectedTransitionOwner = null;
+                Window.SelectTransition(transition);
 
-                if (_window.Controller != null)
+                if (Window.Controller != null)
                 {
-                    System.Collections.Generic.IReadOnlyList<Runtime.Core.HonamiState> activeStates =
-                        _window.RuntimeController != null ? _window.RuntimeController.ActiveStates : _window.Controller.states;
+                    System.Collections.Generic.IReadOnlyList<HonamiState> activeStates =
+                        Window.RuntimeController != null ? Window.RuntimeController.ActiveStates : Window.Controller.states;
                     foreach (var s in activeStates)
                     {
                         if (s == null) continue;
 
-                        var transitions = _window.RuntimeController != null ? _window.RuntimeController.GetTransitions(s) : s.transitions;
+                        var transitions = Window.RuntimeController != null ? Window.RuntimeController.GetTransitions(s) : s.transitions;
                         if (transitions == null) continue;
 
                         int idx = FindTransitionIndex(transitions, transition);
                         if (idx < 0) continue;
-                        _window.SelectedTransitionOwner = s;
-                        _window.SelectedTransitionIndex = idx;
-                        _window.SelectedTransition = transitions[idx];
-                        _window.SerializedState = !s.isVirtualInheritedState ? new SerializedObject(s) : null;
+                        Window.SetTransitionOwner(s, idx, transitions[idx]);
                         break;
                     }
                 }
-                _window.BuildRightPanel();
+                Window.BuildRightPanel();
             };
 
             _graphView.OnEdgesSelected += transitions =>
             {
-                _window.SelectedNode = null;
-                _window.SelectedNodeGuid = null;
-                _window.SelectedTransition = null;
-                _window.SelectedTransitionGuid = null;
-                _window.SelectedTransitionIndex = -1;
-                _window.SelectedTransitionOwner = null;
-                _window.SelectedSubNode = null;
-                _window.SerializedSubNode = null;
-                _window.SerializedState = null;
-
+                Window.ClearSelection();
                 _multiTransitions.Clear();
-                if (_window.Controller != null)
+                if (Window.Controller != null)
                 {
-                    System.Collections.Generic.IReadOnlyList<Runtime.Core.HonamiState> activeStates =
-                        _window.RuntimeController != null ? _window.RuntimeController.ActiveStates : _window.Controller.states;
+                    System.Collections.Generic.IReadOnlyList<HonamiState> activeStates =
+                        Window.RuntimeController != null ? Window.RuntimeController.ActiveStates : Window.Controller.states;
 
                     foreach (var transition in transitions)
                     {
-                        Runtime.Core.HonamiState owner = null;
-                        Runtime.Core.HonamiTransition resolvedTransition = transition;
+                        HonamiState owner = null;
+                        HonamiTransition resolvedTransition = transition;
                         foreach (var s in activeStates)
                         {
                             if (s == null || s.isVirtualInheritedState) continue;
 
-                            var stateTransitions = _window.RuntimeController != null ? _window.RuntimeController.GetTransitions(s) : s.transitions;
+                            var stateTransitions = Window.RuntimeController != null ? Window.RuntimeController.GetTransitions(s) : s.transitions;
                             if (stateTransitions == null) continue;
 
                             int mi = FindTransitionIndex(stateTransitions, transition);
@@ -520,7 +487,7 @@ namespace HonamiAnimationSystem.Editor.Handlers
                         }
                         if (owner == null) continue;
 
-                        Runtime.Core.HonamiState target = null;
+                        HonamiState target = null;
                         if (!string.IsNullOrEmpty(transition.targetStateGuid))
                         {
                             foreach (var s in activeStates)
@@ -536,21 +503,14 @@ namespace HonamiAnimationSystem.Editor.Handlers
                         _multiTransitions.Add(new HonamiTransitionMultiInspector.Entry(resolvedTransition, owner, target));
                     }
                 }
-                _window.BuildRightPanel();
+                Window.BuildRightPanel();
             };
 
             _graphView.OnDeselected += () =>
             {
                 _multiTransitions.Clear();
-                _window.SelectedNode = null;
-                _window.SelectedNodeGuid = null;
-                _window.SelectedTransition = null;
-                _window.SelectedTransitionGuid = null;
-                _window.SelectedTransitionOwner = null;
-                _window.SelectedSubNode = null;
-                _window.SerializedSubNode = null;
-                _window.SerializedState = null;
-                _window.BuildRightPanel();
+                Window.ClearSelection();
+                Window.BuildRightPanel();
             };
         }
     }

@@ -8,6 +8,7 @@ namespace HonamiAnimationSystem.Editor.Inspectors
     {
         public SerializedProperty Startup;
         public SerializedProperty UpdateMode;
+        public SerializedProperty BatchedEvaluation;
         public SerializedProperty TimeScale;
         public SerializedProperty FpsCap;
         public SerializedProperty TargetFPS;
@@ -23,6 +24,7 @@ namespace HonamiAnimationSystem.Editor.Inspectors
 
         public static readonly GUIContent StartupContent = new GUIContent("Startup Action", "When should the animation start playing?");
         public static readonly GUIContent UpdateModeContent = new GUIContent("Update Mode", "How time drives the animation graph.");
+        public static readonly GUIContent BatchedEvaluationContent = new GUIContent("Batched Evaluation", "Let Unity evaluate this animator together with all others in its multithreaded animation pass. Much cheaper with many characters. Applies in Normal and UnscaledTime without FPS Cap; Time Scale other than 1 or a pause falls back to evaluating alone.");
         public static readonly GUIContent TimeScaleContent = new GUIContent("Time Scale", "Multiplier for animation speed.");
         public static readonly GUIContent FpsCapContent = new GUIContent("FPS Cap", "Limit the animation update rate to a fixed number of frames per second.");
         public static readonly GUIContent TargetFpsContent = new GUIContent("Target FPS", "Animation graph ticks at this rate. Lower values reduce CPU cost but increase motion choppiness.");
@@ -40,6 +42,7 @@ namespace HonamiAnimationSystem.Editor.Inspectors
         {
             Startup = serializedObject.FindProperty("startup");
             UpdateMode = serializedObject.FindProperty("updateMode");
+            BatchedEvaluation = serializedObject.FindProperty("batchedEvaluation");
             TimeScale = serializedObject.FindProperty("timeScale");
             FpsCap = serializedObject.FindProperty("fpsCap");
             TargetFPS = serializedObject.FindProperty("targetFPS");
@@ -62,6 +65,7 @@ namespace HonamiAnimationSystem.Editor.Inspectors
 
             EditorGUILayout.PropertyField(Startup, StartupContent);
             EditorGUILayout.PropertyField(UpdateMode, UpdateModeContent);
+            DrawBatchedEvaluation();
 
             EditorGUILayout.Space(3);
             EditorGUILayout.Slider(TimeScale, 0f, 10f, TimeScaleContent);
@@ -82,6 +86,20 @@ namespace HonamiAnimationSystem.Editor.Inspectors
             }
 
             EditorGUILayout.EndVertical();
+        }
+
+        public void DrawBatchedEvaluation()
+        {
+            if (BatchedEvaluation == null) return;
+            if (BatchedEvaluation.serializedObject.targetObject is not HonamiAnimatorBase animator || !animator.SupportsBatching) return;
+
+            var mode = (HonamiUpdateMode)UpdateMode.enumValueIndex;
+            bool applies = (mode == HonamiUpdateMode.Normal || mode == HonamiUpdateMode.UnscaledTime) && !FpsCap.boolValue;
+
+            using (new EditorGUI.DisabledScope(!applies))
+            {
+                EditorGUILayout.PropertyField(BatchedEvaluation, BatchedEvaluationContent);
+            }
         }
 
         public void DrawAnimatorSync()

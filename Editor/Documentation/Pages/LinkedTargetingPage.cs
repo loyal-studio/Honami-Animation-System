@@ -1,4 +1,4 @@
-using UnityEngine.UIElements;
+﻿using UnityEngine.UIElements;
 
 namespace HonamiAnimationSystem.Editor.Documentation.Pages
 {
@@ -19,8 +19,8 @@ namespace HonamiAnimationSystem.Editor.Documentation.Pages
 
             HonamiDocumentationBuilder.AddHeader(root, HonamiDocLocalization.Get("Linking Tags", "Теги лінкування"), HonamiEditorIcons.Controller);
             HonamiDocumentationBuilder.AddParagraph(root, HonamiDocLocalization.Get(
-                "Each HonamiAnimator has a Linking Tag slot that takes a HonamiTagID asset (Create → Honami Animation → Tag ID). Tags are assets, not strings, so renaming them never breaks references. One animator carries one tag — think of it as its role in the group: 'Body', 'Turret', 'Heavy'.",
-                "Кожен HonamiAnimator має слот Linking Tag, куди призначається ассет HonamiTagID (Create → Honami Animation → Tag ID). Теги — це ассети, а не рядки, тож перейменування нічого не ламає. Один аніматор має один тег — сприймайте його як роль у групі: «Body», «Turret», «Heavy»."
+                "Each HonamiAnimator has a Linking Tag slot that takes a HonamiTagID asset (Create → Honami Animation → Tag ID). Tags are assets, not strings, so renaming them never breaks references. One animator carries one tag - think of it as its role in the group: 'Body', 'Turret', 'Heavy'.",
+                "Кожен HonamiAnimator має слот Linking Tag, куди призначається ассет HonamiTagID (Create → Honami Animation → Tag ID). Теги - це ассети, а не рядки, тож перейменування нічого не ламає. Один аніматор має один тег - сприймайте його як роль у групі: «Body», «Turret», «Heavy»."
             ));
 
             HonamiDocumentationBuilder.AddHeader(root, HonamiDocLocalization.Get("Broadcast target modes", "Режими таргетингу розсилок"), HonamiEditorIcons.TimelineWhite);
@@ -35,21 +35,46 @@ namespace HonamiAnimationSystem.Editor.Documentation.Pages
 
             HonamiDocumentationBuilder.AddCodeBlock(root,
 @"// Broadcast an ActionID to a filtered sub-group.
-brain.SetActionID(duckAction, HonamiBroadcastTargetMode.ByTag, infantryTag);
+brain.SetActionID(duckAction, target: HonamiLinkedTarget.ByTag(infantryTag));
 
 // Play a state on children only.
-brain.PlayState(""Alert"", HonamiBroadcastTargetMode.ChildrenOnly);
+brain.PlayState(""Alert"", target: HonamiLinkedTarget.Children);
 
 // Tag-scoped parameter writes.
-brain.SetBoolByTag(turretTag, ""IsFiring"", true);
-brain.SetTriggerByTag(turretTag, ""Recoil"");
+brain.SetBool(""IsFiring"", true, HonamiLinkedTarget.ByTag(turretTag));
+brain.SetTrigger(""Recoil"", HonamiLinkedTarget.ByTag(turretTag));
 
-// Distance-based targeting works without tags at all:
-brain.SetActionID(duckAction, blast.position, maxDistance: 20f, limit: 8);");
+// Distance targeting needs no tags at all.
+brain.SetActionID(duckAction, target: HonamiLinkedTarget.Within(blast.position, 20f, limit: 8));");
+
+            HonamiDocumentationBuilder.AddHeader(root, HonamiDocLocalization.Get("Combining filters", "Комбінування фільтрів"), HonamiEditorIcons.GraphWhite);
+            HonamiDocumentationBuilder.AddParagraph(root, HonamiDocLocalization.Get(
+                "The filters compose, because they are one value rather than a set of overloads. A HonamiLinkedTarget carries a mode, an optional tag, an optional sphere and an optional cap in one readonly struct, so \"heavies, and only the three nearest the breach\" is a single expression. Build it once and reuse it across calls.",
+                "Фільтри комбінуються, бо це одне значення, а не набір перевантажень. HonamiLinkedTarget несе режим, опційний тег, опційну сферу та опційний ліміт в одній readonly-структурі, тож «важкі, і лише троє найближчих до пролому» - це один вираз. Зберіть його раз і перевикористовуйте."
+            ));
+            HonamiDocumentationBuilder.AddCodeBlock(root,
+@"// Heavies, but only the three nearest the breach.
+var target = HonamiLinkedTarget.ByTag(heavyTag)
+    .WithinSphere(breach.position, radius: 8f, limit: 3);
+
+brain.SetActionID(braceAction, transitionDuration: 0.1f, target: target);
+brain.PlayState(""Brace"", target: target);
+
+// Reuse the same target to ask who it would have hit.
+var hit = new HonamiAnimatorBase[8];
+int n = brain.GetAllLinkedNonAlloc(hit, target);
+
+// Ready-made targets: All, Children, ByTag(tag), Within(origin, radius, limit).
+// Omitting the argument is the same as passing All.
+brain.PlayState(""Alert"", target: HonamiLinkedTarget.Children);");
+            HonamiDocumentationBuilder.AddTip(root, HonamiDocLocalization.Get(
+                "A limit of zero means no cap - that is what makes the default value accept everything. Set a positive limit only when you actually want to stop early.",
+                "Ліміт нуль означає «без обмежень» - саме тому типове значення приймає всіх. Ставте додатний ліміт лише тоді, коли справді треба зупинитись раніше."
+            ));
 
             HonamiDocumentationBuilder.AddCallout(root, HonamiDocLocalization.Get(
-                "There is no 'exclude by tag' mode. To split a squad into reacting and non-reacting halves, give the halves different tags and broadcast to the one you want.",
-                "Режиму «виключити за тегом» немає. Щоб розділити загін на тих, хто реагує, і тих, хто ні, дайте половинам різні теги та розсилайте тій, яка потрібна."
+                "There is no 'exclude by tag' mode. To split a squad into reacting and non-reacting halves, give the halves different tags and broadcast to the one you want. If you need a filter no mode expresses, the brain-free HonamiLinkedAction.Broadcast takes an arbitrary predicate - see Global Actions.",
+                "Режиму «виключити за тегом» немає. Щоб розділити загін на тих, хто реагує, і тих, хто ні, дайте половинам різні теги та розсилайте тій, яка потрібна. Якщо потрібен фільтр, який не виражається режимом, - HonamiLinkedAction.Broadcast без мозку приймає довільний предикат; див. «Глобальні дії»."
             ), HonamiDocumentationBuilder.CalloutType.Warning);
 
             HonamiDocumentationBuilder.AddTip(root, HonamiDocLocalization.Get(
